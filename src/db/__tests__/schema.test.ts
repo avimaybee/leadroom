@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { users, leads, tasks, notes, activities } from '../schema.js';
+import { users, leads, tasks, notes, activities, contacts, jobRuns, researchSnapshots } from '../schema.js';
 import { getTableConfig } from 'drizzle-orm/sqlite-core';
 
 test('schema definition', async (t) => {
@@ -27,5 +27,20 @@ test('schema definition', async (t) => {
   await t.test('activities table should be defined', () => {
     const config = getTableConfig(activities);
     assert.strictEqual(config.name, 'activities');
+  });
+
+  await t.test('contacts table should be defined', () => {
+    const config = getTableConfig(contacts);
+    assert.strictEqual(config.name, 'contacts');
+  });
+
+  await t.test('jobRuns table should be defined', () => {
+    const config = getTableConfig(jobRuns);
+    assert.strictEqual(config.name, 'job_runs');
+  });
+
+  await t.test('researchSnapshots table should be defined', () => {
+    const config = getTableConfig(researchSnapshots);
+    assert.strictEqual(config.name, 'research_snapshots');
   });
 });

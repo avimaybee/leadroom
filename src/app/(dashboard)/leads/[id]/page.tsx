@@ -1,4 +1,5 @@
 import { LeadService } from '@/services/lead';
+import { ResearchService } from '@/services/research';
 import { drizzle } from 'drizzle-orm/d1';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
@@ -10,9 +11,16 @@ import {
   createTaskAction, 
   toggleTaskStatusAction 
 } from '@/app/actions/tasks';
+import { 
+  triggerEnrichmentAction, 
+  saveResearchSnapshotAction, 
+  addContactAction 
+} from '@/app/actions/research';
 import ClientNotesForm from './ClientNotesForm';
 import ClientTaskForm from './ClientTaskForm';
 import ClientTaskItem from './ClientTaskItem';
+import ClientResearchView from './ClientResearchView';
+import ClientContactsList from './ClientContactsList';
 
 export const runtime = 'edge';
 
@@ -21,14 +29,17 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   const env = (process as any).env;
   const db = drizzle(env.DB);
   const service = new LeadService(db);
+  const researchService = new ResearchService(db);
 
   const lead = await service.getLead(id);
   if (!lead) notFound();
 
-  const [notes, tasks, activities] = await Promise.all([
+  const [notes, tasks, activities, latestSnapshot, contactsList] = await Promise.all([
     service.getNotes(id),
     service.getTasks(id),
     service.getActivities(id),
+    researchService.getLatestResearch(id),
+    researchService.getContacts(id),
   ]);
 
   const stages = ['New', 'Researching', 'Qualified', 'Outreach in Progress', 'Meeting / Call'];
@@ -118,6 +129,14 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
               )}
             </div>
           </div>
+
+          {/* AI Research & Enrichment Section */}
+          <ClientResearchView
+            leadId={lead.id}
+            initialSnapshot={latestSnapshot}
+            triggerEnrichmentAction={triggerEnrichmentAction}
+            saveResearchSnapshotAction={saveResearchSnapshotAction}
+          />
 
           {/* Pipeline Stage Form */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
@@ -229,6 +248,13 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
               )}
             </div>
           </div>
+
+          {/* Contacts & Stakeholders */}
+          <ClientContactsList
+            leadId={lead.id}
+            initialContacts={contactsList}
+            addContactAction={addContactAction}
+          />
 
         </div>
 
