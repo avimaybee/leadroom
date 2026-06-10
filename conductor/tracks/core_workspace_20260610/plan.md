@@ -8,7 +8,7 @@ This plan outlines the steps to build the core lead management workspace.
 - Implement basic authentication.
 
 ### Tasks
-- [ ] Task: Project Scaffolding & Database Setup
+- [~] Task: Project Scaffolding & Database Setup
     - [ ] Initialize Next.js app with TypeScript and Tailwind CSS.
     - [ ] Configure Prisma/Drizzle with PostgreSQL.
     - [ ] Define initial schema for User, Lead, Task, Note, and Activity.

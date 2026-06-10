@@ -4,10 +4,10 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: Implement Core Lead Workspace (v1 MVP)**
+- [~] CLI **Track: Implement Core Lead Workspace (v1 MVP)**
   *Link: [./tracks/core_workspace_20260610/](./tracks/core_workspace_20260610/)*
 
-- [ ] **Track: Implement Discovery Scope & Candidate Intake (Stage 2)**
+- [~] AGY **Track: Implement Discovery Scope & Candidate Intake (Stage 2)**
   *Link: [./tracks/discovery_scope_20260610/](./tracks/discovery_scope_20260610/)*
 
 - [ ] **Track: Implement Research & Enrichment Module (Stage 3)**
