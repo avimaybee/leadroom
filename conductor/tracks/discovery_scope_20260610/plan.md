@@ -5,9 +5,9 @@
 - Define the `Scope` entity and create management views.
 
 ### Tasks
-- [~] Task: Scope Database Schema
+- [x] Task: Scope Database Schema
     - [x] Add `Scope` model to Drizzle schema. (121eb60)
-    - [ ] Create and run database migration.
+    - [x] Create and run database migration. (3b018e8)
 - [~] Task: Scope CRUD Interface
     - [x] Write unit tests for Scope creation/retrieval. (121eb60)
     - [ ] Build the UI to create and list active scopes.
