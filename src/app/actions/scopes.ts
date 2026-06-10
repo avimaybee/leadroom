@@ -2,15 +2,14 @@
 
 import { DiscoveryService } from '@/services/discovery';
 import { CreateDiscoveryScopeSchema } from '@/db/models/discovery';
-import { drizzle } from 'drizzle-orm/d1';
+import { getDb } from '@/db';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { verifySession } from '@/lib/auth';
 
 async function getService() {
-  const env = (process as any).env;
-  const db = drizzle(env.DB);
+  const db = getDb();
   return new DiscoveryService(db);
 }
 

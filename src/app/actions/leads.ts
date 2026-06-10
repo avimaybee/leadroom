@@ -2,13 +2,12 @@
 
 import { LeadService } from '@/services/lead';
 import { CreateLeadSchema, CreateLeadInput } from '@/db/models/lead';
-import { drizzle } from 'drizzle-orm/d1';
+import { getDb } from '@/db';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 async function getService() {
-  const env = (process as any).env;
-  const db = drizzle(env.DB);
+  const db = getDb();
   return new LeadService(db);
 }
 

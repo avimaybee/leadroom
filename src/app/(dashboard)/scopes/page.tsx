@@ -1,12 +1,11 @@
 import { DiscoveryService } from '@/services/discovery';
-import { drizzle } from 'drizzle-orm/d1';
+import { getDb } from '@/db';
 import Link from 'next/link';
 
 export const runtime = 'edge';
 
 export default async function ScopesPage() {
-  const env = (process as any).env;
-  const db = drizzle(env.DB);
+  const db = getDb();
   const service = new DiscoveryService(db);
 
   const scopes = await service.listScopes();

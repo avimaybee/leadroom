@@ -1,6 +1,6 @@
 import { LeadService } from '@/services/lead';
 import { DiscoveryService } from '@/services/discovery';
-import { drizzle } from 'drizzle-orm/d1';
+import { getDb } from '@/db';
 import Link from 'next/link';
 import DashboardTaskList from '@/components/dashboard/DashboardTaskList';
 import { toggleTaskStatusAction } from '@/app/actions/tasks';
@@ -8,8 +8,7 @@ import { toggleTaskStatusAction } from '@/app/actions/tasks';
 export const runtime = 'edge';
 
 export default async function DashboardPage() {
-  const env = (process as any).env;
-  const db = drizzle(env.DB);
+  const db = getDb();
   
   const leadService = new LeadService(db);
   const discoveryService = new DiscoveryService(db);

@@ -1,13 +1,12 @@
 import { LeadService } from '@/services/lead';
-import { drizzle } from 'drizzle-orm/d1';
+import { getDb } from '@/db';
 import Link from 'next/link';
 import { archiveLeadAction } from '@/app/actions/leads';
 
 export const runtime = 'edge';
 
 export default async function LeadsPage() {
-  const env = (process as any).env;
-  const db = drizzle(env.DB);
+  const db = getDb();
   const service = new LeadService(db);
   
   const leads = await service.listLeads();

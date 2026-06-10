@@ -1,6 +1,6 @@
 import { LeadService } from '@/services/lead';
 import { ResearchService } from '@/services/research';
-import { drizzle } from 'drizzle-orm/d1';
+import { getDb } from '@/db';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { 
@@ -27,7 +27,7 @@ export const runtime = 'edge';
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const env = (process as any).env;
-  const db = drizzle(env.DB);
+  const db = getDb();
   const service = new LeadService(db);
   const researchService = new ResearchService(db);
 

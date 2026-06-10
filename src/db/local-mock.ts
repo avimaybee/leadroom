@@ -1,0 +1,114 @@
+import Database from 'better-sqlite3';
+import path from 'path';
+import fs from 'fs';
+
+class MockD1PreparedStatement {
+  constructor(private stmt: any, private params: any[] = []) {}
+
+  bind(...params: any[]) {
+    return new MockD1PreparedStatement(this.stmt, params);
+  }
+
+  async all() {
+    try {
+      const results = this.stmt.all(...this.params);
+      return { results, success: true };
+    } catch (e: any) {
+      console.error('Mock D1 PreparedStatement all() failed:', e);
+      throw e;
+    }
+  }
+
+  async run() {
+    try {
+      const result = this.stmt.run(...this.params);
+      return { 
+        success: true,
+        meta: {
+          changes: result.changes,
+          duration: 0,
+          last_row_id: result.lastInsertRowid,
+        }
+      };
+    } catch (e: any) {
+      console.error('Mock D1 PreparedStatement run() failed:', e);
+      throw e;
+    }
+  }
+
+  async first(key?: string) {
+    try {
+      const row = this.stmt.get(...this.params);
+      if (!row) return null;
+      if (key) return row[key];
+      return row;
+    } catch (e: any) {
+      console.error('Mock D1 PreparedStatement first() failed:', e);
+      throw e;
+    }
+  }
+
+  async raw() {
+    try {
+      const rows = this.stmt.raw(...this.params);
+      return rows;
+    } catch (e: any) {
+      console.error('Mock D1 PreparedStatement raw() failed:', e);
+      throw e;
+    }
+  }
+}
+
+class MockD1Database {
+  constructor(private db: any) {}
+
+  prepare(query: string) {
+    const stmt = this.db.prepare(query);
+    return new MockD1PreparedStatement(stmt);
+  }
+
+  async batch(statements: MockD1PreparedStatement[]) {
+    const results: any[] = [];
+    const runBatch = this.db.transaction(() => {
+      for (const stmt of statements) {
+        const res = (stmt as any).stmt.all(...(stmt as any).params);
+        results.push({ results: res, success: true });
+      }
+    });
+    runBatch();
+    return results;
+  }
+
+  async exec(query: string) {
+    this.db.exec(query);
+    return { count: 0, duration: 0 };
+  }
+}
+
+export function setupLocalDatabaseMock() {
+  const baseDir = path.resolve(process.cwd(), '.wrangler/state/v3/d1/miniflare-D1DatabaseObject');
+  let dbPath = '';
+
+  if (fs.existsSync(baseDir)) {
+    const files = fs.readdirSync(baseDir);
+    const sqliteFile = files.find((f) => f.endsWith('.sqlite'));
+    if (sqliteFile) {
+      dbPath = path.join(baseDir, sqliteFile);
+    }
+  }
+
+  if (!dbPath) {
+    const fallbackPath = path.resolve(process.cwd(), '.wrangler/local-fallback.sqlite');
+    const dir = path.dirname(fallbackPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    dbPath = fallbackPath;
+  }
+
+  const sqlite = new Database(dbPath);
+  const mockD1 = new MockD1Database(sqlite);
+
+  // Inject the mock into the process env
+  (process as any).env.DB = mockD1;
+}
