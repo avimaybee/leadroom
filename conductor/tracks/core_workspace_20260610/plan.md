@@ -25,10 +25,10 @@ This plan outlines the steps to build the core lead management workspace.
 - Implement pipeline stage tracking.
 
 ### Tasks
-- [ ] Task: Lead CRUD Operations
-    - [ ] Write tests for Lead creation and retrieval.
-    - [ ] Implement Lead creation form and list view.
-    - [ ] Implement Lead archiving (soft delete).
+- [x] Task: Lead CRUD Operations (aaa502c)
+    - [x] Write tests for Lead creation and retrieval.
+    - [x] Implement Lead creation form and list view.
+    - [x] Implement Lead archiving (soft delete).
 - [ ] Task: Pipeline Stage Management
     - [ ] Write tests for stage transitions and validation.
     - [ ] Implement stage update UI in lead detail view.
