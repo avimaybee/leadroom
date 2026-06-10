@@ -1,0 +1,7 @@
+name = "ai-agency-growth-os"
+pages_build_output_dir = ".next"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "ai-agency-growth-os"
+database_id = "local-db"

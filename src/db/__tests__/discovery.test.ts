@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { CreateDiscoveryScopeSchema, CreateCandidateLeadSchema } from '../src/db/models/discovery';
+import { CreateDiscoveryScopeSchema, CreateCandidateLeadSchema } from '../models/discovery';
 
 test('CreateDiscoveryScopeSchema validates valid inputs', () => {
   const validInput = {

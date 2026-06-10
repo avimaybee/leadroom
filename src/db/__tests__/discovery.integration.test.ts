@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
-import { DiscoveryService } from '../src/services/discovery';
+import { DiscoveryService } from '../../services/discovery';
 
 function setupTestDb() {
   const sqlite = new Database(':memory:');
