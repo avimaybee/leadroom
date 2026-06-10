@@ -18,11 +18,11 @@
 - Establish the `CandidateLead` entity and endpoints for data entry.
 
 ### Tasks
-- [ ] Task: CandidateLead Database Schema
-    - [ ] Add `CandidateLead` model to schema with relationship to `Scope`.
-    - [ ] Run migration.
-- [ ] Task: Candidate Intake Mechanism
-    - [ ] Write tests for CandidateLead creation.
+- [x] Task: CandidateLead Database Schema
+    - [x] Add `CandidateLead` model to schema with relationship to `Scope`. (121eb60)
+    - [x] Run migration. (3b018e8)
+- [~] Task: Candidate Intake Mechanism
+    - [x] Write tests for CandidateLead creation. (121eb60)
     - [ ] Implement manual entry form for Candidate Leads.
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: Candidate Lead Model & Intake API' (Protocol in workflow.md)
 
