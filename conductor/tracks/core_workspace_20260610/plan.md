@@ -13,7 +13,7 @@ This plan outlines the steps to build the core lead management workspace.
     - [x] Configure Drizzle ORM with Cloudflare D1.
     - [x] Define initial schema for User, Lead, Task, Note, and Activity.
     - [x] Run initial migration.
-- [ ] Task: Minimal Internal Authentication
+- [~] Task: Minimal Internal Authentication
     - [ ] Implement simple login flow (e.g., password-based).
     - [ ] Setup auth middleware to protect core routes.
     - [ ] Write tests for auth guards (85% coverage).
