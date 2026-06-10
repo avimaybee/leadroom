@@ -5,19 +5,18 @@
 - **Node.js**: Server-side runtime environment.
 
 ## AI & LLM Integration
-- **Genkit**: Primary framework for building AI-powered features.
-- **Multi-Provider Support**: The architecture is designed to support seamless integration with various AI providers, including:
-  - **Gemini API**
-  - **OpenRouter** (for access to diverse models like Claude, GPT-4, etc.)
-  - **Groq** (for high-speed inference)
-  - **NVIDIA** (for specialized models)
+- **Direct fetch / JS SDK**: Thin `lib/ai` module for direct model invocation (dropping Genkit).
+- **Gemini API / OpenRouter**: Access models directly without framework overhead.
 
 ## Data Handling & Validation
-- **Zod**: Schema declaration and validation library to ensure data integrity across the system.
+- **Zod**: Schema validation for runtime checks.
+
+## Database & Persistence
+- **Cloudflare D1**: SQLite-based database optimized for the edge.
+- **Drizzle ORM**: Type-safe SQL client and migration runner.
 
 ## Development & Build Tools
-- **tsx**: Used for fast execution of TypeScript files during development.
-- **tsc**: The TypeScript compiler for production builds.
+- **Next.js & Wrangler**: Next.js App Router for frontend UI and Wrangler/Pages Functions for api routes.
 
 ## Testing
-- **Node.js Test Runner**: Leveraging the native test runner for unit and integration testing.
+- **Node.js Test Runner**: Leveraging the native test runner (`node --test`).

@@ -1,0 +1,8 @@
+node_modules
+.next
+dist
+.env
+*.log
+.system_generated
+.gemini
+package-lock.json

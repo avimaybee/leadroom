@@ -10,7 +10,7 @@ This plan outlines the steps to build the core lead management workspace.
 ### Tasks
 - [~] Task: Project Scaffolding & Database Setup
     - [ ] Initialize Next.js app with TypeScript and Tailwind CSS.
-    - [ ] Configure Prisma/Drizzle with PostgreSQL.
+    - [ ] Configure Drizzle ORM with Cloudflare D1.
     - [ ] Define initial schema for User, Lead, Task, Note, and Activity.
     - [ ] Run initial migration.
 - [ ] Task: Minimal Internal Authentication

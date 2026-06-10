@@ -33,7 +33,7 @@ Implement the foundational lead management system for the AI Agency Growth OS as
 - Task priority list (Today/Overdue).
 
 ## Technical Constraints
-- **Stack**: Next.js (App Router), TypeScript, PostgreSQL, Prisma/Drizzle.
+- **Stack**: Next.js (App Router), TypeScript, Cloudflare D1, Drizzle ORM.
 - **TDD**: 85% code coverage required.
 - **Styling**: Modern Agency Premium aesthetic (clean, polished, data-heavy).
 - **Architecture**: Modular monolith with clear separation between UI, logic, and data.

@@ -14,10 +14,10 @@ This file serves as the always-on project-level instructional context and system
 
 ## 2. Tech Stack
 
-- **Core Runtime**: TypeScript, Node.js (current LTS)
-- **AI/LLM Orchestration**: Genkit (`genkit`), Zod (`zod`) for structured schemas
-- **Frontend/Web Layer**: Next.js (App Router, React, Tailwind CSS)
-- **Database & Persistence**: PostgreSQL, Prisma ORM
+- **Core Runtime**: TypeScript, Node.js (current LTS), Cloudflare Pages / Workers
+- **AI/LLM Orchestration**: Direct fetch / JS SDK in lib/ai, Zod (`zod`) for structured schemas
+- **Frontend/Web Layer**: Next.js (App Router, React, Tailwind CSS) deployed to Cloudflare Pages
+- **Database & Persistence**: Cloudflare D1, Drizzle ORM
 - **Testing**: Native Node.js test runner (`node --test`)
 
 ---
