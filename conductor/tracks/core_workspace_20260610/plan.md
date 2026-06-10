@@ -8,11 +8,11 @@ This plan outlines the steps to build the core lead management workspace.
 - Implement basic authentication.
 
 ### Tasks
-- [~] Task: Project Scaffolding & Database Setup
-    - [ ] Initialize Next.js app with TypeScript and Tailwind CSS.
-    - [ ] Configure Drizzle ORM with Cloudflare D1.
-    - [ ] Define initial schema for User, Lead, Task, Note, and Activity.
-    - [ ] Run initial migration.
+- [x] Task: Project Scaffolding & Database Setup (f57d3bf)
+    - [x] Initialize Next.js app with TypeScript and Tailwind CSS.
+    - [x] Configure Drizzle ORM with Cloudflare D1.
+    - [x] Define initial schema for User, Lead, Task, Note, and Activity.
+    - [x] Run initial migration.
 - [ ] Task: Minimal Internal Authentication
     - [ ] Implement simple login flow (e.g., password-based).
     - [ ] Setup auth middleware to protect core routes.
