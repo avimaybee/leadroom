@@ -15,11 +15,14 @@ To transform the agency's lead generation from an ad-hoc, manual effort into a s
 - **Intelligent Research**: Gathering and synthesizing business data using web scraping and search tools.
 - **Decision Support**: Presenting high-signal opportunities for human review, moving away from subjective qualification.
 
-## Key Features (Phase 1)
-- **Discovery Engine**: Integrations for LinkedIn, Google Maps, and Google Search API.
-- **Web Research Module**: Agent-driven web scraping to fetch business-specific details.
-- **Lead Dashboard**: A unified view for founders and ops leads to review discovered leads.
+## Key Features (Stage 1 — Core Lead Workspace v1 MVP)
+- **Lead Workspace**: Unify lead data, notes, tasks, and activity history in one place.
+- **Pipeline Stage Tracking**: Clear pipeline stages (New, Researching, Qualified, Outreach in Progress, Meeting/Call, Proposal, Won, Lost, Paused).
+- **Tasks & Reminders**: Follow-up tasks with due dates to maintain sales discipline.
+- **Chronological Activity Feed**: Chronological log of lead activities (creations, notes, tasks, stage changes).
+- **Dashboard**: Simple overview of active pipeline and tasks due/overdue today.
 
 ## Success Criteria (MVP)
-- A functional prototype that can discover and research a batch of leads from a specific niche or location.
-- Integration with at least two discovery sources (e.g., Google Maps and Web Search).
+- Authenticated internal operator workspace.
+- Able to perform full lead CRUD, add freeform notes, track tasks, and visualize the activity log.
+- Zero AI features or automated discovery (kept out of scope for Stage 1 to focus on core operational reliability).

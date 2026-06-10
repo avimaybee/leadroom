@@ -6,7 +6,7 @@
 
 ### Tasks
 - [ ] Task: ResearchSnapshot Database Schema
-    - [ ] Add `ResearchSnapshot` model to Prisma/Drizzle schema.
+    - [ ] Add `ResearchSnapshot` model to Drizzle schema.
     - [ ] Create and run database migration.
 - [ ] Task: Background Job Queue Setup
     - [ ] Integrate a basic async job queue (e.g., BullMQ, Inngest, or a custom Next.js background worker).

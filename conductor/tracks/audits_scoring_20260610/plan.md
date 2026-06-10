@@ -6,7 +6,7 @@
 
 ### Tasks
 - [ ] Task: Database Schema Updates
-    - [ ] Add `Audit` and `ScoreHistory` models to Prisma/Drizzle schema.
+    - [ ] Add `Audit` and `ScoreHistory` models to Drizzle schema.
     - [ ] Create and run database migration.
 - [ ] Task: Audit Data Access Layer
     - [ ] Write unit tests for Audit creation and retrieval.
