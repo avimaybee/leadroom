@@ -18,11 +18,11 @@ function SubmitButton() {
 
 interface ClientTaskFormProps {
   leadId: string;
-  addTaskAction: (prevState: any, formData: FormData) => Promise<any>;
+  createTaskAction: (prevState: any, formData: FormData) => Promise<any>;
 }
 
-export default function ClientTaskForm({ leadId, addTaskAction }: ClientTaskFormProps) {
-  const [state, formAction] = useActionState(addTaskAction, { error: null });
+export default function ClientTaskForm({ leadId, createTaskAction }: ClientTaskFormProps) {
+  const [state, formAction] = useActionState(createTaskAction, { error: null });
   const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {

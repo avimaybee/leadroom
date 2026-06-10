@@ -175,4 +175,20 @@ export class LeadService {
     const [task] = await this.db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
     return task;
   }
+
+  async getDashboardTasks() {
+    return this.db.select({
+      id: tasks.id,
+      title: tasks.title,
+      dueDate: tasks.dueDate,
+      status: tasks.status,
+      priority: tasks.priority,
+      leadId: tasks.leadId,
+      leadName: leads.name,
+    })
+    .from(tasks)
+    .leftJoin(leads, eq(tasks.leadId, leads.id))
+    .where(eq(tasks.status, 'Open'))
+    .orderBy(desc(tasks.dueDate));
+  }
 }

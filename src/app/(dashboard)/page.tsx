@@ -2,6 +2,8 @@ import { LeadService } from '@/services/lead';
 import { DiscoveryService } from '@/services/discovery';
 import { drizzle } from 'drizzle-orm/d1';
 import Link from 'next/link';
+import DashboardTaskList from '@/components/dashboard/DashboardTaskList';
+import { toggleTaskStatusAction } from '@/app/actions/tasks';
 
 export const runtime = 'edge';
 
@@ -12,15 +14,15 @@ export default async function DashboardPage() {
   const leadService = new LeadService(db);
   const discoveryService = new DiscoveryService(db);
 
-  const [leads, scopes] = await Promise.all([
+  const [leads, scopes, dashboardTasks] = await Promise.all([
     leadService.listLeads(),
     discoveryService.listScopes(),
+    leadService.getDashboardTasks(),
   ]);
 
   // Calculate some stats
   const totalLeads = leads.length;
   const activeScopesCount = scopes.length;
-  
   // Get all candidates for all scopes to count pending ones
   let pendingCandidatesCount = 0;
   for (const scope of scopes) {
@@ -124,28 +126,39 @@ export default async function DashboardPage() {
 
       {/* Pipeline & Recent Activity Column */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Pipeline Distribution (2 columns wide) */}
-        <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
-          <h3 className="text-lg font-bold text-slate-900 mb-6">Pipeline Distribution</h3>
-          <div className="space-y-5">
-            {stages.map((stage) => {
-              const count = stageCounts[stage] || 0;
-              const percent = totalLeads > 0 ? (count / totalLeads) * 100 : 0;
-              return (
-                <div key={stage} className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="font-semibold text-slate-700">{stage}</span>
-                    <span className="text-slate-500 font-bold">{count} {count === 1 ? 'lead' : 'leads'}</span>
+        {/* Left Area (2 columns wide) - Pipeline & Tasks */}
+        <div className="lg:col-span-2 space-y-8">
+          {/* Pipeline Distribution */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
+            <h3 className="text-lg font-bold text-slate-900 mb-6">Pipeline Distribution</h3>
+            <div className="space-y-5">
+              {stages.map((stage) => {
+                const count = stageCounts[stage] || 0;
+                const percent = totalLeads > 0 ? (count / totalLeads) * 100 : 0;
+                return (
+                  <div key={stage} className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="font-semibold text-slate-700">{stage}</span>
+                      <span className="text-slate-500 font-bold">{count} {count === 1 ? 'lead' : 'leads'}</span>
+                    </div>
+                    <div className="w-full bg-slate-100 rounded-full h-2.5">
+                      <div 
+                        className="bg-indigo-600 h-2.5 rounded-full transition-all duration-500" 
+                        style={{ width: `${percent}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="w-full bg-slate-100 rounded-full h-2.5">
-                    <div 
-                      className="bg-indigo-600 h-2.5 rounded-full transition-all duration-500" 
-                      style={{ width: `${percent}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Pending Tasks */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
+            <h3 className="text-sm font-bold text-slate-950 uppercase tracking-wider border-b border-slate-100 pb-3 mb-4">
+              Pending Tasks Checklist
+            </h3>
+            <DashboardTaskList tasks={dashboardTasks} toggleTaskStatusAction={toggleTaskStatusAction} />
           </div>
         </div>
 

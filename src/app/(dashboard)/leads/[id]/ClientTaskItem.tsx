@@ -14,7 +14,7 @@ interface Task {
 interface ClientTaskItemProps {
   leadId: string;
   task: Task;
-  toggleTaskStatusAction: (leadId: string, taskId: string, currentStatus: string) => Promise<void>;
+  toggleTaskStatusAction: (id: string, currentStatus: string, leadId?: string | null) => Promise<void>;
 }
 
 export default function ClientTaskItem({ leadId, task, toggleTaskStatusAction }: ClientTaskItemProps) {
@@ -23,7 +23,7 @@ export default function ClientTaskItem({ leadId, task, toggleTaskStatusAction }:
   const handleToggle = () => {
     startTransition(async () => {
       try {
-        await toggleTaskStatusAction(leadId, task.id, task.status);
+        await toggleTaskStatusAction(task.id, task.status, leadId);
       } catch (e) {
         console.error('Failed to update task:', e);
       }

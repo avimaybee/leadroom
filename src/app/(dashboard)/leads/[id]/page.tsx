@@ -4,10 +4,12 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { 
   updateStageAction, 
-  addNoteAction, 
-  addTaskAction, 
-  toggleTaskStatusAction 
+  addNoteAction 
 } from '@/app/actions/leads';
+import { 
+  createTaskAction, 
+  toggleTaskStatusAction 
+} from '@/app/actions/tasks';
 import ClientNotesForm from './ClientNotesForm';
 import ClientTaskForm from './ClientTaskForm';
 import ClientTaskItem from './ClientTaskItem';
@@ -207,7 +209,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             </h3>
             
             {/* Task Creation Form */}
-            <ClientTaskForm leadId={lead.id} addTaskAction={addTaskAction} />
+            <ClientTaskForm leadId={lead.id} createTaskAction={createTaskAction} />
 
             {/* Tasks list */}
             <div className="space-y-3 pt-2">

@@ -78,33 +78,3 @@ export async function addNoteAction(prevState: any, formData: FormData) {
 
   revalidatePath(`/leads/${leadId}`);
 }
-
-export async function addTaskAction(prevState: any, formData: FormData) {
-  const service = await getService();
-  const leadId = formData.get('leadId') as string;
-  const title = formData.get('title') as string;
-  const description = formData.get('description') as string;
-  const dueDateStr = formData.get('dueDate') as string;
-  const priority = formData.get('priority') as string;
-
-  if (!title || title.trim() === '') {
-    return { error: 'Task title is required' };
-  }
-
-  const dueDate = dueDateStr ? new Date(dueDateStr) : null;
-
-  try {
-    await service.addTask(leadId, title, description || null, dueDate, priority || 'Medium');
-  } catch (e: any) {
-    return { error: e.message || 'Failed to add task' };
-  }
-
-  revalidatePath(`/leads/${leadId}`);
-}
-
-export async function toggleTaskStatusAction(leadId: string, taskId: string, currentStatus: string) {
-  const service = await getService();
-  await service.toggleTaskStatus(taskId, currentStatus);
-  revalidatePath(`/leads/${leadId}`);
-}
-
