@@ -29,7 +29,7 @@ This plan outlines the steps to build the core lead management workspace.
     - [x] Write tests for Lead creation and retrieval.
     - [x] Implement Lead creation form and list view.
     - [x] Implement Lead archiving (soft delete).
-- [x] Task: Pipeline Stage Management
+- [x] Task: Pipeline Stage Management (97f0a82)
     - [x] Write tests for stage transitions and validation.
     - [x] Implement stage update UI in lead detail view.
     - [x] Ensure stage history is recorded in the Activity log.
@@ -41,9 +41,9 @@ This plan outlines the steps to build the core lead management workspace.
 - Ensure comprehensive activity logging.
 
 ### Tasks
-- [x] Task: Task Management System
-    - [x] Write tests for Task CRUD and lead association.
-    - [x] Implement Task creation and "My Tasks" view (Today/Overdue).
+- [~] Task: Task Management System
+    - [ ] Write tests for Task CRUD and lead association.
+    - [ ] Implement Task creation and "My Tasks" view (Today/Overdue).
 - [x] Task: Notes & Activity Feed
     - [x] Write tests for Note appending and Activity auto-logging.
     - [x] Implement chronological Activity feed on lead detail page.
