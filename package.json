@@ -23,6 +23,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260610.1",
+    "@tailwindcss/postcss": "^4.3.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20.0.0",
