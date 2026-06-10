@@ -29,10 +29,10 @@ This plan outlines the steps to build the core lead management workspace.
     - [x] Write tests for Lead creation and retrieval.
     - [x] Implement Lead creation form and list view.
     - [x] Implement Lead archiving (soft delete).
-- [ ] Task: Pipeline Stage Management
-    - [ ] Write tests for stage transitions and validation.
-    - [ ] Implement stage update UI in lead detail view.
-    - [ ] Ensure stage history is recorded in the Activity log.
+- [x] Task: Pipeline Stage Management
+    - [x] Write tests for stage transitions and validation.
+    - [x] Implement stage update UI in lead detail view.
+    - [x] Ensure stage history is recorded in the Activity log.
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: Lead Management & Pipeline' (Protocol in workflow.md)
 
 ## Phase 3: Tasks, Notes & Activity
@@ -41,12 +41,12 @@ This plan outlines the steps to build the core lead management workspace.
 - Ensure comprehensive activity logging.
 
 ### Tasks
-- [ ] Task: Task Management System
-    - [ ] Write tests for Task CRUD and lead association.
-    - [ ] Implement Task creation and "My Tasks" view (Today/Overdue).
-- [ ] Task: Notes & Activity Feed
-    - [ ] Write tests for Note appending and Activity auto-logging.
-    - [ ] Implement chronological Activity feed on lead detail page.
+- [x] Task: Task Management System
+    - [x] Write tests for Task CRUD and lead association.
+    - [x] Implement Task creation and "My Tasks" view (Today/Overdue).
+- [x] Task: Notes & Activity Feed
+    - [x] Write tests for Note appending and Activity auto-logging.
+    - [x] Implement chronological Activity feed on lead detail page.
 - [ ] Task: Conductor - User Manual Verification 'Phase 3: Tasks, Notes & Activity' (Protocol in workflow.md)
 
 ## Phase 4: Dashboard & Polish
@@ -55,10 +55,10 @@ This plan outlines the steps to build the core lead management workspace.
 - Final UI/UX polish.
 
 ### Tasks
-- [ ] Task: Dashboard Implementation
-    - [ ] Implement pipeline distribution summary.
-    - [ ] Implement dashboard task priority lists.
-- [ ] Task: UI/UX Refinement
-    - [ ] Apply "Modern Agency Premium" styles.
-    - [ ] Ensure mobile responsiveness.
+- [x] Task: Dashboard Implementation
+    - [x] Implement pipeline distribution summary.
+    - [x] Implement dashboard task priority lists.
+- [x] Task: UI/UX Refinement
+    - [x] Apply "Modern Agency Premium" styles.
+    - [x] Ensure mobile responsiveness.
 - [ ] Task: Conductor - User Manual Verification 'Phase 4: Dashboard & Polish' (Protocol in workflow.md)

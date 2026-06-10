@@ -151,9 +151,10 @@ test('DiscoveryService - promoteCandidate works', async () => {
   // Create candidate
   await service.createCandidateLead('cand_1', {
     discoveryScopeId: 'scope_1',
-    rawName: 'Austin Dental Center',
-    rawWebsiteUrl: 'https://austindental.com',
+    rawName: 'Austin Smiles Dentistry',
+    rawWebsiteUrl: 'https://austinsmiles.com',
     rawLocation: 'Austin, TX',
+    status: 'NEW',
   });
 
   // Create test user to satisfy foreign key constraint
@@ -167,8 +168,8 @@ test('DiscoveryService - promoteCandidate works', async () => {
   // Promote
   const promotedLead = await service.promoteCandidate('cand_1', 'owner_123');
   assert.ok(promotedLead);
-  assert.strictEqual(promotedLead.name, 'Austin Dental Center');
-  assert.strictEqual(promotedLead.website, 'https://austindental.com');
+  assert.strictEqual(promotedLead.name, 'Austin Smiles Dentistry');
+  assert.strictEqual(promotedLead.website, 'https://austinsmiles.com');
   assert.strictEqual(promotedLead.city, 'Austin, TX');
   assert.strictEqual(promotedLead.ownerId, 'owner_123');
   assert.strictEqual(promotedLead.stage, 'New');

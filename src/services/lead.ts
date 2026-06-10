@@ -1,5 +1,5 @@
-import { eq, and, ne } from 'drizzle-orm';
-import { leads } from '../db/schema/core';
+import { eq, desc } from 'drizzle-orm';
+import { leads, activities, tasks, notes } from '../db/schema/core';
 import { CreateLeadInput } from '../db/models/lead';
 
 export class LeadService {
@@ -16,6 +16,14 @@ export class LeadService {
       status: 'Active',
       createdAt: now,
       updatedAt: now,
+    });
+
+    await this.db.insert(activities).values({
+      id: crypto.randomUUID(),
+      leadId: id,
+      type: 'Lead created',
+      summary: 'Lead was created',
+      timestamp: now,
     });
 
     const [lead] = await this.db.select().from(leads).where(eq(leads.id, id)).limit(1);
@@ -41,6 +49,31 @@ export class LeadService {
     return this.getLead(id);
   }
 
+  async updateStage(id: string, newStage: string) {
+    const now = new Date();
+    const oldLead = await this.getLead(id);
+    
+    if (!oldLead) throw new Error('Lead not found');
+    const oldStage = oldLead.stage;
+
+    if (oldStage === newStage) return oldLead;
+
+    await this.db.update(leads).set({
+      stage: newStage,
+      updatedAt: now,
+    }).where(eq(leads.id, id));
+
+    await this.db.insert(activities).values({
+      id: crypto.randomUUID(),
+      leadId: id,
+      type: 'Stage changed',
+      summary: `Stage changed from ${oldStage} to ${newStage}`,
+      timestamp: now,
+    });
+
+    return this.getLead(id);
+  }
+
   async archiveLead(id: string) {
     const now = new Date();
     await this.db.update(leads).set({
@@ -49,5 +82,97 @@ export class LeadService {
     }).where(eq(leads.id, id));
 
     return this.getLead(id);
+  }
+
+  async getActivities(leadId: string) {
+    return this.db.select().from(activities).where(eq(activities.leadId, leadId)).orderBy(desc(activities.timestamp));
+  }
+
+  async addNote(leadId: string, authorId: string | null, body: string) {
+    const id = crypto.randomUUID();
+    const now = new Date();
+
+    await this.db.insert(notes).values({
+      id,
+      leadId,
+      authorId,
+      body,
+      createdAt: now,
+    });
+
+    const excerpt = body.length > 60 ? body.substring(0, 60) + '...' : body;
+
+    await this.db.insert(activities).values({
+      id: crypto.randomUUID(),
+      leadId,
+      type: 'Note added',
+      summary: `Added note: "${excerpt}"`,
+      timestamp: now,
+    });
+
+    const [note] = await this.db.select().from(notes).where(eq(notes.id, id)).limit(1);
+    return note;
+  }
+
+  async getNotes(leadId: string) {
+    return this.db.select().from(notes).where(eq(notes.leadId, leadId)).orderBy(desc(notes.createdAt));
+  }
+
+  async addTask(leadId: string, title: string, description: string | null, dueDate: Date | null, priority: string) {
+    const id = crypto.randomUUID();
+    const now = new Date();
+
+    await this.db.insert(tasks).values({
+      id,
+      title,
+      description,
+      leadId,
+      dueDate,
+      priority,
+      status: 'Open',
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await this.db.insert(activities).values({
+      id: crypto.randomUUID(),
+      leadId,
+      type: 'Task created',
+      summary: `Created task: "${title}"`,
+      timestamp: now,
+    });
+
+    const [task] = await this.db.select().from(tasks).where(eq(tasks.id, id)).limit(1);
+    return task;
+  }
+
+  async getTasks(leadId: string) {
+    return this.db.select().from(tasks).where(eq(tasks.leadId, leadId)).orderBy(desc(tasks.createdAt));
+  }
+
+  async toggleTaskStatus(taskId: string, currentStatus: string) {
+    const now = new Date();
+    const newStatus = currentStatus === 'Open' ? 'Completed' : 'Open';
+    const completedAt = newStatus === 'Completed' ? now : null;
+
+    const [oldTask] = await this.db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
+    if (!oldTask) throw new Error('Task not found');
+
+    await this.db.update(tasks).set({
+      status: newStatus,
+      completedAt,
+      updatedAt: now,
+    }).where(eq(tasks.id, taskId));
+
+    await this.db.insert(activities).values({
+      id: crypto.randomUUID(),
+      leadId: oldTask.leadId,
+      type: 'Task updated',
+      summary: `Task "${oldTask.title}" marked as ${newStatus}`,
+      timestamp: now,
+    });
+
+    const [task] = await this.db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
+    return task;
   }
 }
