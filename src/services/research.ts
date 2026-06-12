@@ -85,14 +85,16 @@ export class ResearchService {
         .limit(1);
 
       return snapshot;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Enrichment job failed:', error);
       
+      const errMsg = error instanceof Error ? error.message : 'Unknown error occurred during enrichment';
+
       // Update job run to FAILED
       await this.db.update(jobRuns)
         .set({
           status: 'FAILED',
-          errorSummary: error.message || 'Unknown error occurred during enrichment',
+          errorSummary: errMsg,
           finishedAt: new Date(),
         })
         .where(eq(jobRuns.id, jobId));
@@ -102,7 +104,7 @@ export class ResearchService {
         id: crypto.randomUUID(),
         leadId,
         type: 'Enrichment failed',
-        summary: `AI research generation failed: ${error.message || 'Unknown error'}`,
+        summary: `AI research generation failed: ${errMsg}`,
         timestamp: now,
       });
 

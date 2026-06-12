@@ -3,16 +3,21 @@
   "version": "1.0.0",
   "description": "Internal operating system for Draftroom",
   "scripts": {
-    "dev": "concurrently \"next dev\" \"wrangler pages dev public --proxy 3000 --port 8788 --compatibility-flag=nodejs_compat\"",
     "build": "next build",
+    "dev": "next dev",
     "start": "next start",
     "lint": "next lint",
     "test": "node --import tsx --test src/**/*.test.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "wrangler d1 migrations apply draftroom --local",
-    "db:seed": "node --import tsx src/db/seed.ts"
+    "db:seed": "node --import tsx src/db/seed.ts",
+    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
   },
   "dependencies": {
+    "@opennextjs/cloudflare": "^1.19.11",
     "drizzle-orm": "^0.45.2",
     "drizzle-zod": "^0.8.3",
     "jose": "^6.2.3",
@@ -37,6 +42,7 @@
     "postcss": "^8.5.15",
     "tailwindcss": "^4.3.0",
     "tsx": "^4.0.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "wrangler": "^4.100.0"
   }
 }

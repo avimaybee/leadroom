@@ -13,7 +13,9 @@ async function getService() {
   return new DiscoveryService(db);
 }
 
-export async function createScopeAction(prevState: any, formData: FormData) {
+export type ActionState = { error?: string | null, success?: boolean, issues?: unknown } | null | undefined;
+
+export async function createScopeAction(prevState: ActionState, formData: FormData) {
   const service = await getService();
 
   // Get current session for owner/creator ID
@@ -46,8 +48,9 @@ export async function createScopeAction(prevState: any, formData: FormData) {
   try {
     const id = crypto.randomUUID();
     await service.createScope(id, validated.data);
-  } catch (error: any) {
-    return { error: error.message || 'Failed to create discovery scope.' };
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : 'Failed to create discovery scope.';
+    return { error: msg };
   }
 
   revalidatePath('/scopes');

@@ -9,7 +9,9 @@ async function getService() {
   return new LeadService(db);
 }
 
-export async function createTaskAction(prevState: any, formData: FormData) {
+export type ActionState = { error?: string | null, success?: boolean, issues?: unknown } | null | undefined;
+
+export async function createTaskAction(prevState: ActionState, formData: FormData) {
   const service = await getService();
   
   const leadId = formData.get('leadId') as string;
@@ -30,8 +32,9 @@ export async function createTaskAction(prevState: any, formData: FormData) {
       dueDateStr ? new Date(dueDateStr) : null,
       priority || 'Medium'
     );
-  } catch (e: any) {
-    return { error: e.message || 'Failed to add task' };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Failed to add task';
+    return { error: msg };
   }
   
   revalidatePath('/');

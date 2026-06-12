@@ -49,6 +49,114 @@ const STATIC_MODELS: Record<string, ModelOption[]> = {
   ]
 };
 
+function ApiKeySection({
+  provider,
+  apiKey,
+  setApiKey,
+  onFetchModels,
+  loadingModels,
+}: {
+  provider: string;
+  apiKey: string;
+  setApiKey: (val: string) => void;
+  onFetchModels: (key: string) => void;
+  loadingModels: boolean;
+}) {
+  return (
+    <div>
+      <label htmlFor={`${provider}-apiKey`} className="block text-sm font-semibold text-slate-700 mb-1.5">
+        API Key
+      </label>
+      <div className="flex gap-2">
+        <input
+          type="password"
+          id={`${provider}-apiKey`}
+          name="apiKey"
+          value={apiKey}
+          onChange={(e) => setApiKey(e.target.value)}
+          placeholder="Enter your API key"
+          className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all text-slate-800 text-sm"
+          required
+        />
+        {apiKey && (
+          <button
+            type="button"
+            onClick={() => onFetchModels(apiKey)}
+            disabled={loadingModels}
+            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition border border-slate-200"
+          >
+            {loadingModels ? 'Fetching...' : 'Fetch Models'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ModelSelectSection({
+  provider,
+  models,
+  selectedModel,
+  setSelectedModel,
+  isCustomModel,
+  setIsCustomModel,
+  customModelName,
+  setCustomModelName,
+}: {
+  provider: string;
+  models: ModelOption[];
+  selectedModel: string;
+  setSelectedModel: (val: string) => void;
+  isCustomModel: boolean;
+  setIsCustomModel: (val: boolean) => void;
+  customModelName: string;
+  setCustomModelName: (val: string) => void;
+}) {
+  return (
+    <div>
+      <label htmlFor={`${provider}-modelName`} className="block text-sm font-semibold text-slate-700 mb-1.5">
+        Model Name
+      </label>
+      <select
+        id={`${provider}-modelName`}
+        value={isCustomModel ? 'custom' : selectedModel}
+        onChange={(e) => {
+          if (e.target.value === 'custom') {
+            setIsCustomModel(true);
+          } else {
+            setIsCustomModel(false);
+            setSelectedModel(e.target.value);
+          }
+        }}
+        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all text-slate-800 text-sm bg-white"
+      >
+        {models.map((model) => (
+          <option key={model.id} value={model.id}>
+            {model.name} ({model.id})
+          </option>
+        ))}
+        <option value="custom">-- Custom Model Name... --</option>
+      </select>
+
+      {isCustomModel && (
+        <div className="mt-3">
+          <input
+            type="text"
+            value={customModelName}
+            onChange={(e) => setCustomModelName(e.target.value)}
+            placeholder="Enter custom model ID (e.g. google/gemini-2.5-pro)"
+            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all text-slate-800 text-sm"
+            required
+          />
+          <p className="mt-1.5 text-xs text-slate-500">
+            Type the exact ID required by the API provider.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ProviderConfigForm({ provider, displayName, defaultModel, config }: Props) {
   const [loading, setLoading] = useState(false);
   const [loadingModels, setLoadingModels] = useState(false);
@@ -177,76 +285,24 @@ export function ProviderConfigForm({ provider, displayName, defaultModel, config
           </div>
         )}
 
-        <div>
-          <label htmlFor={`${provider}-apiKey`} className="block text-sm font-semibold text-slate-700 mb-1.5">
-            API Key
-          </label>
-          <div className="flex gap-2">
-            <input
-              type="password"
-              id={`${provider}-apiKey`}
-              name="apiKey"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="Enter your API key"
-              className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all text-slate-800 text-sm"
-              required
-            />
-            {apiKey && (
-              <button
-                type="button"
-                onClick={() => loadLiveModels(apiKey)}
-                disabled={loadingModels}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition border border-slate-200"
-              >
-                {loadingModels ? 'Fetching...' : 'Fetch Models'}
-              </button>
-            )}
-          </div>
-        </div>
+        <ApiKeySection 
+          provider={provider} 
+          apiKey={apiKey} 
+          setApiKey={setApiKey} 
+          onFetchModels={loadLiveModels} 
+          loadingModels={loadingModels} 
+        />
 
-        <div>
-          <label htmlFor={`${provider}-modelName`} className="block text-sm font-semibold text-slate-700 mb-1.5">
-            Model Name
-          </label>
-          
-          <select
-            id={`${provider}-modelName`}
-            value={isCustomModel ? 'custom' : selectedModel}
-            onChange={(e) => {
-              if (e.target.value === 'custom') {
-                setIsCustomModel(true);
-              } else {
-                setIsCustomModel(false);
-                setSelectedModel(e.target.value);
-              }
-            }}
-            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all text-slate-800 text-sm bg-white"
-          >
-            {models.map((model) => (
-              <option key={model.id} value={model.id}>
-                {model.name} ({model.id})
-              </option>
-            ))}
-            <option value="custom">-- Custom Model Name... --</option>
-          </select>
-
-          {isCustomModel && (
-            <div className="mt-3">
-              <input
-                type="text"
-                value={customModelName}
-                onChange={(e) => setCustomModelName(e.target.value)}
-                placeholder="Enter custom model ID (e.g. google/gemini-2.5-pro)"
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all text-slate-800 text-sm"
-                required
-              />
-              <p className="mt-1.5 text-xs text-slate-500">
-                Type the exact ID required by the API provider.
-              </p>
-            </div>
-          )}
-        </div>
+        <ModelSelectSection 
+          provider={provider} 
+          models={models} 
+          selectedModel={selectedModel} 
+          setSelectedModel={setSelectedModel} 
+          isCustomModel={isCustomModel} 
+          setIsCustomModel={setIsCustomModel} 
+          customModelName={customModelName} 
+          setCustomModelName={setCustomModelName} 
+        />
 
         <div className="flex items-center gap-3 pt-2">
           <input

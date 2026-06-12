@@ -18,11 +18,11 @@ function SubmitButton() {
 
 interface ClientNotesFormProps {
   leadId: string;
-  addNoteAction: (prevState: any, formData: FormData) => Promise<any>;
+  addNoteAction: (prevState: { error?: string | null, success?: boolean } | null | undefined, formData: FormData) => Promise<{ error?: string | null, success?: boolean } | null | undefined>;
 }
 
 export default function ClientNotesForm({ leadId, addNoteAction }: ClientNotesFormProps) {
-  const [state, formAction] = useActionState(addNoteAction, { error: null });
+  const [state, formAction] = useActionState(addNoteAction, undefined);
   const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {

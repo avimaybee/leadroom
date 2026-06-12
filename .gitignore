@@ -10,3 +10,11 @@ dist
 package-lock.json
 .wrangler
 .wrangler/
+
+# OpenNext
+.open-next
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example

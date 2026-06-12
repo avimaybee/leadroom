@@ -18,11 +18,11 @@ function SubmitButton() {
 
 interface ClientTaskFormProps {
   leadId: string;
-  createTaskAction: (prevState: any, formData: FormData) => Promise<any>;
+  createTaskAction: (prevState: { error?: string | null, success?: boolean } | null | undefined, formData: FormData) => Promise<{ error?: string | null, success?: boolean } | null | undefined>;
 }
 
 export default function ClientTaskForm({ leadId, createTaskAction }: ClientTaskFormProps) {
-  const [state, formAction] = useActionState(createTaskAction, { error: null });
+  const [state, formAction] = useActionState(createTaskAction, undefined);
   const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {

@@ -20,7 +20,7 @@ function SubmitButton() {
 }
 
 export default function NewLeadPage() {
-  const [state, formAction] = useActionState(createLeadAction, { error: null });
+  const [state, formAction] = useActionState(createLeadAction, undefined);
 
   return (
     <div className="max-w-2xl mx-auto space-y-8 animate-fade-in">

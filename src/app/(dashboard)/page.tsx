@@ -26,11 +26,11 @@ export default async function DashboardPage() {
   let pendingCandidatesCount = 0;
   for (const scope of scopes) {
     const candidates = await discoveryService.listCandidatesByScope(scope.id);
-    pendingCandidatesCount += candidates.filter((c: any) => c.status === 'NEW').length;
+    pendingCandidatesCount += candidates.filter((c: { status: string }) => c.status === 'NEW').length;
   }
 
   // Group leads by stage for pipeline summary
-  const stageCounts = leads.reduce((acc: Record<string, number>, lead: any) => {
+  const stageCounts = leads.reduce((acc: Record<string, number>, lead: { stage: string }) => {
     acc[lead.stage] = (acc[lead.stage] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);

@@ -210,7 +210,7 @@ async function callNvidiaAPI(
     additionalProperties: false,
   };
 
-  const makeRequest = async (format: any, isFallback: boolean = false) => {
+  const makeRequest = async (format: { type: string; [key: string]: unknown }, isFallback: boolean = false) => {
     const messages = [
       {
         role: 'system',

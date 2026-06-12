@@ -107,9 +107,21 @@ export async function searchGoogleMaps(niche: string, location: string, limit: n
     throw new Error(`Failed to fetch Apify dataset items: status ${itemsRes.status}`);
   }
 
-  const items = (await itemsRes.json()) as any[];
+  interface ApifyItem {
+    title?: string;
+    name?: string;
+    website?: string;
+    phone?: string;
+    phoneUnformatted?: string;
+    city?: string;
+    state?: string;
+    url?: string;
+    categoryName?: string;
+  }
 
-  return items.map((item: any) => ({
+  const items = (await itemsRes.json()) as ApifyItem[];
+
+  return items.map((item: ApifyItem) => ({
     name: item.title || item.name || 'Unknown Business',
     website: item.website || null,
     phone: item.phone || item.phoneUnformatted || null,

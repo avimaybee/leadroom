@@ -11,7 +11,9 @@ async function getService() {
   return new LeadService(db);
 }
 
-export async function createLeadAction(prevState: any, formData: FormData) {
+export type ActionState = { error?: string | null, success?: boolean, issues?: unknown } | null | undefined;
+
+export async function createLeadAction(prevState: ActionState, formData: FormData) {
   const service = await getService();
   
   const rawData = {
@@ -34,8 +36,9 @@ export async function createLeadAction(prevState: any, formData: FormData) {
 
   try {
     await service.createLead(validated.data);
-  } catch (error: any) {
-    return { error: error.message || 'Failed to create lead.' };
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : 'Failed to create lead.';
+    return { error: msg };
   }
   
   revalidatePath('/leads');
@@ -60,7 +63,7 @@ export async function updateStageAction(formData: FormData) {
   }
 }
 
-export async function addNoteAction(prevState: any, formData: FormData) {
+export async function addNoteAction(prevState: ActionState, formData: FormData) {
   const service = await getService();
   const leadId = formData.get('leadId') as string;
   const body = formData.get('body') as string;
@@ -71,8 +74,9 @@ export async function addNoteAction(prevState: any, formData: FormData) {
 
   try {
     await service.addNote(leadId, null, body);
-  } catch (e: any) {
-    return { error: e.message || 'Failed to add note' };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Failed to add note';
+    return { error: msg };
   }
 
   revalidatePath(`/leads/${leadId}`);

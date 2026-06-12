@@ -22,14 +22,17 @@ async function getUserId() {
   }
 }
 
+export type ActionState = { error?: string | null, success?: boolean, issues?: unknown } | null | undefined;
+
 export async function triggerEnrichmentAction(leadId: string) {
   const service = await getService();
   const userId = await getUserId();
   
   try {
     await service.enrichLead(leadId, userId);
-  } catch (e: any) {
-    return { error: e.message || 'Enrichment failed' };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Enrichment failed';
+    return { error: msg };
   }
   
   revalidatePath('/');
@@ -37,7 +40,7 @@ export async function triggerEnrichmentAction(leadId: string) {
   return { error: null };
 }
 
-export async function saveResearchSnapshotAction(prevState: any, formData: FormData) {
+export async function saveResearchSnapshotAction(prevState: ActionState, formData: FormData) {
   const service = await getService();
   const userId = await getUserId();
 
@@ -79,15 +82,16 @@ export async function saveResearchSnapshotAction(prevState: any, formData: FormD
       },
       userId
     );
-  } catch (e: any) {
-    return { error: e.message || 'Failed to save research' };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Failed to save research';
+    return { error: msg };
   }
 
   revalidatePath(`/leads/${leadId}`);
   return { error: null, success: true };
 }
 
-export async function addContactAction(prevState: any, formData: FormData) {
+export async function addContactAction(prevState: ActionState, formData: FormData) {
   const service = await getService();
   const userId = await getUserId();
 
@@ -122,8 +126,9 @@ export async function addContactAction(prevState: any, formData: FormData) {
       },
       userId
     );
-  } catch (e: any) {
-    return { error: e.message || 'Failed to add contact' };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Failed to add contact';
+    return { error: msg };
   }
 
   revalidatePath(`/leads/${leadId}`);

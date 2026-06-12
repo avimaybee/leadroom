@@ -2,8 +2,9 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'node:crypto';
+import { hashPassword } from '../lib/auth';
 
-function seed() {
+async function seed() {
   const dbDir = path.resolve('.wrangler/state/v3/d1/miniflare-D1DatabaseObject');
   
   if (!fs.existsSync(dbDir)) {
@@ -32,9 +33,7 @@ function seed() {
 
   if (userCount === 0) {
     const userId = crypto.randomUUID();
-    const salt = crypto.randomBytes(16).toString('hex');
-    const hash = crypto.scryptSync('admin123', salt, 64).toString('hex');
-    const hashedPassword = `${salt}:${hash}`;
+    const hashedPassword = await hashPassword('admin123');
     
     db.prepare(
       'INSERT INTO users (id, name, email, password) VALUES (?, ?, ?, ?)'
@@ -48,4 +47,8 @@ function seed() {
   }
 }
 
-seed();
+seed().catch((err) => {
+  console.error('Failed to seed:', err);
+  process.exit(1);
+});
+

@@ -20,7 +20,7 @@ function SubmitButton() {
 }
 
 export default function NewScopePage() {
-  const [state, formAction] = useActionState(createScopeAction, { error: null });
+  const [state, formAction] = useActionState(createScopeAction, undefined);
 
   return (
     <div className="max-w-2xl mx-auto space-y-8 animate-fade-in">

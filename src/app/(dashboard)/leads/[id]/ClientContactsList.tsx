@@ -20,7 +20,7 @@ interface Contact {
 interface ClientContactsListProps {
   leadId: string;
   initialContacts: Contact[];
-  addContactAction: (prevState: any, formData: FormData) => Promise<any>;
+  addContactAction: (prevState: { error?: string | null, success?: boolean } | null | undefined, formData: FormData) => Promise<{ error?: string | null, success?: boolean } | null | undefined>;
 }
 
 function SubmitButton() {
@@ -42,7 +42,7 @@ export default function ClientContactsList({
   addContactAction,
 }: ClientContactsListProps) {
   const [showAddForm, setShowAddForm] = useState(false);
-  const [state, formAction] = useActionState(addContactAction, { error: null });
+  const [state, formAction] = useActionState(addContactAction, undefined);
   const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {

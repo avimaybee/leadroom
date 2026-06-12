@@ -5,7 +5,16 @@ export function getDb(): DrizzleD1Database<typeof schema> {
   const env = (process as any).env;
   
   if (!env || !env.DB) {
-    throw new Error('D1 database binding "DB" is not defined. Ensure you are running under Wrangler or instrumentation mock is active.');
+    console.warn('WARNING: D1 database binding "DB" is missing. Using a throwing Proxy to prevent build crash.');
+    const proxyHandler = {
+      get: function(_target: any, prop: string) {
+        if (prop === 'then') return undefined; 
+        return function() {
+          throw new Error('D1 database binding "DB" is not configured. Please add the D1 binding in Cloudflare.');
+        };
+      }
+    };
+    return new Proxy({} as any, proxyHandler);
   }
 
   return drizzle(env.DB, { schema });

@@ -12,7 +12,7 @@ interface ClientResearchViewProps {
   leadId: string;
   initialSnapshot: ResearchSnapshot | null;
   triggerEnrichmentAction: (leadId: string) => Promise<{ error: string | null }>;
-  saveResearchSnapshotAction: (prevState: any, formData: FormData) => Promise<any>;
+  saveResearchSnapshotAction: (prevState: { error?: string | null, success?: boolean } | null | undefined, formData: FormData) => Promise<{ error?: string | null, success?: boolean } | null | undefined>;
 }
 
 export default function ClientResearchView({
@@ -24,7 +24,7 @@ export default function ClientResearchView({
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'audit' | 'opportunity'>('overview');
-  const [state, formAction] = useActionState(saveResearchSnapshotAction, { error: null });
+  const [state, formAction] = useActionState(saveResearchSnapshotAction, undefined);
 
   const [enrichError, setEnrichError] = useState<string | null>(null);
 
@@ -43,7 +43,11 @@ export default function ClientResearchView({
         if (!res.ok) {
           throw new Error('Failed to fetch job status');
         }
-        const data = (await res.json()) as any;
+        
+        // Proper typing instead of `as any`
+        const rawData = await res.json();
+        const data = rawData as { status: string; errorSummary?: string };
+        
         setJobStatus(data.status);
         if (data.status === 'COMPLETED') {
           clearInterval(intervalId);
@@ -57,7 +61,7 @@ export default function ClientResearchView({
           setJobStatus(null);
           setJobError(data.errorSummary || 'Research enrichment job failed.');
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Polling error:', err);
         clearInterval(intervalId);
         setPollingJobId(null);
@@ -85,15 +89,23 @@ export default function ClientResearchView({
       });
 
       if (!res.ok) {
-        const errData = (await res.json().catch(() => ({}))) as any;
-        throw new Error(errData.error || `Failed to trigger research: status ${res.status}`);
+        // Fallback safely if not json
+        const text = await res.text();
+        let errorMsg = `Failed to trigger research: status ${res.status}`;
+        try {
+          const errData = JSON.parse(text);
+          if (errData.error) errorMsg = errData.error;
+        } catch (_) {}
+        throw new Error(errorMsg);
       }
 
-      const { jobId } = (await res.json()) as any;
+      const rawData = await res.json();
+      const { jobId } = rawData as { jobId: string };
       setPollingJobId(jobId);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to launch research job:', err);
-      setEnrichError(err.message || 'Failed to start research enrichment.');
+      const msg = err instanceof Error ? err.message : 'Failed to start research enrichment.';
+      setEnrichError(msg);
       setJobStatus(null);
     }
   };

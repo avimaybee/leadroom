@@ -1,8 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
 import Database from 'better-sqlite3';
-import { onRequestGet as getScopes, onRequestPost as postScope } from '../../../functions/api/scopes';
-import { onRequestGet as getCandidates, onRequestPost as postCandidate, onRequestPatch as patchCandidate } from '../../../functions/api/candidates';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
+import { users } from '../schema/core';
+import { GET as getScopes, POST as postScope } from '../../app/api/scopes/route';
+import { GET as getCandidates, POST as postCandidate, PATCH as patchCandidate } from '../../app/api/candidates/route';
 import { DiscoveryService } from '../../services/discovery';
 
 class MockD1Database {
@@ -147,6 +149,8 @@ function setupTestDb() {
   `);
 
   const mockD1 = new MockD1Database(sqlite);
+  // Inject mock into process.env.DB for getDb() to fetch
+  (process as any).env = { ...process.env, DB: mockD1 };
   return mockD1;
 }
 
@@ -158,16 +162,16 @@ test('API Endpoint - POST /api/scopes creates a scope successfully', async () =>
     createdByUserId: 'user_123'
   };
 
-  const mockRequest = {
-    json: async () => payload
-  } as any;
+  const request = new Request('https://localhost/api/scopes', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    headers: { 'Content-Type': 'application/json' }
+  });
 
-  const mockContext = {
-    request: mockRequest,
-    env: { DB: mockD1 as any }
-  } as any;
-
-  const response = await postScope(mockContext);
+  const response = await postScope(request as any);
+  if (response.status !== 201) {
+    console.log('POST /api/scopes Error response body:', await response.text());
+  }
   assert.strictEqual(response.status, 201);
 
   const body = await response.json() as any;
@@ -180,12 +184,12 @@ test('API Endpoint - POST /api/scopes creates a scope successfully', async () =>
 test('API Endpoint - GET /api/scopes returns empty list initially', async () => {
   const mockD1 = setupTestDb();
   
-  const mockContext = {
-    request: { url: 'https://localhost/api/scopes' } as any,
-    env: { DB: mockD1 as any }
-  } as any;
+  const request = new Request('https://localhost/api/scopes');
 
-  const response = await getScopes(mockContext);
+  const response = await getScopes(request as any);
+  if (response.status !== 200) {
+    console.log('GET /api/scopes Error response body:', await response.text());
+  }
   assert.strictEqual(response.status, 200);
 
   const body = await response.json() as any;
@@ -202,16 +206,16 @@ test('API Endpoint - POST /api/candidates creates a candidate successfully', asy
     status: 'NEW'
   };
 
-  const mockRequest = {
-    json: async () => payload
-  } as any;
+  const request = new Request('https://localhost/api/candidates', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    headers: { 'Content-Type': 'application/json' }
+  });
 
-  const mockContext = {
-    request: mockRequest,
-    env: { DB: mockD1 as any }
-  } as any;
-
-  const response = await postCandidate(mockContext);
+  const response = await postCandidate(request as any);
+  if (response.status !== 201) {
+    console.log('POST /api/candidates Error response body:', await response.text());
+  }
   assert.strictEqual(response.status, 201);
 
   const body = await response.json() as any;
@@ -223,7 +227,7 @@ test('API Endpoint - POST /api/candidates creates a candidate successfully', asy
 
 test('API Endpoint - PATCH /api/candidates updates status successfully', async () => {
   const mockD1 = setupTestDb();
-  const db = require('drizzle-orm/better-sqlite3').drizzle((mockD1 as any).sqlite);
+  const db = drizzle((mockD1 as any).sqlite);
   const service = new DiscoveryService(db);
 
   // Setup candidate
@@ -237,16 +241,16 @@ test('API Endpoint - PATCH /api/candidates updates status successfully', async (
     status: 'DISCARDED'
   };
 
-  const mockRequest = {
-    json: async () => payload
-  } as any;
+  const request = new Request('https://localhost/api/candidates', {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+    headers: { 'Content-Type': 'application/json' }
+  });
 
-  const mockContext = {
-    request: mockRequest,
-    env: { DB: mockD1 as any }
-  } as any;
-
-  const response = await patchCandidate(mockContext);
+  const response = await patchCandidate(request as any);
+  if (response.status !== 200) {
+    console.log('PATCH /api/candidates status Error response body:', await response.text());
+  }
   assert.strictEqual(response.status, 200);
 
   const body = await response.json() as any;
@@ -256,11 +260,11 @@ test('API Endpoint - PATCH /api/candidates updates status successfully', async (
 
 test('API Endpoint - PATCH /api/candidates promotes candidate successfully', async () => {
   const mockD1 = setupTestDb();
-  const db = require('drizzle-orm/better-sqlite3').drizzle((mockD1 as any).sqlite);
+  const db = drizzle((mockD1 as any).sqlite);
   const service = new DiscoveryService(db);
 
   // Insert user to avoid FK error
-  await db.insert(require('../schema/core').users).values({
+  await db.insert(users).values({
     id: 'user_123',
     name: 'Owner User',
     email: 'owner@test.com',
@@ -286,16 +290,16 @@ test('API Endpoint - PATCH /api/candidates promotes candidate successfully', asy
     ownerId: 'user_123'
   };
 
-  const mockRequest = {
-    json: async () => payload
-  } as any;
+  const request = new Request('https://localhost/api/candidates', {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+    headers: { 'Content-Type': 'application/json' }
+  });
 
-  const mockContext = {
-    request: mockRequest,
-    env: { DB: mockD1 as any }
-  } as any;
-
-  const response = await patchCandidate(mockContext);
+  const response = await patchCandidate(request as any);
+  if (response.status !== 200) {
+    console.log('PATCH /api/candidates promote Error response body:', await response.text());
+  }
   assert.strictEqual(response.status, 200);
 
   const body = await response.json() as any;
@@ -303,5 +307,3 @@ test('API Endpoint - PATCH /api/candidates promotes candidate successfully', asy
   assert.strictEqual(body.data.name, 'Dream Homes Realty');
   assert.strictEqual(body.data.ownerId, 'user_123');
 });
-
-

@@ -1,6 +1,7 @@
 'use client';
 
 
+
 import { useState, useEffect, use } from 'react';
 import Link from 'next/link';
 
@@ -58,11 +59,11 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
   useEffect(() => {
     // Fetch user profile
     fetch('/api/auth/me')
-      .then((res) => {
-        if (res.ok) return res.json();
+      .then(res => {
+        if (res.ok) return res.json() as Promise<{ user: { id: string; name: string } }>;
         throw new Error('Not logged in');
       })
-      .then((data: any) => {
+      .then(data => {
         setCurrentUser(data.user);
       })
       .catch(() => {
@@ -85,13 +86,14 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
       if (!scopeRes.ok) throw new Error('Failed to load scope');
       if (!candidatesRes.ok) throw new Error('Failed to load candidates');
 
-      const scopeData = await scopeRes.json() as any;
-      const candidatesData = await candidatesRes.json() as any;
+      const scopeData = (await scopeRes.json()) as { data: Scope };
+      const candidatesData = (await candidatesRes.json()) as { data: Candidate[] };
 
       setScope(scopeData.data);
       setCandidates(candidatesData.data);
-    } catch (err: any) {
-      setError(err.message || 'An error occurred while fetching data');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'An error occurred while fetching data';
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -99,7 +101,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
 
   const handleUpdateStatus = async (candidateId: string, status: 'PROMOTED' | 'DISCARDED') => {
     try {
-      const payload: any = { id: candidateId, status };
+      const payload: { id: string; status: string; ownerId?: string } = { id: candidateId, status };
       if (status === 'PROMOTED') {
         if (!currentUser) {
           alert('User session not loaded. Please try logging in again.');
@@ -115,14 +117,20 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
       });
 
       if (!res.ok) {
-        const errData = await res.json() as any;
-        throw new Error(errData.error || 'Failed to update candidate status');
+        const errText = await res.text();
+        let errMsg = 'Failed to update candidate status';
+        try {
+          const errData = JSON.parse(errText);
+          if (errData.error) errMsg = errData.error;
+        } catch (_) {}
+        throw new Error(errMsg);
       }
 
       // Re-fetch data
       await fetchData();
-    } catch (err: any) {
-      alert(err.message || 'Error updating candidate');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error updating candidate';
+      alert(msg);
     }
   };
 
@@ -143,8 +151,13 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
       });
 
       if (!res.ok) {
-        const errData = await res.json() as any;
-        throw new Error(errData.error?.rawName?._errors?.[0] || errData.error || 'Failed to add candidate');
+        const errText = await res.text();
+        let errMsg = 'Failed to add candidate';
+        try {
+          const errData = JSON.parse(errText);
+          errMsg = errData.error?.rawName?._errors?.[0] || errData.error || errMsg;
+        } catch (_) {}
+        throw new Error(errMsg);
       }
 
       // Reset modal state
@@ -158,8 +171,9 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
       setIsModalOpen(false);
       // Re-fetch list
       await fetchData();
-    } catch (err: any) {
-      setModalError(err.message || 'Error submitting candidate');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error submitting candidate';
+      setModalError(msg);
     } finally {
       setSubmittingCandidate(false);
     }

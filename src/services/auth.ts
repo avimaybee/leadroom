@@ -1,16 +1,13 @@
 import { Db } from '../db';
 import { users } from '../db/schema';
 import { eq } from 'drizzle-orm';
-import crypto from 'node:crypto';
-import { encrypt } from '../lib/auth';
+import { encrypt, hashPassword, verifyPassword } from '../lib/auth';
 
 export class AuthService {
   constructor(private db: Db) {}
 
   async createUser(name: string, email: string, password: string) {
-    const salt = crypto.randomBytes(16).toString('hex');
-    const hash = crypto.scryptSync(password, salt, 64).toString('hex');
-    const hashedPassword = `${salt}:${hash}`;
+    const hashedPassword = await hashPassword(password);
     const id = crypto.randomUUID();
     
     await this.db.insert(users).values({
@@ -30,22 +27,7 @@ export class AuthService {
       return null;
     }
 
-    let passwordMatch = false;
-    try {
-      if (user.password.includes(':')) {
-        const [salt, key] = user.password.split(':');
-        const hashBuffer = crypto.scryptSync(password, salt, 64);
-        const keyBuffer = Buffer.from(key, 'hex');
-        if (hashBuffer.length === keyBuffer.length) {
-          passwordMatch = crypto.timingSafeEqual(hashBuffer, keyBuffer);
-        }
-      } else {
-        // Since we removed bcrypt, fail login for old bcrypt passwords.
-        passwordMatch = false;
-      }
-    } catch (err) {
-      passwordMatch = false;
-    }
+    const passwordMatch = await verifyPassword(password, user.password);
     
     if (!passwordMatch) {
       return null;
@@ -64,3 +46,4 @@ export class AuthService {
     };
   }
 }
+
