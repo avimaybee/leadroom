@@ -1,5 +1,3 @@
-import { ApifyClient } from 'apify-client';
-
 export interface DiscoveryLead {
   name: string;
   website: string | null;
@@ -15,8 +13,6 @@ export async function searchGoogleMaps(niche: string, location: string, limit: n
   if (!token) {
     throw new Error('APIFY_API_TOKEN is not configured in environment variables');
   }
-
-  const client = new ApifyClient({ token });
 
   const input = {
     searchStringsArray: [niche],
@@ -47,11 +43,71 @@ export async function searchGoogleMaps(niche: string, location: string, limit: n
     scrapeImageAuthors: false,
   };
 
-  console.log(`[Apify] Searching for ${niche} in ${location}...`);
-  const run = await client.actor("nwua9Gu5YrADL7ZDj").call(input);
+  console.log(`[Apify] Searching for ${niche} in ${location} via REST API...`);
   
-  console.log(`[Apify] Run finished. Fetching dataset ${run.defaultDatasetId}...`);
-  const { items } = await client.dataset(run.defaultDatasetId).listItems();
+  // 1. Start the actor run
+  const runRes = await fetch(`https://api.apify.com/v2/acts/nwua9Gu5YrADL7ZDj/runs?token=${token}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input)
+  });
+
+  if (!runRes.ok) {
+    const errorText = await runRes.text();
+    throw new Error(`Failed to start Apify actor: status ${runRes.status} - ${errorText}`);
+  }
+
+  const runData = (await runRes.json()) as {
+    data?: {
+      id: string;
+      defaultDatasetId: string;
+      status: string;
+    };
+  };
+
+  if (!runData.data) {
+    throw new Error('Apify API returned an invalid run response');
+  }
+
+  const { id: runId, defaultDatasetId: datasetId } = runData.data;
+
+  // 2. Poll status until completed
+  let status = runData.data.status;
+  const startTime = Date.now();
+  const timeoutMs = 240000; // 4 minutes timeout
+
+  while (status === 'RUNNING' || status === 'READY') {
+    if (Date.now() - startTime > timeoutMs) {
+      throw new Error('Apify actor run timed out');
+    }
+    // Wait for 2 seconds
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    const checkRes = await fetch(`https://api.apify.com/v2/acts/nwua9Gu5YrADL7ZDj/runs/${runId}?token=${token}`);
+    if (!checkRes.ok) {
+      throw new Error(`Failed to check status of Apify actor: status ${checkRes.status}`);
+    }
+
+    const checkData = (await checkRes.json()) as {
+      data?: {
+        status: string;
+      };
+    };
+    status = checkData.data?.status || 'FAILED';
+  }
+
+  if (status !== 'SUCCEEDED') {
+    throw new Error(`Apify actor run failed with status: ${status}`);
+  }
+
+  // 3. Fetch dataset items
+  console.log(`[Apify] Run finished. Fetching dataset items from ${datasetId}...`);
+  const itemsRes = await fetch(`https://api.apify.com/v2/datasets/${datasetId}/items?token=${token}`);
+  if (!itemsRes.ok) {
+    throw new Error(`Failed to fetch Apify dataset items: status ${itemsRes.status}`);
+  }
+
+  const items = (await itemsRes.json()) as any[];
 
   return items.map((item: any) => ({
     name: item.title || item.name || 'Unknown Business',

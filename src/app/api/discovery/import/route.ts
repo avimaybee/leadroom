@@ -1,3 +1,5 @@
+export const runtime = 'edge';
+
 import { NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { leads, activities } from '@/db/schema/core';

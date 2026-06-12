@@ -1,3 +1,5 @@
+export const runtime = 'edge';
+
 import { NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { jobRuns } from '@/db/schema/research';
@@ -49,7 +51,7 @@ export async function GET(
       finishedAt: job.finishedAt,
       createdAt: job.createdAt,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Failed to fetch job status:', error);
     return NextResponse.json(
       { error: 'Internal Server Error' },

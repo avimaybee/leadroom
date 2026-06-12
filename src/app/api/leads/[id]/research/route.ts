@@ -1,3 +1,5 @@
+export const runtime = 'edge';
+
 import { NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { triggerResearchWorkflow } from '@/lib/workflow-client';

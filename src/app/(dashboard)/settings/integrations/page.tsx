@@ -2,6 +2,8 @@ import { getDb } from '@/db';
 import { IntegrationsService } from '@/services/integrations';
 import { ProviderConfigForm } from '@/components/settings/ProviderConfigForm';
 
+export const runtime = 'edge';
+
 export const metadata = {
   title: 'Integrations | Agency OS',
 };

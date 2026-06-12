@@ -1,3 +1,5 @@
+export const runtime = 'edge';
+
 import { NextResponse } from 'next/server';
 import { searchGoogleMaps } from '@/lib/discovery/apify';
 import { cookies } from 'next/headers';
