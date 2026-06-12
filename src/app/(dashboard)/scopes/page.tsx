@@ -2,7 +2,6 @@ import { DiscoveryService } from '@/services/discovery';
 import { getDb } from '@/db';
 import Link from 'next/link';
 
-export const runtime = 'edge';
 
 export default async function ScopesPage() {
   const db = getDb();

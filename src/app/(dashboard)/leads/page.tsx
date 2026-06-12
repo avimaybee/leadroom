@@ -3,7 +3,7 @@ import { getDb } from '@/db';
 import Link from 'next/link';
 import { archiveLeadAction } from '@/app/actions/leads';
 
-export const runtime = 'edge';
+
 
 export default async function LeadsPage() {
   const db = getDb();

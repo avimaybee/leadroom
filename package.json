@@ -16,7 +16,6 @@
     "bcryptjs": "^3.0.3",
     "drizzle-orm": "^0.45.2",
     "drizzle-zod": "^0.8.3",
-    "genkit": "^1.0.0",
     "jose": "^6.2.3",
     "next": "^16.2.9",
     "react": "^19.2.7",

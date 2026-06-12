@@ -5,7 +5,6 @@ import Link from 'next/link';
 import DashboardTaskList from '@/components/dashboard/DashboardTaskList';
 import { toggleTaskStatusAction } from '@/app/actions/tasks';
 
-export const runtime = 'edge';
 
 export default async function DashboardPage() {
   const db = getDb();

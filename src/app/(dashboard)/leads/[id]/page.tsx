@@ -22,7 +22,6 @@ import ClientTaskItem from './ClientTaskItem';
 import ClientResearchView from './ClientResearchView';
 import ClientContactsList from './ClientContactsList';
 
-export const runtime = 'edge';
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
