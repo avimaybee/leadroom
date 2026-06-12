@@ -1,4 +1,3 @@
-export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 import { DiscoveryService } from '@/services/discovery';
 import { getDb } from '@/db';

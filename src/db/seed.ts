@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
-import bcrypt from 'bcryptjs';
+import crypto from 'node:crypto';
 
 function seed() {
   const dbDir = path.resolve('.wrangler/state/v3/d1/miniflare-D1DatabaseObject');
@@ -32,11 +32,13 @@ function seed() {
 
   if (userCount === 0) {
     const userId = crypto.randomUUID();
-    const hash = bcrypt.hashSync('admin123', 10);
+    const salt = crypto.randomBytes(16).toString('hex');
+    const hash = crypto.scryptSync('admin123', salt, 64).toString('hex');
+    const hashedPassword = `${salt}:${hash}`;
     
     db.prepare(
       'INSERT INTO users (id, name, email, password) VALUES (?, ?, ?, ?)'
-    ).run(userId, 'Default Admin', 'admin@agency.com', hash);
+    ).run(userId, 'Default Admin', 'admin@agency.com', hashedPassword);
     
     console.log('Successfully seeded default administrator user:');
     console.log('  Email:    admin@agency.com');
