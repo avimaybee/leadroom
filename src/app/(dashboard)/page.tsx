@@ -1,3 +1,4 @@
+export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 import { LeadService } from '@/services/lead';
 import { DiscoveryService } from '@/services/discovery';
