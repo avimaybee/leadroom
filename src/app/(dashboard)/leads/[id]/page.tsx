@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 import { LeadService } from '@/services/lead';
 import { ResearchService } from '@/services/research';
+import { AuditService } from '@/services/audits';
+import { ScoringService } from '@/services/scoring';
 import { getDb } from '@/db';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
@@ -13,14 +15,18 @@ import {
   toggleTaskStatusAction 
 } from '@/app/actions/tasks';
 import { 
-  triggerEnrichmentAction, 
   saveResearchSnapshotAction, 
   addContactAction 
 } from '@/app/actions/research';
+import { 
+  triggerAuditAction, 
+  manualOverrideScoreAction 
+} from '@/app/actions/audits';
 import ClientNotesForm from './ClientNotesForm';
 import ClientTaskForm from './ClientTaskForm';
 import ClientTaskItem from './ClientTaskItem';
 import ClientResearchView from './ClientResearchView';
+import ClientAuditView from './ClientAuditView';
 import ClientContactsList from './ClientContactsList';
 
 
@@ -34,12 +40,17 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   const lead = await service.getLead(id);
   if (!lead) notFound();
 
-  const [notes, tasks, activities, latestSnapshot, contactsList] = await Promise.all([
+  const auditService = new AuditService(db);
+  const scoringService = new ScoringService(db);
+
+  const [notes, tasks, activities, latestSnapshot, contactsList, latestAudit, currentScore] = await Promise.all([
     service.getNotes(id),
     service.getTasks(id),
     service.getActivities(id),
     researchService.getLatestResearch(id),
     researchService.getContacts(id),
+    auditService.getLatestAudit(id),
+    scoringService.getCurrentScore(id),
   ]);
 
   const stages = ['New', 'Researching', 'Qualified', 'Outreach in Progress', 'Meeting / Call'];
@@ -70,8 +81,18 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
           &larr; Leads
         </Link>
         <div>
-          <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Active Pipeline</span>
-          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight mt-0.5">{lead.name}</h1>
+          <div className="flex items-center gap-3 mt-0.5">
+            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">{lead.name}</h1>
+            {currentScore && (
+              <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold ${
+                currentScore.scoreLabel === 'High' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                currentScore.scoreLabel === 'Medium' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                'bg-slate-50 text-slate-600 border border-slate-200'
+              }`}>
+                {currentScore.scoreLabel} Priority ({currentScore.scoreValue})
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -134,8 +155,16 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
           <ClientResearchView
             leadId={lead.id}
             initialSnapshot={latestSnapshot}
-            triggerEnrichmentAction={triggerEnrichmentAction}
             saveResearchSnapshotAction={saveResearchSnapshotAction}
+          />
+
+          {/* AI Audit & Priority Scoring Section */}
+          <ClientAuditView
+            leadId={lead.id}
+            initialAudit={latestAudit}
+            initialScore={currentScore}
+            triggerAuditAction={triggerAuditAction}
+            manualOverrideScoreAction={manualOverrideScoreAction}
           />
 
           {/* Pipeline Stage Form */}

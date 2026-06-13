@@ -44,6 +44,11 @@
 			"name": "discovery-search-workflow",
 			"binding": "DISCOVERY_SEARCH_WORKFLOW",
 			"class_name": "DiscoverySearchWorkflow"
+		},
+		{
+			"name": "audit-snapshot-workflow",
+			"binding": "AUDIT_SNAPSHOT_WORKFLOW",
+			"class_name": "AuditSnapshotWorkflow"
 		}
 	]
 }

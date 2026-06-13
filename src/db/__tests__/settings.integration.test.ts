@@ -134,6 +134,18 @@ test('AI Provider Config & Active Picker Integration', async (t) => {
         })
       } as any;
     }
+    if (urlStr.includes('api.aimlapi.com')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [
+            { id: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning' },
+            { id: 'meta-llama/Llama-3-8b-chat' }
+          ]
+        })
+      } as any;
+    }
     return { ok: true, status: 200, json: async () => ({}) } as any;
   };
 
@@ -192,5 +204,32 @@ test('AI Provider Config & Active Picker Integration', async (t) => {
     const res = await setActiveProviderAndModelAction('groq', 'llama3-70b-8192');
     assert.ok(res.error);
     assert.ok(res.error.includes('no saved configuration'));
+  });
+
+  await t.test('saveIntegrationConfigAction works with aiml provider and validates model', async () => {
+    // 1. Try to save aiml with invalid model
+    const aimlInvalidData = new FormData();
+    aimlInvalidData.append('provider', 'aiml');
+    aimlInvalidData.append('apiKey', 'mock-aiml-key');
+    aimlInvalidData.append('modelName', 'invalid-model-name');
+    aimlInvalidData.append('isActive', 'on');
+
+    const resFail = await saveIntegrationConfigAction(aimlInvalidData);
+    assert.ok(resFail.error);
+    assert.ok(resFail.error.includes('Invalid AIML model name'));
+
+    // 2. Save aiml with valid model name
+    const aimlValidData = new FormData();
+    aimlValidData.append('provider', 'aiml');
+    aimlValidData.append('apiKey', 'mock-aiml-key');
+    aimlValidData.append('modelName', 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning');
+    aimlValidData.append('isActive', 'on');
+
+    const resSuccess = await saveIntegrationConfigAction(aimlValidData);
+    assert.strictEqual(resSuccess.success, true);
+
+    const aimlRow = await db.select().from(providerConfigs).where(eq(providerConfigs.provider, 'aiml')).limit(1);
+    assert.strictEqual(aimlRow[0].isActive, true);
+    assert.strictEqual(aimlRow[0].modelName, 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning');
   });
 });

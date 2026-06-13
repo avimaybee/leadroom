@@ -15,6 +15,20 @@ export const AIResearchSchema = z.object({
 
 export type AIResearchOutput = z.infer<typeof AIResearchSchema>;
 
+export const AIAuditSchema = z.object({
+  websiteQualityScore: z.number().int().min(0).max(100),
+  designAestheticScore: z.number().int().min(0).max(100),
+  messagingClarityScore: z.number().int().min(0).max(100),
+  socialPresenceScore: z.number().int().min(0).max(100),
+  overallBrandingScore: z.number().int().min(0).max(100),
+  keyStrengths: z.string(),
+  keyWeaknesses: z.string(),
+  recommendedImprovements: z.string(),
+  sources: z.array(z.string()),
+});
+
+export type AIAuditOutput = z.infer<typeof AIAuditSchema>;
+
 import { IntegrationsService } from '../services/integrations';
 
 export async function generateResearch(
@@ -23,13 +37,14 @@ export async function generateResearch(
   companyName: string | null,
   websiteUrl: string | null,
   industry: string | null,
-  scrapedContent?: string | null
+  scrapedContent?: string | null,
+  location?: string | null
 ): Promise<AIResearchOutput> {
   const integrationsService = new IntegrationsService(db);
   
   // Get active provider config
   let config = null;
-  for (const p of ['openrouter', 'nvidia', 'groq', 'gemini']) {
+  for (const p of ['openrouter', 'nvidia', 'groq', 'aiml', 'gemini']) {
     const pConfig = await integrationsService.getProviderConfig(p);
     if (pConfig && pConfig.isActive) {
       config = pConfig;
@@ -43,6 +58,7 @@ export async function generateResearch(
     provider === 'openrouter' ? 'google/gemini-2.5-flash' : 
     provider === 'nvidia' ? 'meta/llama-3.1-70b-instruct' : 
     provider === 'groq' ? 'llama3-70b-8192' :
+    provider === 'aiml' ? 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning' :
     'gemini-2.5-flash'
   );
 
@@ -55,11 +71,14 @@ export async function generateResearch(
   const web = websiteUrl || 'No website provided';
 
   const prompt = `Perform research on the company "${name}".
+Location Context: ${location || 'Unknown location'}
 Industry: ${ind}
 Website: ${web}
 ${scrapedContent ? `\nHere is the scraped content of their website to analyze:\n--- START OF WEBSITE CONTENT ---\n${scrapedContent}\n--- END OF WEBSITE CONTENT ---\n` : ''}
 
 Generate a comprehensive digital presence audit and outreach opportunity hypotheses for our creative/digital agency.
+For the fields "painPointsHypotheses" and "opportunityHypotheses", you MUST format the content using Markdown list items (e.g. using "- " or "* " for bullet points, and appropriate bolding or italics). Do not output a flat wall of text.
+
 Provide your response strictly in JSON format. The response must match the following JSON schema:
 {
   "companySummary": "A concise overview of the company, its scale, and main business line.",
@@ -67,8 +86,8 @@ Provide your response strictly in JSON format. The response must match the follo
   "digitalPresenceNotes": "Notes on their overall digital footprint, social media channels, and visibility.",
   "websiteNotes": "Critique of their website user experience, responsiveness, layout, and call-to-actions.",
   "brandingNotes": "Critique of their branding, typography, color palette, consistency, and professional feel.",
-  "painPointsHypotheses": "Potential digital/branding bottlenecks they are facing that we can resolve.",
-  "opportunityHypotheses": "Concrete hypotheses on how our agency can help them grow (e.g., website redesign, brand refresh, social templates).",
+  "painPointsHypotheses": "Potential digital/branding bottlenecks they are facing that we can resolve (Formatted as a Markdown bulleted list).",
+  "opportunityHypotheses": "Concrete hypotheses on how our agency can help them grow (e.g., website redesign, brand refresh, social templates) (Formatted as a Markdown bulleted list).",
   "sources": ["List of URLs or search queries utilized (array of strings)"],
   "confidenceLevel": "LOW", "MEDIUM", or "HIGH"
 }`;
@@ -83,6 +102,10 @@ Provide your response strictly in JSON format. The response must match the follo
 
   if (provider === 'groq') {
     return callGroqAPI(apiKey, modelName, prompt, leadName, companyName, websiteUrl, industry);
+  }
+
+  if (provider === 'aiml') {
+    return callAimlAPI(apiKey, modelName, prompt, leadName, companyName, websiteUrl, industry);
   }
 
   // Gemini implementation
@@ -444,7 +467,7 @@ export async function runTriageAI(
   
   // Get active provider config
   let config = null;
-  for (const p of ['openrouter', 'nvidia', 'groq', 'gemini']) {
+  for (const p of ['openrouter', 'nvidia', 'groq', 'aiml', 'gemini']) {
     const pConfig = await integrationsService.getProviderConfig(p);
     if (pConfig && pConfig.isActive) {
       config = pConfig;
@@ -458,6 +481,7 @@ export async function runTriageAI(
     provider === 'openrouter' ? 'google/gemini-2.5-flash' : 
     provider === 'nvidia' ? 'meta/llama-3.1-70b-instruct' : 
     provider === 'groq' ? 'llama3-70b-8192' : 
+    provider === 'aiml' ? 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning' :
     'gemini-2.5-flash'
   );
 
@@ -565,6 +589,35 @@ export async function runTriageAI(
         }),
       });
       if (!res.ok) throw new Error(`Groq returned status ${res.status}`);
+      const data = (await res.json()) as {
+        choices?: Array<{
+          message?: {
+            content?: string;
+          };
+        }>;
+      };
+      const text = data.choices?.[0]?.message?.content?.trim();
+      return JSON.parse(text || '{}');
+    }
+
+    if (provider === 'aiml') {
+      const res = await fetch('https://api.aimlapi.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: modelName,
+          messages: [
+            { role: 'system', content: 'You are a professional assistant. You MUST respond with ONLY valid JSON matching the exact schema requested.' },
+            { role: 'user', content: prompt }
+          ],
+          temperature: 0.2,
+          response_format: { type: 'json_object' }
+        }),
+      });
+      if (!res.ok) throw new Error(`AIML returned status ${res.status}`);
       const data = (await res.json()) as {
         choices?: Array<{
           message?: {
@@ -688,6 +741,286 @@ async function callGroqAPI(
     console.error('Groq API call failed, falling back to mock generator:', error);
     return generateMockResearch(leadName, companyName, websiteUrl, industry);
   }
+}
+
+async function callAimlAPI(
+  apiKey: string,
+  modelName: string,
+  prompt: string,
+  leadName: string,
+  companyName: string | null,
+  websiteUrl: string | null,
+  industry: string | null
+): Promise<AIResearchOutput> {
+  const makeRequest = async () => {
+    const messages = [
+      {
+        role: 'system',
+        content: 'You are a professional research assistant. You MUST respond with ONLY valid JSON matching the exact schema requested. Do not include markdown code blocks or any other text.'
+      },
+      {
+        role: 'user',
+        content: prompt
+      }
+    ];
+
+    const response = await fetch('https://api.aimlapi.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: modelName,
+        messages,
+        temperature: 0.2,
+        response_format: { type: 'json_object' }
+      }),
+    });
+
+    return response;
+  };
+
+  try {
+    const response = await makeRequest();
+    if (!response.ok) {
+      throw new Error(`AIML API returned status ${response.status}`);
+    }
+
+    const data = (await response.json()) as {
+      choices?: Array<{
+        message?: {
+          content?: string;
+        };
+      }>;
+    };
+    let textResult = data.choices?.[0]?.message?.content;
+    
+    if (!textResult) {
+      throw new Error('Invalid response structure from AIML API');
+    }
+
+    textResult = textResult.trim();
+    if (textResult.startsWith('```json')) {
+      textResult = textResult.replace(/^```json\n/, '').replace(/\n```$/, '');
+    } else if (textResult.startsWith('```')) {
+      textResult = textResult.replace(/^```\n/, '').replace(/\n```$/, '');
+    }
+
+    const parsed = JSON.parse(textResult);
+    return AIResearchSchema.parse(parsed);
+  } catch (error: unknown) {
+    console.error('AIML API call failed, falling back to mock generator:', error);
+    return generateMockResearch(leadName, companyName, websiteUrl, industry);
+  }
+}
+
+export async function generateAudit(
+  db: Db,
+  leadName: string,
+  companyName: string | null,
+  websiteUrl: string | null,
+  industry: string | null,
+  scrapedContent?: string | null
+): Promise<AIAuditOutput> {
+  const integrationsService = new IntegrationsService(db);
+  
+  // Get active provider config
+  let config = null;
+  for (const p of ['openrouter', 'nvidia', 'groq', 'aiml', 'gemini']) {
+    const pConfig = await integrationsService.getProviderConfig(p);
+    if (pConfig && pConfig.isActive) {
+      config = pConfig;
+      break;
+    }
+  }
+
+  let provider = config?.provider || 'gemini';
+  let apiKey = config?.apiKey || (process as any).env?.GEMINI_API_KEY;
+  let modelName = config?.modelName || (
+    provider === 'openrouter' ? 'google/gemini-2.5-flash' : 
+    provider === 'nvidia' ? 'meta/llama-3.1-70b-instruct' : 
+    provider === 'groq' ? 'llama3-70b-8192' :
+    provider === 'aiml' ? 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning' :
+    'gemini-2.5-flash'
+  );
+
+  if (!apiKey || apiKey === 'placeholder' || apiKey === '') {
+    return generateMockAudit(leadName, companyName, websiteUrl, industry);
+  }
+
+  const name = companyName || leadName;
+  const ind = industry || 'General Business';
+  const web = websiteUrl || 'No website provided';
+
+  const prompt = `Perform a comprehensive digital presence, website, and branding audit on the company "${name}".
+Industry: ${ind}
+Website: ${web}
+${scrapedContent ? `\nHere is the scraped content of their website to analyze:\n--- START OF WEBSITE CONTENT ---\n${scrapedContent}\n--- END OF WEBSITE CONTENT ---\n` : ''}
+
+Evaluate the following categories and assign integer scores from 0 (terrible/broken) to 100 (excellent/premium):
+- websiteQualityScore: Technical usability, layout, loading indicators, ease of use.
+- designAestheticScore: Typography, layout design, spacing, colors, visual appeal.
+- messagingClarityScore: Messaging clarity, value proposition.
+- socialPresenceScore: Estimated presence (use 40-50 if no social URLs present in text).
+- overallBrandingScore: Branding consistency, professional look.
+
+Additionally, provide markdown-formatted bulleted lists for:
+- keyStrengths: Strengths of their current design/branding.
+- keyWeaknesses: Weaknesses and issues of their current design/branding.
+- recommendedImprovements: Actionable creative and digital improvements.
+
+Provide your response strictly in JSON format. The response must match the following JSON schema:
+{
+  "websiteQualityScore": 75,
+  "designAestheticScore": 60,
+  "messagingClarityScore": 55,
+  "socialPresenceScore": 40,
+  "overallBrandingScore": 60,
+  "keyStrengths": "- Bullet point strength 1\\n- Bullet point strength 2",
+  "keyWeaknesses": "- Bullet point weakness 1\\n- Bullet point weakness 2",
+  "recommendedImprovements": "- Improvement 1\\n- Improvement 2",
+  "sources": ["List of URLs checked"]
+}`;
+
+  try {
+    let textResult = '';
+
+    if (provider === 'gemini') {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              responseMimeType: 'application/json',
+              responseSchema: {
+                type: 'OBJECT',
+                properties: {
+                  websiteQualityScore: { type: 'INTEGER' },
+                  designAestheticScore: { type: 'INTEGER' },
+                  messagingClarityScore: { type: 'INTEGER' },
+                  socialPresenceScore: { type: 'INTEGER' },
+                  overallBrandingScore: { type: 'INTEGER' },
+                  keyStrengths: { type: 'STRING' },
+                  keyWeaknesses: { type: 'STRING' },
+                  recommendedImprovements: { type: 'STRING' },
+                  sources: { type: 'ARRAY', items: { type: 'STRING' } },
+                },
+                required: [
+                  'websiteQualityScore',
+                  'designAestheticScore',
+                  'messagingClarityScore',
+                  'socialPresenceScore',
+                  'overallBrandingScore',
+                  'keyStrengths',
+                  'keyWeaknesses',
+                  'recommendedImprovements',
+                  'sources',
+                ],
+              },
+            },
+          }),
+        }
+      );
+      if (response.ok) {
+        const data = (await response.json()) as any;
+        textResult = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      } else {
+        throw new Error(`Gemini API returned status ${response.status}`);
+      }
+    } else {
+      // OpenAI compatible endpoints (OpenRouter, Groq, Nvidia, AIML)
+      const url = 
+        provider === 'openrouter' ? 'https://openrouter.ai/api/v1/chat/completions' :
+        provider === 'groq' ? 'https://api.groq.com/openai/v1/chat/completions' :
+        provider === 'nvidia' ? 'https://integrate.api.nvidia.com/v1/chat/completions' :
+        'https://api.aimlapi.com/v1/chat/completions';
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: modelName,
+          messages: [
+            { role: 'system', content: 'You are a professional digital design auditor. Output strictly JSON.' },
+            { role: 'user', content: prompt }
+          ],
+          temperature: 0.2,
+          response_format: { type: 'json_object' }
+        }),
+      });
+
+      if (response.ok) {
+        const data = (await response.json()) as any;
+        textResult = data.choices?.[0]?.message?.content || '';
+      } else {
+        throw new Error(`${provider} API returned status ${response.status}`);
+      }
+    }
+
+    textResult = textResult.trim();
+    if (textResult.startsWith('```json')) {
+      textResult = textResult.replace(/^```json\n/, '').replace(/\n```$/, '');
+    } else if (textResult.startsWith('```')) {
+      textResult = textResult.replace(/^```\n/, '').replace(/\n```$/, '');
+    }
+
+    const parsed = JSON.parse(textResult);
+    return AIAuditSchema.parse(parsed);
+  } catch (error: unknown) {
+    console.error(`generateAudit API call failed for ${provider}, falling back to mock:`, error);
+    return generateMockAudit(leadName, companyName, websiteUrl, industry);
+  }
+}
+
+function generateMockAudit(
+  leadName: string,
+  companyName: string | null,
+  websiteUrl: string | null,
+  industry: string | null
+): AIAuditOutput {
+  const name = companyName || leadName;
+  const ind = (industry || 'General Business').toLowerCase();
+  
+  let websiteQualityScore = 65;
+  let designAestheticScore = 55;
+  let messagingClarityScore = 60;
+  let socialPresenceScore = 40;
+  let overallBrandingScore = 55;
+
+  let keyStrengths = `- Clean baseline layout and core sections\n- Direct contact information is visible in the header`;
+  let keyWeaknesses = `- Lacks a modern mobile-responsive grid layout\n- Slow asset loading times for heavy images\n- Outdated default browser typography is used`;
+  let recommendedImprovements = `- Redesign website layout with a modern, responsive grid system (Next.js/Tailwind)\n- Apply a cohesive visual style guide with Outfit or Inter fonts\n- Simplify contact flow into a single-step booking form`;
+
+  if (ind.includes('tech') || ind.includes('software') || ind.includes('digital')) {
+    websiteQualityScore = 70;
+    designAestheticScore = 60;
+    messagingClarityScore = 50;
+    socialPresenceScore = 55;
+    overallBrandingScore = 58;
+
+    keyStrengths = `- Uses a standard modern dark-mode template\n- Key features list is easy to read`;
+    keyWeaknesses = `- Generic visual identity that looks identical to standard SaaS competitors\n- Vague messaging ("innovative solutions") with no direct value proposition\n- Checkout or product signup flow is overly complex`;
+    recommendedImprovements = `- Rewrite the value proposition to be immediately clear and distinct\n- Build high-end custom interactive mockups of the dashboard app\n- Refresh the brand color palette to a harmonized, premium HSL palette`;
+  }
+
+  return {
+    websiteQualityScore,
+    designAestheticScore,
+    messagingClarityScore,
+    socialPresenceScore,
+    overallBrandingScore,
+    keyStrengths,
+    keyWeaknesses,
+    recommendedImprovements,
+    sources: websiteUrl ? [websiteUrl] : [`https://${name.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`],
+  };
 }
 
 

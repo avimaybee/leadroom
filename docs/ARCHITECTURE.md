@@ -666,6 +666,27 @@ Prompt construction belongs in the AI module or dedicated generation services.
 
 It must not be duplicated across UI routes or components.
 
+### 10.6 Conversational Pilot Interface (Future Stage)
+
+To support natural language operations while retaining consistency:
+- **"Chat + Canvas" Hybrid:** The UI renders a conversational chat panel side-by-side with a traditional, structured dashboard. Chat commands drive deterministic mutations via existing backend services rather than mutating database tables directly.
+- **Explicit Gating:** The supervisor agent can propose mutations or data entries (e.g. outreach templates, status adjustments), but they must be rendered as reviewable cards in the UI requiring explicit operator confirmation before they are committed to the relational database.
+
+### 10.7 Multi-Provider Orchestration & Memory Pruning (Future Stage)
+
+To remain highly cost-efficient and limit token rate limit (RPM/TPM) bottlenecks on free/low-cost tiers:
+- **Hierarchical Routing:** A central, highly intelligent Supervisor model (e.g. Gemini Pro or DeepSeek Chat) handles user intent classification and plans workflow steps.
+- **Task Farm Execution:** Specific jobs (such as triage checks, website audits, or copy generation) are farmed out to dedicated sub-agents running on fast, free, or hyper-cheap endpoints (Groq, Nvidia NIM, OpenRouter free models).
+- **Sub-Agent Context Discarding:** To prevent massive token accumulation in the Supervisor's chat history, sub-agents run in isolated, single-turn sessions. Once a sub-agent completes a task and returns its structured output to the Supervisor, its entire raw context (scraped content, intermediate thinking logs) is discarded. Only the final structured data is appended to the main Supervisor history.
+- **Provider Redundancy/Failover:** If an active provider (e.g. Gemini API) hits its free-tier rate limits, the orchestrator service automatically routes subsequent task requests to backup providers (e.g. Groq or DeepSeek) using configured API failover priorities.
+
+### 10.8 Vector Embeddings Layer (Cloudflare Vectorize) (Future Stage)
+
+To support semantic query capability and contextual grounding:
+- **Cloudflare Vectorize Binding:** Store high-dimensional embeddings for lead details, activity timelines, research notes, and website audit findings.
+- **Workers AI Embedding Model:** Utilize a lightweight, free-tier embedded model (e.g. `@cf/baai/bge-large-en-v1.5`) or Gemini Embeddings to generate vectors asynchronously.
+- **Grounding retrieval (RAG):** The conversational pilot uses Vectorize to perform similarity searches over historical lead records and appends matching entries to the Supervisor's context during complex reasoning turns.
+
 ***
 
 ## 11. Integration architecture

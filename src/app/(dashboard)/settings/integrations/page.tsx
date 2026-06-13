@@ -18,6 +18,7 @@ export default async function IntegrationsPage() {
   const nvidiaConfig = await service.getProviderConfig('nvidia');
   const openrouterConfig = await service.getProviderConfig('openrouter');
   const groqConfig = await service.getProviderConfig('groq');
+  const aimlConfig = await service.getProviderConfig('aiml');
 
   return (
     <div className="max-w-4xl">
@@ -34,6 +35,7 @@ export default async function IntegrationsPage() {
           nvidia: nvidiaConfig,
           openrouter: openrouterConfig,
           groq: groqConfig,
+          aiml: aimlConfig,
         }}
       />
 
@@ -64,6 +66,13 @@ export default async function IntegrationsPage() {
           displayName="Groq (OpenAI Compatible)"
           defaultModel="llama3-70b-8192"
           config={groqConfig}
+        />
+
+        <ProviderConfigForm
+          provider="aiml"
+          displayName="AI/ML API (OpenAI Compatible)"
+          defaultModel="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+          config={aimlConfig}
         />
       </div>
     </div>

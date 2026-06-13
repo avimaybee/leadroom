@@ -25,4 +25,7 @@ export type CreateLeadInput = {
   region?: string | null;
   industry?: string | null;
   stage?: string;
+  triagePriority?: string | null;
+  triageReason?: string | null;
+  ownerId?: string | null;
 };

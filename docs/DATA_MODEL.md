@@ -435,6 +435,34 @@ Notes:
 
 - JobRun connects async work to leads, activities, research snapshots, audits, and scores.
 
+### 5.14 ChatThread (Future Stage)
+
+Essential fields:
+
+- id (PK)
+- user_id (FK -> User.id)
+- title (nullable, string)
+- lead_id (FK -> Lead.id, nullable)
+- created_at
+- updated_at
+
+Notes:
+- Represents an active or historical conversational pilot session.
+
+### 5.15 ChatMessage (Future Stage)
+
+Essential fields:
+
+- id (PK)
+- thread_id (FK -> ChatThread.id)
+- role (enum: USER, ASSISTANT, SYSTEM)
+- content (text)
+- tool_calls (nullable, JSON - tracks intent execution)
+- created_at
+
+Notes:
+- Only supervisor-level interactions are stored. Sub-agent reasoning logs are discarded after completion to save memory and token count.
+
 ---
 
 ## 6. Pipeline stage model (data view)
@@ -532,3 +560,17 @@ When extending the data model:
 - Avoid premature polymorphic complexity; start simple and refactor when patterns stabilize.
 
 The goal is to keep the schema boring, explicit, and predictable while still supporting the AI-assisted workflows the product needs.
+
+---
+
+## 11. Vector Schema Definitions (Cloudflare Vectorize) (Future Stage)
+
+To support similarity search and RAG retrieval over lead activity records and notes, Vectorize indexes should conform to the following metadata structure:
+
+- **vector_id (PK):** A unique uuid string format (e.g. `lead_note_[uuid]`).
+- **values:** Floating-point array matching the embedding model dimension (e.g., 768 for `@cf/baai/bge-large-en-v1.5` or 1536 for Gemini embeddings).
+- **metadata:** JSON object storing indexing provenance:
+  - `lead_id` (FK -> Lead.id, absolute string reference)
+  - `content_type` (enum: `RESEARCH_SUMMARY`, `AUDIT_NOTES`, `ACTIVITY_LOG`, `USER_NOTE`)
+  - `raw_text_snippet` (truncated preview string for UI rendering)
+  - `indexed_at` (timestamp)

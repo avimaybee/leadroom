@@ -16,6 +16,7 @@ interface ActiveProviderPickerProps {
     nvidia: ProviderConfig | null;
     openrouter: ProviderConfig | null;
     groq: ProviderConfig | null;
+    aiml: ProviderConfig | null;
   };
 }
 
@@ -43,6 +44,12 @@ const STATIC_MODELS: Record<string, { id: string; name: string }[]> = {
     { id: 'llama3-8b-8192', name: 'Llama 3 8B' },
     { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7B' },
     { id: 'gemma2-9b-it', name: 'Gemma 2 9B' },
+  ],
+  aiml: [
+    { id: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning', name: 'Nemotron 3 Nano Omni (Default)' },
+    { id: 'meta-llama/Llama-3-8b-chat', name: 'Llama 3 8B Chat' },
+    { id: 'meta-llama/Llama-3-70b-chat', name: 'Llama 3 70B Chat' },
+    { id: 'mistralai/Mistral-7B-Instruct-v0.2', name: 'Mistral 7B Instruct v0.2' },
   ]
 };
 
@@ -51,6 +58,7 @@ const PROVIDER_NAMES: Record<string, string> = {
   nvidia: 'NVIDIA NIM',
   openrouter: 'OpenRouter',
   groq: 'Groq',
+  aiml: 'AI/ML API',
 };
 
 export function ActiveProviderPicker({ configs }: ActiveProviderPickerProps) {

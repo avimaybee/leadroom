@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useActionState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useActionState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ResearchSnapshot } from './components/research/types';
 import { ResearchLoadingState } from './components/research/ResearchLoadingState';
@@ -11,14 +12,15 @@ import { ResearchDisplay } from './components/research/ResearchDisplay';
 interface ClientResearchViewProps {
   leadId: string;
   initialSnapshot: ResearchSnapshot | null;
-  triggerEnrichmentAction: (leadId: string) => Promise<{ error: string | null }>;
-  saveResearchSnapshotAction: (prevState: { error?: string | null, success?: boolean } | null | undefined, formData: FormData) => Promise<{ error?: string | null, success?: boolean } | null | undefined>;
+  saveResearchSnapshotAction: (
+    prevState: { error?: string | null; success?: boolean } | null | undefined,
+    formData: FormData
+  ) => Promise<{ error?: string | null; success?: boolean } | null | undefined>;
 }
 
 export default function ClientResearchView({
   leadId,
   initialSnapshot,
-  triggerEnrichmentAction,
   saveResearchSnapshotAction,
 }: ClientResearchViewProps) {
   const router = useRouter();
@@ -27,70 +29,95 @@ export default function ClientResearchView({
   const [state, formAction] = useActionState(saveResearchSnapshotAction, undefined);
 
   const [enrichError, setEnrichError] = useState<string | null>(null);
+  // Guard to prevent duplicate trigger clicks before pollingJobId is set
+  const [isEnriching, setIsEnriching] = useState(false);
 
   // Polling state for background jobs
   const [pollingJobId, setPollingJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<string | null>(null);
   const [jobError, setJobError] = useState<string | null>(null);
 
+  // Keep a stable ref to router.refresh() so the polling useEffect doesn't need
+  // router in its dependency array. useRouter() returns a new object reference
+  // on every render, which would otherwise cause the polling interval to restart
+  // whenever router.refresh() triggers a re-render — creating duplicate intervals.
+  const refreshRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    refreshRef.current = () => router.refresh();
+  }); // no dep array: always syncs to latest router instance without causing polling re-runs
+
+  // Polling effect — ONLY depends on pollingJobId, NOT on router
   useEffect(() => {
     if (!pollingJobId) return;
 
-    let intervalId: any;
+    // `stopped` flag prevents async callbacks from acting after cleanup
+    let stopped = false;
+
     const checkJobStatus = async () => {
+      if (stopped) return;
       try {
-        // GET /api/jobs/[id] polls the job status updated by the background workflow/simulation.
         const res = await fetch(`/api/jobs/${pollingJobId}`);
         if (!res.ok) {
           throw new Error('Failed to check job status');
         }
-        
+
         const rawData = await res.json();
         const data = rawData as { status: string; errorSummary?: string };
-        
+
+        if (stopped) return;
         setJobStatus(data.status);
+
         if (data.status === 'COMPLETED') {
-          clearInterval(intervalId);
+          stopped = true;
           setPollingJobId(null);
           setJobStatus(null);
-          // Reload page data to reflect new snapshot
-          router.refresh();
+          setIsEnriching(false);
+          // Stable ref prevents this call from being a useEffect dependency
+          refreshRef.current();
         } else if (data.status === 'FAILED') {
-          clearInterval(intervalId);
+          stopped = true;
           setPollingJobId(null);
           setJobStatus(null);
+          setIsEnriching(false);
           setJobError(data.errorSummary || 'Research enrichment job failed.');
         }
       } catch (err: unknown) {
+        if (stopped) return;
         console.error('Polling error:', err);
-        clearInterval(intervalId);
+        stopped = true;
         setPollingJobId(null);
         setJobStatus(null);
+        setIsEnriching(false);
         setJobError('Failed to verify job status. Please refresh.');
       }
     };
 
-    // Run first check immediately
+    // Run first check immediately, then every 5 seconds
     checkJobStatus();
+    const intervalId = setInterval(checkJobStatus, 5000);
 
-    // Poll every 5 seconds
-    intervalId = setInterval(checkJobStatus, 5000);
+    return () => {
+      stopped = true;
+      clearInterval(intervalId);
+    };
+  }, [pollingJobId]); // ← deliberately omits router
 
-    return () => clearInterval(intervalId);
-  }, [pollingJobId, router]);
+  const handleEnrich = useCallback(async () => {
+    // UI-level guard: prevents duplicate requests before the first pollingJobId is set.
+    // The API route also has a server-side idempotency guard as a second line of defense.
+    if (isEnriching) return;
 
-  const handleEnrich = async () => {
     setEnrichError(null);
     setJobError(null);
+    setIsEnriching(true);
     setJobStatus('QUEUED');
-    
+
     try {
       const res = await fetch(`/api/leads/${leadId}/research`, {
         method: 'POST',
       });
 
       if (!res.ok) {
-        // Fallback safely if not json
         const text = await res.text();
         let errorMsg = `Failed to trigger research: status ${res.status}`;
         try {
@@ -108,8 +135,9 @@ export default function ClientResearchView({
       const msg = err instanceof Error ? err.message : 'Failed to start research enrichment.';
       setEnrichError(msg);
       setJobStatus(null);
+      setIsEnriching(false);
     }
-  };
+  }, [leadId, isEnriching]);
 
   // 1. Loading/Triggering State
   if (pollingJobId || jobStatus === 'QUEUED' || jobStatus === 'RUNNING') {
@@ -119,11 +147,12 @@ export default function ClientResearchView({
   // 2. Empty State
   if (!initialSnapshot && !isEditing) {
     return (
-      <ResearchEmptyState 
+      <ResearchEmptyState
         enrichError={enrichError}
         jobError={jobError}
         onEnrich={handleEnrich}
         onEdit={() => setIsEditing(true)}
+        isEnriching={isEnriching}
       />
     );
   }
@@ -131,7 +160,6 @@ export default function ClientResearchView({
   // 3. Edit State (Form)
   if (isEditing) {
     const handleFormSubmit = () => {
-      // Delay closing editing view until after action completes
       setTimeout(() => setIsEditing(false), 200);
     };
 
@@ -157,6 +185,7 @@ export default function ClientResearchView({
       setActiveTab={setActiveTab}
       onEnrich={handleEnrich}
       onEdit={() => setIsEditing(true)}
+      isEnriching={isEnriching}
     />
   );
 }

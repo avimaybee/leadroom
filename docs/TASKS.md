@@ -2,7 +2,31 @@
 
 *Executable units of work based on the current stage in PLAN.md.*
 
-## Stage 3: Research Pipeline & Cloudflare Workflows
+## Phase 2 & AIML API Integration (Completed)
+
+### 1. Cloudflare Browser Run Integration
+- [x] Configure `@cloudflare/puppeteer` and define the `BROWSER` binding in `wrangler.jsonc`.
+- [x] Implement Edge Browser scraping with Quick Action `/snapshot` in `src/lib/scraper.ts`.
+- [x] Add Fetch-First static HTML bypass to prevent unnecessary browser calls and reduce compute costs.
+- [x] Handle 429 rate limit exceptions, sleep delay steps in `ResearchSnapshotWorkflow`, and propagate limit warnings to frontend.
+
+### 2. AI Provider Routing & Model Picker
+- [x] Implement active provider switching server action (`setActiveProviderAndModelAction`).
+- [x] Enforce mutual exclusivity so only one configured provider is active at any time.
+- [x] Create and render `ActiveProviderPicker` client component at the top of settings.
+- [x] Pass configured providers and allow custom model overrides.
+
+### 3. AIML API Provider Support
+- [x] Implement the `callAimlAPI` connector in `src/lib/ai.ts` targeting `https://api.aimlapi.com/v1/chat/completions`.
+- [x] Support `aiml` routing inside `runTriageAI`.
+- [x] Add `aiml` static models and display names in settings form and active picker.
+- [x] Update `saveIntegrationConfigAction` to check model existence on `https://api.aimlapi.com/v1/models`.
+- [x] Add dynamic live model list queries under `/api/settings/models` for `aiml`.
+- [x] Write integration tests in `settings.integration.test.ts` verifying the key/model validation and activation logic for AIML.
+
+---
+
+## Stage 3: Research Pipeline & Cloudflare Workflows (Completed)
 
 ### 1. Web Scraping Service
 - [x] Install Jina Reader / create a lightweight utility (`src/lib/scraper.ts`) to fetch URLs.
@@ -35,6 +59,8 @@
 - [x] Verify local workflow simulation works using `wrangler dev` or Next.js local integration.
 - [x] Ensure failure states (e.g., website unreachable, LLM rate limit) correctly mark the job as `FAILED` and present an error message to the user allowing them to retry.
 
+---
+
 ## Stage 2: Discovery Intake & AI Triage (Completed)
 
 ### 1. Sourcing Lead Slices
@@ -56,4 +82,25 @@
 - [x] Replace text input for model names with a dynamic `<select>` dropdown.
 - [x] Query `/api/settings/models` on key change to pull live model lists.
 - [x] Support manual fallback text input for custom model names.
+
+---
+
+## Stage 8: Future Conversational Pilot & Vector RAG (Roadmapped)
+
+### 1. Cloudflare Vectorize Integration
+- [ ] Bind `VECTOR_INDEX` under vectorize configuration in `wrangler.jsonc`.
+- [ ] Develop background indexing workflows running asynchronously to generate and push embeddings for notes, audits, and activity summaries (using Workers AI or Gemini Embeddings).
+- [ ] Implement semantic lookup query helpers for context grounding.
+
+### 2. Multi-Provider Supervisor Service
+- [ ] Create the central `orchestration.ts` service representing the Supervisor router (utilizing DeepSeek Chat or Gemini Pro).
+- [ ] Wrap deterministic application services (`createLead`, `changeStage`, `triggerResearchWorkflow`) into formatted JSON schema tool declarations.
+- [ ] Implement a context pruning loop: execute sub-agents in isolated, single-turn context calls, return structured values to the supervisor, and immediately discard raw inputs to preserve tokens and context window space.
+- [ ] Create provider routing rules to dynamically handle failovers if free-tier rate limits (RPM/TPM) are triggered.
+
+### 3. Split-Pane Conversational Interface
+- [ ] Initialize `ChatThread` and `ChatMessage` schemas via Drizzle.
+- [ ] Add a side-by-side split screen rendering a persistent pilot chat panel next to the structured Next.js Canvas dashboard.
+- [ ] Support streaming Server-Sent Events (SSE) with interactive confirmation buttons rendering for proposed agent actions.
+
 

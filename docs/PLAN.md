@@ -2,7 +2,7 @@
 
 ## Document status
 
-- Status: Draft v1.
+- Status: Active v1 (Stages 1-4 Completed).
 - Scope: Technical implementation plan for the internal-first build of AI Agency Growth OS.
 - Companion docs: `AGENTS.md`, `PRD.md`.
 - Audience: founder, coding agents, future engineering contributors.
@@ -550,6 +550,40 @@ Create learning loops from real usage.
 
 ***
 
+## Stage 8 — Future Conversational Pilot & Vector RAG
+
+### Objective
+
+Provide a unified conversational pilot interface ("Chat + Canvas") utilizing Cloudflare Vectorize embeddings and a multi-provider orchestrator to drive agency growth workflows using natural language.
+
+### Included scope
+
+- **Split-Pane Layout ("Chat + Canvas"):** A persistent conversational pilot panel alongside the structured, information-dense workspace views.
+- **Multi-Provider Orchestration:** High-intelligence models (e.g., DeepSeek-V4 or Gemini) as the main Supervisor/Orchestrator routing complex intents to sub-agents running on fast, free, or low-cost APIs (Groq, Nvidia, OpenRouter).
+- **Sub-Agent Context Discarding:** Pruning prompt history by executing sub-agent tasks in short-lived, isolated single-turn contexts, passing only the final structured outputs back to the Supervisor to keep orchestrator token usage low.
+- **Cloudflare Vectorize Integration:** A vector database binding for storing and performing semantic search queries over lead activity logs, audit summaries, and agency notes.
+- **Deterministic Tool Calling:** Mapping user conversational requests to existing, typed Application Layer service methods (e.g. `moveLeadStage`, `triggerResearchWorkflow`) with explicit confirmation/approval triggers.
+
+### Excluded scope
+
+- **Autonomous Outbound Transmission:** Conversational triggers must never bypass manual approval states.
+- **Pure Chat-First UI:** The structured database views (Canvas) remain the single source of truth; chat acts only as a pilot over the interface.
+
+### Key outputs
+
+- `vectorize` bindings in `wrangler.jsonc`.
+- Chat interface component with streaming server-sent events.
+- Tool Schema definitions for Application Layer services.
+- Supervisor routing prompt system instructions.
+
+### Exit criteria
+
+- The operator can run complex queries and commands via natural language (e.g. *"Show me lead audit gaps for retail companies in Boston"*).
+- The system correctly routes requests to deterministic services.
+- Context usage and API token consumption remain low and rate-limit compliant under multi-agent loops.
+
+***
+
 ## 8. Implementation order inside each stage
 
 Within each stage, agents should implement in this order unless there is a clear reason not to.
@@ -841,6 +875,10 @@ Follow-up discipline becomes measurable.
 ### Milestone G
 
 Reporting supports optimization decisions.
+
+### Milestone H
+
+Conversational pilot routes natural language requests to deterministic services utilizing Cloudflare Vectorize embeddings.
 
 Each milestone should be demoable with realistic records and workflows.
 

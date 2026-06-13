@@ -1,16 +1,28 @@
 export const dynamic = 'force-dynamic';
-import { LeadService } from '@/services/lead';
 import { getDb } from '@/db';
 import Link from 'next/link';
 import { archiveLeadAction } from '@/app/actions/leads';
-
-
+import { leads, leadScores } from '@/db/schema';
+import { eq, and, desc } from 'drizzle-orm';
 
 export default async function LeadsPage() {
   const db = getDb();
-  const service = new LeadService(db);
   
-  const leads = await service.listLeads();
+  const activeLeads = await db
+    .select({
+      id: leads.id,
+      name: leads.name,
+      company: leads.company,
+      email: leads.email,
+      stage: leads.stage,
+      status: leads.status,
+      scoreValue: leadScores.scoreValue,
+      scoreLabel: leadScores.scoreLabel,
+    })
+    .from(leads)
+    .leftJoin(leadScores, and(eq(leads.id, leadScores.leadId), eq(leadScores.isCurrent, 1)))
+    .where(eq(leads.status, 'Active'))
+    .orderBy(desc(leadScores.scoreValue));
 
   const getStageBadgeClass = (stage: string) => {
     switch (stage) {
@@ -50,26 +62,40 @@ export default async function LeadsPage() {
             <thead className="bg-slate-50">
               <tr>
                 <th className="px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Prospect Details</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Priority</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Company</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Pipeline Stage</th>
                 <th className="px-6 py-4 text-right text-xs font-bold text-slate-400 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-slate-200">
-              {leads.length === 0 ? (
+              {activeLeads.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center text-slate-500 font-medium">
+                  <td colSpan={5} className="px-6 py-12 text-center text-slate-500 font-medium">
                     No active leads found. Start building your pipeline!
                   </td>
                 </tr>
               ) : (
-                leads.map((lead: any) => (
+                activeLeads.map((lead: any) => (
                   <tr key={lead.id} className="hover:bg-slate-50/50 transition duration-150">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <Link href={`/leads/${lead.id}`} className="hover:underline">
                         <div className="font-bold text-slate-900 text-sm leading-snug">{lead.name}</div>
                       </Link>
                       <div className="text-xs text-slate-400 font-medium mt-0.5">{lead.email || 'No email provided'}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {lead.scoreValue !== null && lead.scoreValue !== undefined ? (
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-bold border ${
+                          lead.scoreLabel === 'High' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                          lead.scoreLabel === 'Medium' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                          'bg-slate-50 text-slate-600 border-slate-200'
+                        }`}>
+                          {lead.scoreLabel} ({lead.scoreValue})
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-400 font-bold italic">Unassessed</span>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-700">
                       {lead.company || '—'}

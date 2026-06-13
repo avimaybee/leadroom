@@ -73,6 +73,23 @@ export async function saveIntegrationConfigAction(formData: FormData) {
           return { error: `Invalid Groq model name "${modelName}". Make sure it matches Groq's model list (e.g., "llama3-70b-8192").` };
         }
       }
+    } else if (provider === 'aiml') {
+      const res = await fetch('https://api.aimlapi.com/v1/models', {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`
+        }
+      });
+      if (res.status === 401) {
+        return { error: 'Invalid AIML API key.' };
+      }
+      if (res.ok) {
+        const data = (await res.json()) as { data?: Array<{ id: string }> };
+        const models = data.data || [];
+        const exists = models.some((m) => m.id === modelName);
+        if (!exists) {
+          return { error: `Invalid AIML model name "${modelName}". Make sure it matches AIML API's model list (e.g., "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning").` };
+        }
+      }
     }
   } catch (err: unknown) {
     console.error(`Validation check failed for ${provider}:`, err);

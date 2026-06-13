@@ -4,13 +4,11 @@ export const dynamic = 'force-dynamic';
  * POST /api/leads/[id]/research
  *
  * Starts an AI research job for a lead. Returns immediately with a jobId.
- * The frontend must poll POST /api/jobs/[jobId]/advance every ~5 seconds
- * until status becomes COMPLETED or FAILED.
+ * The frontend polls GET /api/jobs/[jobId] every ~5 seconds until status
+ * becomes COMPLETED or FAILED.
  *
- * When the lead has a website, the Apify Google Maps actor is NOT used here —
- * instead we skip straight to scraping + LLM since the lead is already known.
- * We store a stub externalRunId='DIRECT' to signal the advance route to skip
- * the Apify status check and proceed directly to scraping + LLM.
+ * IDEMPOTENCY GUARD: If a QUEUED or RUNNING job already exists for this lead,
+ * returns the existing jobId instead of spawning a duplicate simulation.
  */
 
 import { NextResponse } from 'next/server';
@@ -19,6 +17,7 @@ import { jobRuns } from '@/db/schema/research';
 import { cookies } from 'next/headers';
 import { decrypt } from '@/lib/auth';
 import { triggerResearchWorkflow } from '@/lib/workflow-client';
+import { and, eq, or } from 'drizzle-orm';
 
 async function getUserId() {
   if (process.env.NODE_ENV === 'test') {
@@ -46,18 +45,41 @@ export async function POST(
   }
 
   const db = getDb();
-  const jobId = crypto.randomUUID();
-  const now = new Date();
 
   try {
-    // Create job in QUEUED status with a special externalRunId='DIRECT'
+    // IDEMPOTENCY GUARD: Check for an already-active research job for this lead.
+    // If one is QUEUED or RUNNING, return the existing jobId — do NOT spawn a duplicate.
+    const [existingJob] = await db
+      .select({ id: jobRuns.id, status: jobRuns.status })
+      .from(jobRuns)
+      .where(
+        and(
+          eq(jobRuns.targetLeadId, leadId),
+          eq(jobRuns.jobType, 'RESEARCH_GENERATION'),
+          or(
+            eq(jobRuns.status, 'QUEUED'),
+            eq(jobRuns.status, 'RUNNING')
+          )
+        )
+      )
+      .limit(1);
+
+    if (existingJob) {
+      console.log(`[Research API] Job already active for lead ${leadId}: ${existingJob.id} (${existingJob.status}). Returning existing jobId.`);
+      return NextResponse.json({ jobId: existingJob.id }, { status: 202 });
+    }
+
+    const jobId = crypto.randomUUID();
+    const now = new Date();
+
+    // Create job in QUEUED status
     await db.insert(jobRuns).values({
       id: jobId,
       jobType: 'RESEARCH_GENERATION',
       status: 'QUEUED',
       targetLeadId: leadId,
       triggeredByUserId: userId,
-      externalRunId: 'DIRECT', // sentinel: no Apify run needed, go straight to LLM
+      externalRunId: 'DIRECT',
       startedAt: null,
       finishedAt: null,
       createdAt: now,
@@ -73,3 +95,4 @@ export async function POST(
     return NextResponse.json({ error: errMsg }, { status: 500 });
   }
 }
+

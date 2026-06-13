@@ -237,7 +237,47 @@ test('API Route Handlers & Integration Pipeline', async (t) => {
     assert.strictEqual(body.status, 'RUNNING');
   });
 
+  await t.test('POST /api/leads/[id]/research returns existing jobId for in-flight job (idempotency guard)', async () => {
+    // At this point, lead_123 already has at least one QUEUED RESEARCH_GENERATION job from the first sub-test.
+    // Calling the route again should return an existing jobId without creating a new one.
+    const jobsBefore = await db.select().from(jobRuns)
+      .where(eq(jobRuns.targetLeadId, 'lead_123'));
+    const countBefore = jobsBefore.filter(j =>
+      (j.status === 'QUEUED' || j.status === 'RUNNING') && j.jobType === 'RESEARCH_GENERATION'
+    ).length;
+    assert.ok(countBefore >= 1, 'Expected at least one active RESEARCH_GENERATION job to exist from previous sub-tests');
+
+    const request = new Request('http://localhost/api/leads/lead_123/research', {
+      method: 'POST',
+    });
+    const response = await triggerResearch(request, {
+      params: Promise.resolve({ id: 'lead_123' }),
+    });
+
+    assert.strictEqual(response.status, 202);
+    const body = await response.json() as any;
+    assert.ok(body.jobId, 'Should return a jobId');
+
+    // The count of active RESEARCH_GENERATION jobs must NOT have increased — the guard prevented a new one
+    const jobsAfter = await db.select().from(jobRuns)
+      .where(eq(jobRuns.targetLeadId, 'lead_123'));
+    const countAfter = jobsAfter.filter(j =>
+      (j.status === 'QUEUED' || j.status === 'RUNNING') && j.jobType === 'RESEARCH_GENERATION'
+    ).length;
+    assert.strictEqual(countAfter, countBefore, 'Idempotency guard must not create a new job when one is already active');
+  });
+
+
   await t.test('Local Simulation should run, complete, and create a research snapshot', async () => {
+    // Use a separate lead so the idempotency guard does not block this test
+    await db.insert(leads).values({
+      id: 'lead_sim',
+      name: 'Stripe Inc Sim',
+      company: 'Stripe',
+      website: 'stripe.com',
+      industry: 'Financial Technology',
+    });
+
     // Mock global fetch for Jina Reader website scraper
     const originalFetch = globalThis.fetch;
     globalThis.fetch = async (url: any) => {
@@ -256,12 +296,12 @@ test('API Route Handlers & Integration Pipeline', async (t) => {
     };
 
     try {
-      const request = new Request('http://localhost/api/leads/lead_123/research', {
+      const request = new Request('http://localhost/api/leads/lead_sim/research', {
         method: 'POST',
       });
 
       const response = await triggerResearch(request, {
-        params: Promise.resolve({ id: 'lead_123' }),
+        params: Promise.resolve({ id: 'lead_sim' }),
       });
 
       const { jobId } = await response.json() as any;
@@ -281,7 +321,7 @@ test('API Route Handlers & Integration Pipeline', async (t) => {
       assert.strictEqual(job.status, 'COMPLETED', `Job failed with error: ${job.errorSummary}`);
 
       // Verify a research snapshot has been generated and stored
-      const snapshots = await db.select().from(researchSnapshots).where(eq(researchSnapshots.leadId, 'lead_123'));
+      const snapshots = await db.select().from(researchSnapshots).where(eq(researchSnapshots.leadId, 'lead_sim'));
       assert.strictEqual(snapshots.length, 1);
       assert.strictEqual(snapshots[0].origin, 'AI_GENERATED');
       assert.strictEqual(snapshots[0].snapshotTitle, 'Research Snapshot: Stripe | Payments Infrastructure');
@@ -291,3 +331,4 @@ test('API Route Handlers & Integration Pipeline', async (t) => {
     }
   });
 });
+

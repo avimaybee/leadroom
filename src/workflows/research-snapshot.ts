@@ -51,6 +51,8 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
             company: row.company || null,
             website: row.website || null,
             industry: row.industry || null,
+            city: row.city || null,
+            region: row.region || null,
           };
         }
       );
@@ -105,13 +107,15 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
         },
         async () => {
           const websiteMarkdown = scraped?.content || null;
+          const location = [lead.city, lead.region].filter(Boolean).join(", ") || null;
           return await generateResearch(
             db,
             lead.name,
             lead.company,
             lead.website,
             lead.industry,
-            websiteMarkdown
+            websiteMarkdown,
+            location
           );
         }
       );
