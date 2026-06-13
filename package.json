@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Internal operating system for Draftroom",
   "scripts": {
-    "build": "next build && opennextjs-cloudflare build --skipNextBuild",
+    "build": "next build --webpack && opennextjs-cloudflare build --skipNextBuild",
     "dev": "next dev",
     "start": "next start",
     "lint": "next lint",

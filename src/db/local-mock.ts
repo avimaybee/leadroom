@@ -1,6 +1,4 @@
-import Database from 'better-sqlite3';
-import path from 'path';
-import fs from 'fs';
+// Dynamic imports are used inside setupLocalDatabaseMock to prevent loading Node.js modules in Edge/Workers.
 
 class MockD1PreparedStatement {
   constructor(private stmt: any, private params: any[] = []) {}
@@ -86,12 +84,22 @@ class MockD1Database {
 }
 
 export function setupLocalDatabaseMock() {
+  const req = typeof require !== 'undefined' ? require : undefined;
+  if (!req) {
+    console.warn('Node.js require is not available. Skipping local database mock setup.');
+    return;
+  }
+
+  const Database = req('better-sqlite3');
+  const path = req('path');
+  const fs = req('fs');
+
   const baseDir = path.resolve(process.cwd(), '.wrangler/state/v3/d1/miniflare-D1DatabaseObject');
   let dbPath = '';
 
   if (fs.existsSync(baseDir)) {
     const files = fs.readdirSync(baseDir);
-    const sqliteFile = files.find((f) => f.endsWith('.sqlite'));
+    const sqliteFile = files.find((f: string) => f.endsWith('.sqlite'));
     if (sqliteFile) {
       dbPath = path.join(baseDir, sqliteFile);
     }
