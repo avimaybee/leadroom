@@ -11,6 +11,13 @@
 		"directory": ".open-next/assets",
 		"binding": "ASSETS"
 	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "leadroom",
+			"database_id": "fc5f9b16-1bc5-43e5-8a5d-5e54d3ec7b70"
+		}
+	],
 	"services": [
 		{
 			// Self-reference service binding, the service name must match the worker name

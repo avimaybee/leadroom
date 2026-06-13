@@ -2,7 +2,7 @@ import { drizzle, type DrizzleD1Database } from 'drizzle-orm/d1';
 import * as schema from './schema';
 
 export function getDb(): DrizzleD1Database<typeof schema> {
-  const env = (process as any).env;
+  const env = (typeof process !== 'undefined' ? process.env : undefined) as any;
   
   if (!env || !env.DB) {
     console.warn('WARNING: D1 database binding "DB" is missing. Using a throwing Proxy to prevent build crash.');

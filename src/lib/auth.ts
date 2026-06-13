@@ -1,6 +1,9 @@
 import { SignJWT, jwtVerify } from 'jose';
 
-const secretKey = new TextEncoder().encode(process.env.AUTH_SECRET || 'fallback-secret-key-at-least-32-chars-long');
+const secretKey = new TextEncoder().encode(
+  ((typeof process !== 'undefined' ? process.env : undefined) as any)?.AUTH_SECRET || 
+  'fallback-secret-key-at-least-32-chars-long'
+);
 
 export interface SessionPayload {
   userId: string;
