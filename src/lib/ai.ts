@@ -432,7 +432,7 @@ async function callOpenRouterAPI(
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`,
-        'HTTP-Referer': 'https://github.com/googlemind/draftroom',
+        'HTTP-Referer': 'https://github.com/googlemind/leadroom',
         'X-Title': 'Draftroom',
       },
       body: JSON.stringify({
@@ -538,7 +538,7 @@ export async function runTriageAI(
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiKey}`,
-          'HTTP-Referer': 'https://github.com/googlemind/draftroom',
+          'HTTP-Referer': 'https://github.com/googlemind/leadroom',
           'X-Title': 'Draftroom',
         },
         body: JSON.stringify({
@@ -1263,7 +1263,7 @@ export async function checkModelVisionCapability(provider: string, modelName: st
     try {
       const response = await fetch('https://openrouter.ai/api/v1/models', {
         headers: {
-          'HTTP-Referer': 'https://github.com/googlemind/draftroom',
+          'HTTP-Referer': 'https://github.com/googlemind/leadroom',
           'X-Title': 'Draftroom',
         }
       });

@@ -249,7 +249,7 @@ test('Outreach Server Actions Integration', async (t) => {
   await testDb.insert(users).values({
     id: 'user-admin',
     name: 'Admin User',
-    email: 'admin@draftroom.com',
+    email: 'admin@leadroom.com',
     password: 'hashed-password',
   });
 

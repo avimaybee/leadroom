@@ -2,7 +2,12 @@
 
 import { useState, useEffect, useCallback, use } from 'react';
 import Link from 'next/link';
+import { ArrowLeft, Loader2, ExternalLink, Search, FileText, Trash2, X, AlertTriangle } from 'lucide-react';
 import { formatUTC } from '@/lib/date';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 
 interface Scope {
   id: string;
@@ -382,14 +387,14 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
   if (loading && !scope) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600" />
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
       </div>
     );
   }
 
   if (error || !scope) {
     return (
-      <div className="bg-red-50 text-red-600 p-6 rounded-2xl border border-red-100 max-w-xl mx-auto mt-10">
+      <div className="bg-destructive/10 text-destructive p-6 rounded-2xl border border-destructive/20 max-w-xl mx-auto mt-10">
         <h3 className="font-bold text-lg">Error loading campaign</h3>
         <p className="mt-1 text-sm">{error || 'Campaign not found.'}</p>
         <Link href="/scopes" className="mt-4 inline-block font-semibold text-sm underline">
@@ -403,22 +408,22 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
     <div className="space-y-8 animate-fade-in relative text-left">
       {/* Back and Breadcrumbs */}
       <div className="space-y-1.5 text-left">
-        <Link 
-          href="/scopes" 
-          className="text-xs font-bold text-slate-500 hover:text-indigo-600 flex items-center gap-1 transition w-fit py-2.5 pr-4 -my-2.5 -ml-1"
+        <Link
+          href="/scopes"
+          className="text-xs font-bold text-muted-foreground hover:text-primary flex items-center gap-1 transition w-fit py-2.5 pr-4 -my-2.5 -ml-1"
         >
-          &larr; Back to Campaigns
+          <ArrowLeft className="w-3.5 h-3.5" /> Back to Campaigns
         </Link>
       </div>
 
       {/* Campaign Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-200 pb-5">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-border pb-5">
         <div>
-          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight capitalize">{scope.name}</h1>
-          <p className="text-sm text-slate-500 mt-1">Configure and qualify leads within this campaign segment.</p>
+          <h1 className="text-3xl font-extrabold text-card-foreground tracking-tight capitalize">{scope.name}</h1>
+          <p className="text-sm text-muted-foreground mt-1">Configure and qualify leads within this campaign segment.</p>
         </div>
         <div className="flex items-center gap-3">
-          <button
+          <Button
             onClick={() => {
               setRefineForm({
                 niche: scope.industryFilter || '',
@@ -428,85 +433,82 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
               setIsRefineModalOpen(true);
             }}
             disabled={!!activeJobRun}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2.5 rounded-xl text-sm transition shadow-sm hover:scale-[1.01] disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
           >
             Find More Leads
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={() => setIsModalOpen(true)}
-            className="border border-slate-200 hover:border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold px-4 py-2.5 rounded-xl text-sm transition shadow-sm whitespace-nowrap"
+            variant="outline"
           >
             + Add Candidate Manually
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* Active Job Progress Card */}
       {activeJobRun && (
-        <div className="bg-white p-6 rounded-2xl border border-indigo-200/80 shadow-md flex items-center gap-4 animate-pulse">
-          <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 shrink-0">
-            <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-            </svg>
+        <div className="bg-card p-6 rounded-2xl border border-primary/20 shadow-md flex items-center gap-4 animate-pulse">
+          <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary shrink-0">
+            <Loader2 className="w-5 h-5 animate-spin" />
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-bold text-slate-900">Crawler is actively scanning...</h3>
-            <p className="text-xs text-slate-500 mt-0.5 truncate leading-relaxed">
-              Searching Google Maps for <span className="font-semibold text-slate-700">"{activeJobRun.niche}"</span> in <span className="font-semibold text-slate-700">"{activeJobRun.location}"</span>. Discovered candidates will automatically populate this campaign. (typically takes 1-3 minutes)
+            <h3 className="text-sm font-bold text-card-foreground">Crawler is actively scanning...</h3>
+            <p className="text-xs text-muted-foreground mt-0.5 truncate leading-relaxed">
+              Searching Google Maps for <span className="font-semibold text-foreground">"{activeJobRun.niche}"</span> in <span className="font-semibold text-foreground">"{activeJobRun.location}"</span>. Discovered candidates will automatically populate this campaign. (typically takes 1-3 minutes)
             </p>
           </div>
         </div>
       )}
 
       {/* Campaign Specifications Panel (Collapsible Row) */}
-      <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm space-y-4 transition-all duration-200">
+      <div className="bg-card border border-border/80 rounded-2xl p-5 shadow-sm space-y-4 transition-all duration-200">
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-900">Campaign Specifications</span>
-            <span className="text-[10px] text-slate-500 font-bold uppercase">•</span>
-            <span className="text-xs text-slate-500 font-bold capitalize">
+            <span className="text-xs font-bold text-card-foreground">Campaign Specifications</span>
+            <span className="text-xs text-muted-foreground font-bold uppercase">•</span>
+            <span className="text-xs text-muted-foreground font-bold capitalize">
               {scope.industryFilter || 'All Industries'} &middot; {scope.geographyFilter || 'All Locations'}
             </span>
           </div>
-          <button
+          <Button
             onClick={() => setIsSpecsExpanded(!isSpecsExpanded)}
-            className="text-indigo-600 hover:text-indigo-700 hover:underline text-xs font-bold flex items-center gap-1 transition"
+            variant="link"
+            size="sm"
           >
-            {isSpecsExpanded ? 'Collapse Details &larr;' : 'Show Full Details &rarr;'}
-          </button>
+            {isSpecsExpanded ? 'Collapse Details' : 'Show Full Details'}
+          </Button>
         </div>
 
         {isSpecsExpanded ? (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 pt-4 border-t border-slate-100 animate-fade-in">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 pt-4 border-t border-border animate-fade-in">
             <div className="space-y-1">
-              <span className="block text-xs font-bold text-slate-900">Description</span>
-              <span className="text-sm text-slate-700 font-semibold block leading-relaxed">
+              <span className="block text-xs font-bold text-card-foreground">Description</span>
+              <span className="text-sm text-foreground font-semibold block leading-relaxed">
                 {scope.description || 'No description provided.'}
               </span>
             </div>
             {scope.industryFilter && (
               <div className="space-y-1">
-                <span className="block text-xs font-bold text-slate-900">Target Industry</span>
-                <span className="text-sm text-slate-700 font-semibold block">{scope.industryFilter}</span>
+                <span className="block text-xs font-bold text-card-foreground">Target Industry</span>
+                <span className="text-sm text-foreground font-semibold block">{scope.industryFilter}</span>
               </div>
             )}
             {scope.geographyFilter && (
               <div className="space-y-1">
-                <span className="block text-xs font-bold text-slate-900">Geography</span>
-                <span className="text-sm text-slate-700 font-semibold block">{scope.geographyFilter}</span>
+                <span className="block text-xs font-bold text-card-foreground">Geography</span>
+                <span className="text-sm text-foreground font-semibold block">{scope.geographyFilter}</span>
               </div>
             )}
             {scope.companySizeFilter && (
               <div className="space-y-1">
-                <span className="block text-xs font-bold text-slate-900">Company Size</span>
-                <span className="text-sm text-slate-700 font-semibold block">{scope.companySizeFilter}</span>
+                <span className="block text-xs font-bold text-card-foreground">Company Size</span>
+                <span className="text-sm text-foreground font-semibold block">{scope.companySizeFilter}</span>
               </div>
             )}
             {scope.notes && (
-              <div className="md:col-span-4 pt-3 border-t border-slate-100 space-y-1">
-                <span className="block text-xs font-bold text-slate-900">Campaign Notes</span>
-                <p className="text-sm text-slate-600 bg-slate-50 p-4 rounded-xl leading-relaxed whitespace-pre-wrap font-semibold">
+              <div className="md:col-span-4 pt-3 border-t border-border space-y-1">
+                <span className="block text-xs font-bold text-card-foreground">Campaign Notes</span>
+                <p className="text-sm text-muted-foreground bg-muted p-4 rounded-xl leading-relaxed whitespace-pre-wrap font-semibold">
                   {scope.notes}
                 </p>
               </div>
@@ -514,7 +516,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
           </div>
         ) : (
           scope.description && (
-            <p className="text-sm text-slate-500 font-medium truncate pt-3 border-t border-slate-100/60">
+            <p className="text-sm text-muted-foreground font-medium truncate pt-3 border-t border-border/60">
               {scope.description}
             </p>
           )
@@ -524,37 +526,25 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
       {/* Main Candidate list */}
       <div className="space-y-6">
         {/* Tabs */}
-        <div className="flex border-b border-slate-200">
-          <button
-            onClick={() => setActiveTab('pending')}
-            className={`pb-4 px-6 font-semibold text-sm border-b-2 transition-all duration-200 ${
-              activeTab === 'pending'
-                ? 'border-indigo-600 text-indigo-600 font-bold'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            Pending Review ({candidates.filter((c) => c.status === 'NEW' || c.status === 'REVIEWED').length})
-          </button>
-          <button
-            onClick={() => setActiveTab('promoted')}
-            className={`pb-4 px-6 font-semibold text-sm border-b-2 transition-all duration-200 ${
-              activeTab === 'promoted'
-                ? 'border-indigo-600 text-indigo-600 font-bold'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            Promoted ({candidates.filter((c) => c.status === 'PROMOTED').length})
-          </button>
-          <button
-            onClick={() => setActiveTab('discarded')}
-            className={`pb-4 px-6 font-semibold text-sm border-b-2 transition-all duration-200 ${
-              activeTab === 'discarded'
-                ? 'border-indigo-600 text-indigo-600 font-bold'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            Discarded ({candidates.filter((c) => c.status === 'DISCARDED').length})
-          </button>
+        <div className="flex border-b border-border">
+          {(['pending', 'promoted', 'discarded'] as const).map((tab) => (
+            <Button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              variant="ghost"
+              className={`pb-4 px-6 font-semibold text-sm border-b-2 transition-all duration-200 rounded-none ${
+                activeTab === tab
+                  ? 'border-primary text-primary font-bold'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {tab === 'pending' ? 'Pending Review' : tab === 'promoted' ? 'Promoted' : 'Discarded'} ({candidates.filter((c) => {
+                if (tab === 'pending') return c.status === 'NEW' || c.status === 'REVIEWED';
+                if (tab === 'promoted') return c.status === 'PROMOTED';
+                return c.status === 'DISCARDED';
+              }).length})
+            </Button>
+          ))}
         </div>
 
         {/* List display */}
@@ -562,20 +552,18 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
           {filteredCandidates.length === 0 ? (
             candidates.length === 0 ? (
               /* True Empty State - 0 prospects overall */
-              <div className="bg-white border border-slate-200/80 rounded-2xl p-12 text-center max-w-2xl mx-auto space-y-6 shadow-sm my-4 animate-fade-in">
-                <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 mx-auto">
-                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
+              <div className="bg-card border border-border/80 rounded-2xl p-12 text-center max-w-2xl mx-auto space-y-6 shadow-sm my-4 animate-fade-in">
+                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center text-primary mx-auto">
+                  <Search className="w-8 h-8" />
                 </div>
                 <div className="space-y-2">
-                  <h3 className="text-lg font-bold text-slate-900">No prospects found in this campaign yet</h3>
-                  <p className="text-sm text-slate-500 max-w-md mx-auto leading-relaxed">
+                  <h3 className="text-lg font-bold text-card-foreground">No prospects found in this campaign yet</h3>
+                  <p className="text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
                     Run an automated Google Maps scan with this campaign's specifications to crawl local businesses and populate your candidate list.
                   </p>
                 </div>
                 <div className="flex justify-center items-center gap-3 pt-2">
-                  <button
+                  <Button
                     onClick={() => {
                       setRefineForm({
                         niche: scope.industryFilter || '',
@@ -584,84 +572,78 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                       });
                       setIsRefineModalOpen(true);
                     }}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2.5 rounded-xl text-sm transition shadow shadow-indigo-600/10 hover:scale-[1.01]"
                   >
-                    Find Leads &rarr;
-                  </button>
-                  <button
+                    Find Leads
+                  </Button>
+                  <Button
                     onClick={() => setIsModalOpen(true)}
-                    className="border border-slate-200 hover:border-slate-300 text-slate-700 hover:bg-slate-50 font-bold px-5 py-2.5 rounded-xl text-sm transition"
+                    variant="outline"
                   >
                     Add Manually
-                  </button>
+                  </Button>
                 </div>
               </div>
             ) : (
               /* Tab Empty State - some prospects exist but none in activeTab */
-              <div className="bg-white border border-slate-200/80 rounded-2xl p-10 text-center max-w-xl mx-auto space-y-4 shadow-sm my-4 animate-fade-in">
-                <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 mx-auto">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                  </svg>
+              <div className="bg-card border border-border/80 rounded-2xl p-10 text-center max-w-xl mx-auto space-y-4 shadow-sm my-4 animate-fade-in">
+                <div className="w-12 h-12 bg-muted rounded-xl flex items-center justify-center text-muted-foreground mx-auto">
+                  <FileText className="w-6 h-6" />
                 </div>
                 <div className="space-y-1">
-                  <h3 className="text-sm font-bold text-slate-900 capitalize">No prospects in {activeTab}</h3>
-                  <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
+                  <h3 className="text-sm font-bold text-card-foreground capitalize">No prospects in {activeTab}</h3>
+                  <p className="text-xs text-muted-foreground max-w-xs mx-auto leading-relaxed">
                     There are no prospects qualified under the "{activeTab}" filter for this campaign.
                   </p>
                 </div>
                 {activeTab !== 'pending' && (
-                  <button
-                    onClick={() => setActiveTab('pending')}
-                    className="text-xs font-bold text-indigo-600 hover:text-indigo-700 hover:underline transition"
-                  >
-                    View Pending Review &rarr;
-                  </button>
+                  <Button onClick={() => setActiveTab('pending')} variant="link" size="sm">
+                    View Pending Review
+                  </Button>
                 )}
               </div>
             )
           ) : (
             <>
               {activeTab === 'pending' && candidates.some(c => (c.status === 'NEW' || c.status === 'REVIEWED') && c.triagePriority === 'SKIP') && (
-                <div className="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center bg-slate-50 border border-slate-200/60 p-4 rounded-2xl shadow-sm mb-4 text-left">
-                  <div className="text-xs text-slate-500 font-semibold leading-relaxed">
+                <div className="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center bg-muted border border-border/60 p-4 rounded-2xl shadow-sm mb-4 text-left">
+                  <div className="text-xs text-muted-foreground font-semibold leading-relaxed">
                     Sorted by priority: outdated or offline websites are pushed to the top; modern sites are greyed out at the bottom.
                   </div>
-                  <button
+                  <Button
                     onClick={handleBulkDiscardSkip}
-                    className="text-xs font-bold text-slate-500 hover:text-rose-600 bg-white hover:bg-rose-50 px-3.5 py-2 rounded-xl border border-slate-200 hover:border-rose-100 transition flex items-center gap-1.5 shadow-sm shrink-0"
+                    variant="outline"
+                    size="sm"
+                    className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 hover:border-destructive/20"
                   >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
+                    <Trash2 className="w-3.5 h-3.5" />
                     Discard all low-priority (SKIP) candidates
-                  </button>
+                  </Button>
                 </div>
               )}
               {filteredCandidates.map((candidate) => (
                 <div
                   key={candidate.id}
-                  className={`bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row justify-between md:items-center gap-6 transition-all duration-200 ${
-                    candidate.triagePriority === 'HIGH' ? 'border-l-4 border-l-rose-500' :
-                    candidate.triagePriority === 'MEDIUM' ? 'border-l-4 border-l-amber-500' :
-                    candidate.triagePriority === 'SKIP' ? 'opacity-60 bg-slate-50/50' : ''
+                  className={`bg-card border border-border/80 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row justify-between md:items-center gap-6 transition-all duration-200 ${
+                    candidate.triagePriority === 'HIGH' ? 'border-l-4 border-l-destructive' :
+                    candidate.triagePriority === 'MEDIUM' ? 'border-l-4 border-l-chart-5' :
+                    candidate.triagePriority === 'SKIP' ? 'opacity-60 bg-muted/50' : ''
                   }`}
                 >
                   <div className="space-y-2.5 flex-1">
                     <div className="flex flex-wrap items-center gap-3">
-                      <h4 className="font-extrabold text-slate-900 text-lg leading-snug">{candidate.rawName}</h4>
+                      <h4 className="font-extrabold text-card-foreground text-lg leading-snug">{candidate.rawName}</h4>
                       {candidate.triagePriority && candidate.triagePriority !== 'UNASSESSED' && (
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
-                          candidate.triagePriority === 'HIGH' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
-                          candidate.triagePriority === 'MEDIUM' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                          candidate.triagePriority === 'SKIP' ? 'bg-slate-50 text-slate-500 border border-slate-200' :
-                          'bg-slate-100 text-slate-400'
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${
+                          candidate.triagePriority === 'HIGH' ? 'bg-destructive/10 text-destructive border border-destructive/20' :
+                          candidate.triagePriority === 'MEDIUM' ? 'bg-chart-5/10 text-chart-5 border border-chart-5/20' :
+                          candidate.triagePriority === 'SKIP' ? 'bg-muted text-muted-foreground border border-border' :
+                          'bg-muted text-muted-foreground'
                         }`}>
                           {candidate.triagePriority} Priority
                         </span>
                       )}
                       {candidate.rawLocation && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-slate-100 text-slate-600">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-muted text-muted-foreground">
                           {candidate.rawLocation}
                         </span>
                       )}
@@ -672,29 +654,27 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                         href={candidate.rawWebsiteUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-indigo-600 hover:underline text-sm font-semibold flex items-center gap-1.5 w-fit"
+                        className="text-primary hover:underline text-sm font-semibold flex items-center gap-1.5 w-fit"
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
+                        <ExternalLink className="w-4 h-4" />
                         {candidate.rawWebsiteUrl}
                       </a>
                     )}
 
                     {candidate.triageReason && (
-                      <p className="text-xs font-semibold text-slate-500 bg-slate-50/50 p-2.5 rounded-xl border border-slate-100/60 leading-relaxed text-left w-fit max-w-full">
-                        <span className="font-bold text-slate-700">Triage:</span> {candidate.triageReason}
+                      <p className="text-xs font-semibold text-muted-foreground bg-muted/50 p-2.5 rounded-xl border border-border/60 leading-relaxed text-left w-fit max-w-full">
+                        <span className="font-bold text-foreground">Triage:</span> {candidate.triageReason}
                       </p>
                     )}
 
                     {candidate.rawContactInfo && (
-                      <div className="text-xs font-medium text-slate-500">
-                        <span className="font-bold text-slate-600">Contact:</span> {candidate.rawContactInfo}
+                      <div className="text-xs font-medium text-muted-foreground">
+                        <span className="font-bold text-foreground">Contact:</span> {candidate.rawContactInfo}
                       </div>
                     )}
 
                     {candidate.notes && (
-                      <p className="text-sm text-slate-500 bg-slate-50/70 p-3 rounded-lg border border-slate-100 whitespace-pre-wrap">
+                      <p className="text-sm text-muted-foreground bg-muted/70 p-3 rounded-lg border border-border whitespace-pre-wrap">
                         {candidate.notes}
                       </p>
                     )}
@@ -704,29 +684,30 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                   <div className="flex md:flex-col gap-2 shrink-0 md:items-end justify-end">
                     {candidate.status !== 'PROMOTED' && candidate.status !== 'DISCARDED' && (
                       <>
-                        <button
+                        <Button
                           onClick={() => handleUpdateStatus(candidate.id, 'PROMOTED')}
-                          className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow shadow-indigo-600/10 hover:scale-[1.01]"
+                          size="sm"
                         >
                           Promote to Lead
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           onClick={() => handleUpdateStatus(candidate.id, 'DISCARDED')}
-                          className="border border-slate-200 hover:border-slate-300 text-slate-600 hover:bg-slate-50 font-bold text-xs px-4 py-2 rounded-xl transition"
+                          variant="outline"
+                          size="sm"
                         >
                           Discard
-                        </button>
+                        </Button>
                       </>
                     )}
 
                     {candidate.status === 'PROMOTED' && (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-chart-2/20 text-chart-2">
                         Promoted to Lead
                       </span>
                     )}
 
                     {candidate.status === 'DISCARDED' && (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-muted text-muted-foreground border border-border">
                         Discarded
                       </span>
                     )}
@@ -739,31 +720,32 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
       </div>
 
       {/* Collapsible Recent Crawls Section */}
-      <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm space-y-4 transition-all duration-200">
+      <div className="bg-card border border-border/80 rounded-2xl p-5 shadow-sm space-y-4 transition-all duration-200">
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-900">Campaign Discovery History</span>
-            <span className="text-[10px] text-slate-500 font-bold uppercase">•</span>
-            <span className="text-xs text-slate-500 font-bold">
+            <span className="text-xs font-bold text-card-foreground">Campaign Discovery History</span>
+            <span className="text-xs text-muted-foreground font-bold uppercase">•</span>
+            <span className="text-xs text-muted-foreground font-bold">
               {recentRuns.length} recent runs
             </span>
           </div>
-          <button
+          <Button
             onClick={() => setIsRecentRunsExpanded(!isRecentRunsExpanded)}
-            className="text-indigo-600 hover:text-indigo-700 hover:underline text-xs font-bold flex items-center gap-1 transition"
+            variant="link"
+            size="sm"
           >
-            {isRecentRunsExpanded ? 'Hide History &larr;' : 'Show History &rarr;'}
-          </button>
+            {isRecentRunsExpanded ? 'Hide History' : 'Show History'}
+          </Button>
         </div>
 
         {isRecentRunsExpanded && (
-          <div className="pt-4 border-t border-slate-100 animate-fade-in">
+          <div className="pt-4 border-t border-border animate-fade-in">
             {recentRuns.length === 0 ? (
-              <p className="text-xs text-slate-500 font-medium py-2">No recent discovery runs have been triggered for this campaign.</p>
+              <p className="text-xs text-muted-foreground font-medium py-2">No recent discovery runs have been triggered for this campaign.</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] tracking-wider border-b border-slate-100">
+                  <thead className="bg-muted text-muted-foreground font-bold uppercase text-xs tracking-wider border-b border-border">
                     <tr>
                       <th className="px-4 py-3">Keyword/Niche</th>
                       <th className="px-4 py-3">Location</th>
@@ -771,22 +753,22 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                       <th className="px-4 py-3">Date</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
+                  <tbody className="divide-y divide-border text-foreground font-medium">
                     {recentRuns.map((run) => (
-                      <tr key={run.id} className="hover:bg-slate-50/50 transition">
-                        <td className="px-4 py-3 font-bold text-slate-900">{run.niche}</td>
+                      <tr key={run.id} className="hover:bg-muted/50 transition">
+                        <td className="px-4 py-3 font-bold text-card-foreground">{run.niche}</td>
                         <td className="px-4 py-3">{run.location}</td>
                         <td className="px-4 py-3">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                            run.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
-                            run.status === 'FAILED' ? 'bg-rose-50 text-rose-700 border border-rose-100' :
-                            run.status === 'RUNNING' || run.status === 'QUEUED' ? 'bg-amber-50 text-amber-700 border border-amber-100 animate-pulse' :
-                            'bg-slate-100 text-slate-600'
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase ${
+                            run.status === 'COMPLETED' ? 'bg-chart-2/10 text-chart-2 border border-chart-2/20' :
+                            run.status === 'FAILED' ? 'bg-destructive/10 text-destructive border border-destructive/20' :
+                            run.status === 'RUNNING' || run.status === 'QUEUED' ? 'bg-chart-5/10 text-chart-5 border border-chart-5/20 animate-pulse' :
+                            'bg-muted text-muted-foreground'
                           }`}>
                             {run.status}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-xs text-slate-500">
+                        <td className="px-4 py-3 text-xs text-muted-foreground">
                           {formatUTC(run.createdAt)}
                         </td>
                       </tr>
@@ -801,99 +783,85 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
 
       {/* Manual Candidate Intake Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-white rounded-2xl border border-slate-200 w-full max-w-lg shadow-2xl p-6 space-y-6">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-4">
-              <h3 className="font-extrabold text-slate-900 text-lg">Add Prospect Candidate</h3>
-              <button
+        <div className="fixed inset-0 bg-foreground/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-card rounded-2xl border border-border w-full max-w-lg shadow-xl p-6 space-y-6">
+            <div className="flex justify-between items-center border-b border-border pb-4">
+              <h3 className="font-extrabold text-card-foreground text-lg">Add Prospect Candidate</h3>
+              <Button
                 onClick={() => setIsModalOpen(false)}
-                className="p-1 border border-slate-200 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition"
+                variant="ghost"
+                size="icon-xs"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+                <X className="w-5 h-5" />
+              </Button>
             </div>
 
             <form onSubmit={handleAddCandidate} className="space-y-4">
               {modalError && (
-                <div className="bg-red-50 text-red-600 p-3.5 rounded-xl text-xs font-semibold border border-red-100">
+                <div className="bg-destructive/10 text-destructive p-3.5 rounded-xl text-xs font-semibold border border-destructive/20">
                   {modalError}
                 </div>
               )}
 
               <div>
-                <label className="block text-xs font-bold text-slate-900 mb-1.5">Business Name *</label>
-                <input
+                <Label className="mb-1.5 block">Business Name *</Label>
+                <Input
                   required
                   type="text"
                   placeholder="e.g. Austin Smiles Dentistry"
                   value={newCandidate.rawName}
                   onChange={(e) => setNewCandidate({ ...newCandidate, rawName: e.target.value })}
-                  className="block w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 placeholder:text-slate-400 shadow-sm"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-900 mb-1.5">Website URL</label>
-                <input
+                <Label className="mb-1.5 block">Website URL</Label>
+                <Input
                   type="url"
                   placeholder="e.g. https://austinsmiles.com"
                   value={newCandidate.rawWebsiteUrl}
                   onChange={(e) => setNewCandidate({ ...newCandidate, rawWebsiteUrl: e.target.value })}
-                  className="block w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 placeholder:text-slate-400 shadow-sm"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-900 mb-1.5">Location</label>
-                  <input
+                  <Label className="mb-1.5 block">Location</Label>
+                  <Input
                     type="text"
                     placeholder="e.g. Austin, TX"
                     value={newCandidate.rawLocation}
                     onChange={(e) => setNewCandidate({ ...newCandidate, rawLocation: e.target.value })}
-                    className="block w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 placeholder:text-slate-400 shadow-sm"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-900 mb-1.5">Contact Info</label>
-                  <input
+                  <Label className="mb-1.5 block">Contact Info</Label>
+                  <Input
                     type="text"
                     placeholder="e.g. hello@website.com"
                     value={newCandidate.rawContactInfo}
                     onChange={(e) => setNewCandidate({ ...newCandidate, rawContactInfo: e.target.value })}
-                    className="block w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 placeholder:text-slate-400 shadow-sm"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-900 mb-1.5">Internal Prospect Notes</label>
-                <textarea
+                <Label className="mb-1.5 block">Internal Prospect Notes</Label>
+                <Textarea
                   placeholder="e.g. Website has poor SEO; no live chat system implemented..."
                   rows={3}
                   value={newCandidate.notes}
                   onChange={(e) => setNewCandidate({ ...newCandidate, notes: e.target.value })}
-                  className="block w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 placeholder:text-slate-400 shadow-sm"
                 />
               </div>
 
-              <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-5 py-2.5 bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 rounded-xl font-semibold text-sm transition"
-                >
+              <div className="pt-4 border-t border-border flex justify-end gap-3">
+                <Button type="button" onClick={() => setIsModalOpen(false)} variant="outline">
                   Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submittingCandidate}
-                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition shadow-sm hover:scale-[1.01] disabled:opacity-50"
-                >
+                </Button>
+                <Button type="submit" disabled={submittingCandidate}>
                   {submittingCandidate ? 'Saving...' : 'Add Candidate'}
-                </button>
+                </Button>
               </div>
             </form>
           </div>
@@ -902,24 +870,21 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
 
       {/* Refine Search / Find More Leads Modal (Credit Protection) */}
       {isRefineModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-white rounded-2xl border border-slate-200 w-full max-w-lg shadow-2xl p-6 space-y-6">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-4">
-              <h3 className="font-extrabold text-slate-900 text-lg">Find More Leads</h3>
-              <button
+        <div className="fixed inset-0 bg-foreground/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-card rounded-2xl border border-border w-full max-w-lg shadow-xl p-6 space-y-6">
+            <div className="flex justify-between items-center border-b border-border pb-4">
+              <h3 className="font-extrabold text-card-foreground text-lg">Find More Leads</h3>
+              <Button
                 onClick={() => setIsRefineModalOpen(false)}
-                className="p-1 border border-slate-200 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition"
+                variant="ghost"
+                size="icon-xs"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+                <X className="w-5 h-5" />
+              </Button>
             </div>
 
-            <div className="bg-amber-50 border border-amber-100 text-amber-800 p-4 rounded-xl text-xs font-semibold leading-relaxed flex gap-3">
-              <svg className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
+            <div className="bg-chart-5/10 border border-chart-5/20 text-chart-5 p-4 rounded-xl text-xs font-semibold leading-relaxed flex gap-3">
+              <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
               <div>
                 <span className="font-bold block mb-1">Credit Allocation Warning</span>
                 Apify restarts from scratch on every run. To avoid paying for duplicate results, refine your search criteria by entering a specific Zip code, suburb, or a keyword variation.
@@ -928,35 +893,33 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
 
             <form onSubmit={handleRefineSearchSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-900 mb-1.5">Niche / Keyword</label>
-                <input
+                <Label className="mb-1.5 block">Niche / Keyword</Label>
+                <Input
                   required
                   type="text"
                   placeholder="e.g. Roofers, Dentists"
                   value={refineForm.niche}
                   onChange={(e) => setRefineForm({ ...refineForm, niche: e.target.value })}
-                  className="block w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 placeholder:text-slate-400 shadow-sm"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-900 mb-1.5">Refined Location (City, Zip Code, Suburb)</label>
-                <input
+                <Label className="mb-1.5 block">Refined Location (City, Zip Code, Suburb)</Label>
+                <Input
                   required
                   type="text"
                   placeholder="e.g. Austin TX 78701, Plano"
                   value={refineForm.location}
                   onChange={(e) => setRefineForm({ ...refineForm, location: e.target.value })}
-                  className="block w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 placeholder:text-slate-400 shadow-sm"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-900 mb-1.5">Limit</label>
+                <Label className="mb-1.5 block">Limit</Label>
                 <select
                   value={refineForm.limit}
                   onChange={(e) => setRefineForm({ ...refineForm, limit: Number(e.target.value) })}
-                  className="block w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 bg-white shadow-sm"
+                  className="flex h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                 >
                   <option value={10}>10 Leads</option>
                   <option value={20}>20 Leads</option>
@@ -965,20 +928,13 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                 </select>
               </div>
 
-              <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsRefineModalOpen(false)}
-                  className="px-5 py-2.5 bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 rounded-xl font-semibold text-sm transition"
-                >
+              <div className="pt-4 border-t border-border flex justify-end gap-3">
+                <Button type="button" onClick={() => setIsRefineModalOpen(false)} variant="outline">
                   Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition shadow-sm hover:scale-[1.01]"
-                >
+                </Button>
+                <Button type="submit">
                   Start Scan
-                </button>
+                </Button>
               </div>
             </form>
           </div>

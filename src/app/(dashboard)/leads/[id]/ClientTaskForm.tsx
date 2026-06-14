@@ -2,17 +2,17 @@
 
 import { useActionState, useEffect, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Plus, ClipboardCheck } from 'lucide-react';
 
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2.5 rounded-xl transition disabled:opacity-50 shadow shadow-indigo-600/10"
-    >
+    <Button type="submit" disabled={pending} className="w-full">
       {pending ? 'Adding Task...' : 'Add Task'}
-    </button>
+    </Button>
   );
 }
 
@@ -37,38 +37,34 @@ export default function ClientTaskForm({ leadId, createTaskAction, tasksCount = 
   if (!showForm) {
     return (
       <div className="space-y-4">
-        <button
+        <Button
           type="button"
-          id="add-task-trigger-btn"
+          variant="outline"
           onClick={() => setShowForm(true)}
-          className="w-full py-2 px-3 bg-slate-50 hover:bg-slate-100/80 border border-slate-200/60 text-indigo-600 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5"
+          className="w-full"
         >
-          <svg className="w-3.5 h-3.5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
-          </svg>
+          <Plus className="w-3.5 h-3.5" />
           Add Task
-        </button>
+        </Button>
 
         {tasksCount === 0 && (
-          <div className="bg-slate-50 border border-dashed border-slate-200 rounded-xl p-6 text-center space-y-3 animate-fade-in">
-            <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-slate-400 mx-auto shadow-sm">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-              </svg>
+          <div className="bg-muted/30 border border-dashed border-border rounded-xl p-6 text-center space-y-3 animate-fade-in">
+            <div className="w-10 h-10 bg-card rounded-lg flex items-center justify-center text-muted-foreground mx-auto shadow-sm">
+              <ClipboardCheck className="w-5 h-5" />
             </div>
             <div className="space-y-1">
-              <h4 className="text-xs font-bold text-slate-900">No Tasks Configured</h4>
-              <p className="text-[11px] text-slate-500 max-w-xs mx-auto leading-relaxed">
+              <h4 className="text-xs font-bold text-foreground">No Tasks Configured</h4>
+              <p className="text-xs text-muted-foreground max-w-xs mx-auto leading-relaxed">
                 Keep track of outreach plans, follow-ups, audits, and meetings for this lead.
               </p>
             </div>
-            <button
+            <Button
               type="button"
+              variant="link"
               onClick={() => setShowForm(true)}
-              className="inline-flex items-center text-xs font-bold text-indigo-600 hover:text-indigo-700 hover:underline transition"
             >
               Create First Task &rarr;
-            </button>
+            </Button>
           </div>
         )}
       </div>
@@ -76,19 +72,15 @@ export default function ClientTaskForm({ leadId, createTaskAction, tasksCount = 
   }
 
   return (
-    <form ref={formRef} action={formAction} className="space-y-4 bg-slate-50/50 p-4 rounded-xl border border-slate-200/60 animate-fade-in">
-      <div className="flex justify-between items-center pb-1 border-b border-slate-200/40">
-        <h4 className="text-xs font-bold text-slate-900">Configure New Task</h4>
-        <button
-          type="button"
-          onClick={() => setShowForm(false)}
-          className="text-xs font-bold text-slate-400 hover:text-slate-600 transition"
-        >
+    <form ref={formRef} action={formAction} className="space-y-4 bg-muted/30 p-4 rounded-xl border border-border/60 animate-fade-in">
+      <div className="flex justify-between items-center pb-1 border-b border-border/40">
+        <h4 className="text-xs font-bold text-foreground">Configure New Task</h4>
+        <Button type="button" variant="ghost" size="xs" onClick={() => setShowForm(false)}>
           Cancel
-        </button>
+        </Button>
       </div>
       {state?.error && (
-        <div className="bg-red-50 text-red-600 p-2.5 rounded-lg text-xs border border-red-100 font-semibold">
+        <div className="bg-destructive/10 text-destructive p-2.5 rounded-lg text-xs border border-destructive/20 font-semibold">
           {state.error}
         </div>
       )}
@@ -96,43 +88,40 @@ export default function ClientTaskForm({ leadId, createTaskAction, tasksCount = 
       
       <div className="space-y-3">
         <div>
-          <label htmlFor="task-title" className="sr-only">Task Title</label>
-          <input 
+          <Label htmlFor="task-title" className="sr-only">Task Title</Label>
+          <Input 
             required
             id="task-title"
             type="text"
             name="title"
             placeholder="Task title..."
-            className="block w-full rounded-lg border border-slate-200 py-2 px-3 text-xs focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 placeholder:text-slate-400 bg-white"
           />
         </div>
         <div>
-          <label htmlFor="task-desc" className="sr-only">Task Description</label>
-          <input 
+          <Label htmlFor="task-desc" className="sr-only">Task Description</Label>
+          <Input 
             id="task-desc"
             type="text"
             name="description"
             placeholder="Short description..."
-            className="block w-full rounded-lg border border-slate-200 py-2 px-3 text-xs focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 placeholder:text-slate-400 bg-white"
           />
         </div>
         <div className="space-y-3">
           <div>
-            <label htmlFor="task-due-date" className="block text-xs font-bold text-slate-900 mb-1">Due Date</label>
-            <input 
+            <Label htmlFor="task-due-date" className="block text-xs font-bold text-foreground mb-1">Due Date</Label>
+            <Input 
               id="task-due-date"
               type="date"
               name="dueDate"
-              className="block w-full rounded-lg border border-slate-200 py-1.5 px-2.5 text-xs focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 bg-white"
             />
           </div>
           <div>
-            <label htmlFor="task-priority" className="block text-xs font-bold text-slate-900 mb-1">Priority</label>
+            <Label htmlFor="task-priority" className="block text-xs font-bold text-foreground mb-1">Priority</Label>
             <select 
               id="task-priority"
               name="priority"
               defaultValue="Medium"
-              className="block w-full rounded-lg border border-slate-200 py-1.5 px-2.5 text-xs focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 bg-white"
+              className="block w-full rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-xs focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 text-foreground"
             >
               <option value="High">High</option>
               <option value="Medium">Medium</option>

@@ -177,7 +177,7 @@ test('ScoringService Integration Tests', async (t) => {
     await db.insert(users).values({
       id: 'operator-1',
       name: 'Admin User',
-      email: 'admin@draftroom.com',
+      email: 'admin@leadroom.com',
       password: 'hashedpassword',
     });
 

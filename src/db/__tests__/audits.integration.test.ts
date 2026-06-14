@@ -196,7 +196,7 @@ test('Audits & Scoring Integration', async (t) => {
     await db.insert(users).values({
       id: 'user-123',
       name: 'Test Operator',
-      email: 'operator@draftroom.com',
+      email: 'operator@leadroom.com',
       password: 'hashedpassword',
     });
 

@@ -2,6 +2,9 @@
 
 import { useState, useActionState, useEffect } from 'react';
 import { useFormStatus } from 'react-dom';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface Lead {
   id: string;
@@ -26,13 +29,9 @@ interface ClientLeadProfileProps {
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition shadow disabled:opacity-50"
-    >
+    <Button type="submit" disabled={pending} size="sm">
       {pending ? 'Saving...' : 'Save Changes'}
-    </button>
+    </Button>
   );
 }
 
@@ -48,22 +47,18 @@ export default function ClientLeadProfile({ lead, updateLeadAction }: ClientLead
 
   if (isEditing) {
     return (
-      <form action={formAction} className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-5 animate-fade-in">
-        <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-          <h3 className="text-base font-bold text-slate-900">
+      <form action={formAction} className="bg-card p-6 rounded-2xl border border-border/80 shadow-sm space-y-5 animate-fade-in">
+        <div className="flex justify-between items-center border-b border-border pb-3">
+          <h3 className="text-base font-bold text-foreground">
             Edit Contact & Business Profile
           </h3>
-          <button
-            type="button"
-            onClick={() => setIsEditing(false)}
-            className="text-xs font-bold text-slate-500 hover:text-slate-700 transition"
-          >
+          <Button type="button" variant="ghost" size="xs" onClick={() => setIsEditing(false)}>
             Cancel
-          </button>
+          </Button>
         </div>
 
         {state?.error && (
-          <div className="bg-red-50 text-red-600 p-3 rounded-xl text-xs border border-red-100 font-semibold">
+          <div className="bg-destructive/10 text-destructive p-3 rounded-xl text-xs border border-destructive/20 font-semibold">
             {state.error}
           </div>
         )}
@@ -72,85 +67,39 @@ export default function ClientLeadProfile({ lead, updateLeadAction }: ClientLead
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Full Name *</label>
-            <input
-              required
-              type="text"
-              name="name"
-              defaultValue={lead.name}
-              className="block w-full rounded-xl border border-slate-200 py-2 px-3 text-xs focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 bg-white"
-            />
+            <Label className="text-xs text-muted-foreground uppercase tracking-wider">Full Name *</Label>
+            <Input required type="text" name="name" defaultValue={lead.name} />
           </div>
-
           <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Company</label>
-            <input
-              type="text"
-              name="company"
-              defaultValue={lead.company || ''}
-              className="block w-full rounded-xl border border-slate-200 py-2 px-3 text-xs focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 bg-white"
-            />
+            <Label className="text-xs text-muted-foreground uppercase tracking-wider">Company</Label>
+            <Input type="text" name="company" defaultValue={lead.company || ''} />
           </div>
-
           <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Email Address</label>
-            <input
-              type="email"
-              name="email"
-              defaultValue={lead.email || ''}
-              className="block w-full rounded-xl border border-slate-200 py-2 px-3 text-xs focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 bg-white"
-            />
+            <Label className="text-xs text-muted-foreground uppercase tracking-wider">Email Address</Label>
+            <Input type="email" name="email" defaultValue={lead.email || ''} />
           </div>
-
           <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Phone Number</label>
-            <input
-              type="text"
-              name="phone"
-              defaultValue={lead.phone || ''}
-              className="block w-full rounded-xl border border-slate-200 py-2 px-3 text-xs focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 bg-white"
-            />
+            <Label className="text-xs text-muted-foreground uppercase tracking-wider">Phone Number</Label>
+            <Input type="text" name="phone" defaultValue={lead.phone || ''} />
           </div>
-
           <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Website URL</label>
-            <input
-              type="url"
-              name="website"
-              defaultValue={lead.website || ''}
-              className="block w-full rounded-xl border border-slate-200 py-2 px-3 text-xs focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 bg-white"
-            />
+            <Label className="text-xs text-muted-foreground uppercase tracking-wider">Website URL</Label>
+            <Input type="url" name="website" defaultValue={lead.website || ''} />
           </div>
-
           <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Location / City</label>
-            <input
-              type="text"
-              name="city"
-              defaultValue={lead.city || ''}
-              className="block w-full rounded-xl border border-slate-200 py-2 px-3 text-xs focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 bg-white"
-            />
+            <Label className="text-xs text-muted-foreground uppercase tracking-wider">Location / City</Label>
+            <Input type="text" name="city" defaultValue={lead.city || ''} />
           </div>
-
           <div className="md:col-span-2">
-            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Industry</label>
-            <input
-              type="text"
-              name="industry"
-              defaultValue={lead.industry || ''}
-              className="block w-full rounded-xl border border-slate-200 py-2 px-3 text-xs focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 bg-white"
-            />
+            <Label className="text-xs text-muted-foreground uppercase tracking-wider">Industry</Label>
+            <Input type="text" name="industry" defaultValue={lead.industry || ''} />
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-          <button
-            type="button"
-            onClick={() => setIsEditing(false)}
-            className="px-4 py-2 border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-700 text-xs font-bold transition"
-          >
+        <div className="flex justify-end gap-2 pt-2 border-t border-border">
+          <Button type="button" variant="outline" size="sm" onClick={() => setIsEditing(false)}>
             Cancel
-          </button>
+          </Button>
           <SubmitButton />
         </div>
       </form>
@@ -158,61 +107,58 @@ export default function ClientLeadProfile({ lead, updateLeadAction }: ClientLead
   }
 
   return (
-    <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-6 animate-fade-in relative group">
-      <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-        <h3 className="text-base font-bold text-slate-900">
+    <div className="bg-card p-6 rounded-2xl border border-border/80 shadow-sm space-y-6 animate-fade-in relative group">
+      <div className="flex justify-between items-center border-b border-border pb-3">
+        <h3 className="text-base font-bold text-foreground">
           Contact & Business Profile
         </h3>
-        <button
-          onClick={() => setIsEditing(true)}
-          className="text-xs font-bold text-indigo-600 hover:text-indigo-700 transition"
-        >
+        <Button variant="link" size="xs" onClick={() => setIsEditing(true)}>
           Edit
-        </button>
+        </Button>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <span className="block text-xs font-bold text-slate-500 uppercase">Lead Name</span>
-          <span className="text-sm text-slate-800 font-semibold mt-1 block">{lead.name}</span>
+          <span className="block text-xs font-bold text-muted-foreground uppercase">Lead Name</span>
+          <span className="text-sm text-foreground font-semibold mt-1 block">{lead.name}</span>
         </div>
         {lead.company && (
           <div>
-            <span className="block text-xs font-bold text-slate-500 uppercase">Company</span>
-            <span className="text-sm text-slate-800 font-semibold mt-1 block">{lead.company}</span>
+            <span className="block text-xs font-bold text-muted-foreground uppercase">Company</span>
+            <span className="text-sm text-foreground font-semibold mt-1 block">{lead.company}</span>
           </div>
         )}
         {lead.email && (
           <div>
-            <span className="block text-xs font-bold text-slate-500 uppercase">Email Address</span>
-            <a href={`mailto:${lead.email}`} className="text-sm text-indigo-600 hover:underline font-semibold mt-1 block">
+            <span className="block text-xs font-bold text-muted-foreground uppercase">Email Address</span>
+            <a href={`mailto:${lead.email}`} className="text-sm text-primary hover:underline font-semibold mt-1 block">
               {lead.email}
             </a>
           </div>
         )}
         {lead.phone && (
           <div>
-            <span className="block text-xs font-bold text-slate-500 uppercase">Phone Number</span>
-            <span className="text-sm text-slate-800 font-semibold mt-1 block">{lead.phone}</span>
+            <span className="block text-xs font-bold text-muted-foreground uppercase">Phone Number</span>
+            <span className="text-sm text-foreground font-semibold mt-1 block">{lead.phone}</span>
           </div>
         )}
         {lead.website && (
           <div>
-            <span className="block text-xs font-bold text-slate-500 uppercase">Website</span>
-            <a href={lead.website} target="_blank" rel="noreferrer" className="text-sm text-indigo-600 hover:underline font-semibold mt-1 block">
+            <span className="block text-xs font-bold text-muted-foreground uppercase">Website</span>
+            <a href={lead.website} target="_blank" rel="noreferrer" className="text-sm text-primary hover:underline font-semibold mt-1 block">
               {lead.website}
             </a>
           </div>
         )}
         {lead.city && (
           <div>
-            <span className="block text-xs font-bold text-slate-500 uppercase">Location / City</span>
-            <span className="text-sm text-slate-800 font-semibold mt-1 block">{lead.city}</span>
+            <span className="block text-xs font-bold text-muted-foreground uppercase">Location / City</span>
+            <span className="text-sm text-foreground font-semibold mt-1 block">{lead.city}</span>
           </div>
         )}
         {lead.industry && (
           <div>
-            <span className="block text-xs font-bold text-slate-500 uppercase">Industry</span>
-            <span className="text-sm text-slate-800 font-semibold mt-1 block">{lead.industry}</span>
+            <span className="block text-xs font-bold text-muted-foreground uppercase">Industry</span>
+            <span className="text-sm text-foreground font-semibold mt-1 block">{lead.industry}</span>
           </div>
         )}
       </div>

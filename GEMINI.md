@@ -54,14 +54,14 @@ This file serves as the always-on project-level instructional context and system
 
 ## 6. Workspace Navigation & References
 
-- **Rules & Constraints**: Refer to [AGENTS.md](file:///d:/vs%20code/draftroom/AGENTS.md) at root for the core operating guidelines, non-negotiable constraints, and pipeline steps.
+- **Rules & Constraints**: Refer to [AGENTS.md](file:///d:/vs%20code/leadroom/AGENTS.md) at root for the core operating guidelines, non-negotiable constraints, and pipeline steps.
 - **Specifications & Plan**:
-  - Product Scope: [PRD.md](file:///d:/vs%20code/draftroom/docs/PRD.md)
-  - Stage Roadmap: [PLAN.md](file:///d:/vs%20code/draftroom/docs/PLAN.md)
-  - Architectural Design: [ARCHITECTURE.md](file:///d:/vs%20code/draftroom/docs/ARCHITECTURE.md)
-  - Data Schemes: [DATA_MODEL.md](file:///d:/vs%20code/draftroom/docs/DATA_MODEL.md)
-  - Active TODOs: [TASKS.md](file:///d:/vs%20code/draftroom/docs/TASKS.md)
+  - Product Scope: [PRD.md](file:///d:/vs%20code/leadroom/docs/PRD.md)
+  - Stage Roadmap: [PLAN.md](file:///d:/vs%20code/leadroom/docs/PLAN.md)
+  - Architectural Design: [ARCHITECTURE.md](file:///d:/vs%20code/leadroom/docs/ARCHITECTURE.md)
+  - Data Schemes: [DATA_MODEL.md](file:///d:/vs%20code/leadroom/docs/DATA_MODEL.md)
+  - Active TODOs: [TASKS.md](file:///d:/vs%20code/leadroom/docs/TASKS.md)
 - **Agent Workflows**:
-  - Deployments: [.agents/workflows/deploy.md](file:///d:/vs%20code/draftroom/.agents/workflows/deploy.md)
-  - Refactoring: [.agents/workflows/refactor.md](file:///d:/vs%20code/draftroom/.agents/workflows/refactor.md)
-  - Audits: [.agents/workflows/audit.md](file:///d:/vs%20code/draftroom/.agents/workflows/audit.md)
+  - Deployments: [.agents/workflows/deploy.md](file:///d:/vs%20code/leadroom/.agents/workflows/deploy.md)
+  - Refactoring: [.agents/workflows/refactor.md](file:///d:/vs%20code/leadroom/.agents/workflows/refactor.md)
+  - Audits: [.agents/workflows/audit.md](file:///d:/vs%20code/leadroom/.agents/workflows/audit.md)

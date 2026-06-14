@@ -134,7 +134,7 @@ test('Outreach Service Integration', async (t) => {
   await db.insert(users).values({
     id: 'user-admin',
     name: 'Admin User',
-    email: 'admin@draftroom.com',
+    email: 'admin@leadroom.com',
     password: 'hashed-password',
   });
 

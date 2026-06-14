@@ -2,6 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { saveIntegrationConfigAction, deleteIntegrationConfigAction } from '@/app/(dashboard)/settings/integrations/actions';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 
 interface ProviderConfig {
   provider: string;
@@ -70,29 +74,21 @@ function ApiKeySection({
 }) {
   return (
     <div>
-      <label htmlFor={`${provider}-apiKey`} className="block text-sm font-semibold text-slate-700 mb-1.5">
-        API Key
-      </label>
+      <Label htmlFor={`${provider}-apiKey`}>API Key</Label>
       <div className="flex gap-2">
-        <input
+        <Input
           type="password"
           id={`${provider}-apiKey`}
           name="apiKey"
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
           placeholder="Enter your API key"
-          className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all text-slate-800 text-sm"
           required
         />
         {apiKey && (
-          <button
-            type="button"
-            onClick={() => onFetchModels(apiKey)}
-            disabled={loadingModels}
-            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition border border-slate-200"
-          >
+          <Button type="button" variant="outline" size="sm" onClick={() => onFetchModels(apiKey)} disabled={loadingModels}>
             {loadingModels ? 'Fetching...' : 'Fetch Models'}
-          </button>
+          </Button>
         )}
       </div>
     </div>
@@ -120,9 +116,7 @@ function ModelSelectSection({
 }) {
   return (
     <div>
-      <label htmlFor={`${provider}-modelName`} className="block text-sm font-semibold text-slate-700 mb-1.5">
-        Model Name
-      </label>
+      <Label htmlFor={`${provider}-modelName`}>Model Name</Label>
       <select
         id={`${provider}-modelName`}
         value={isCustomModel ? 'custom' : selectedModel}
@@ -134,7 +128,7 @@ function ModelSelectSection({
             setSelectedModel(e.target.value);
           }
         }}
-        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all text-slate-800 text-sm bg-white"
+        className="w-full rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 text-foreground"
       >
         {models.map((model) => (
           <option key={model.id} value={model.id}>
@@ -146,15 +140,14 @@ function ModelSelectSection({
 
       {isCustomModel && (
         <div className="mt-3">
-          <input
+          <Input
             type="text"
             value={customModelName}
             onChange={(e) => setCustomModelName(e.target.value)}
             placeholder="Enter custom model ID (e.g. google/gemini-2.5-pro)"
-            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all text-slate-800 text-sm"
             required
           />
-          <p className="mt-1.5 text-xs text-slate-500">
+          <p className="mt-1.5 text-xs text-muted-foreground">
             Type the exact ID required by the API provider.
           </p>
         </div>
@@ -174,7 +167,6 @@ export function ProviderConfigForm({ provider, displayName, defaultModel, config
   const [isCustomModel, setIsCustomModel] = useState(false);
   const [customModelName, setCustomModelName] = useState('');
 
-  // 1. Fetch live models from API
   async function loadLiveModels(keyToUse: string) {
     if (!keyToUse || keyToUse === 'placeholder' || keyToUse.trim() === '') {
       return;
@@ -187,8 +179,6 @@ export function ProviderConfigForm({ provider, displayName, defaultModel, config
         const data = (await res.json()) as { models?: ModelOption[] };
         if (data.models && data.models.length > 0) {
           setModels(data.models);
-          
-          // Verify if currently selected model exists in the live list, otherwise set isCustomModel
           const modelExists = data.models.some((m) => m.id === selectedModel);
           if (!modelExists && selectedModel !== defaultModel) {
             setIsCustomModel(true);
@@ -203,12 +193,9 @@ export function ProviderConfigForm({ provider, displayName, defaultModel, config
     }
   }
 
-  // Auto load models if API key exists on mount
   useEffect(() => {
     if (config?.apiKey) {
       loadLiveModels(config.apiKey);
-      
-      // Determine if custom model
       const staticList = STATIC_MODELS[provider] || [];
       const isStatic = staticList.some(m => m.id === config.modelName);
       if (!isStatic && config.modelName !== defaultModel) {
@@ -218,13 +205,12 @@ export function ProviderConfigForm({ provider, displayName, defaultModel, config
     }
   }, [config?.apiKey]);
 
-  // Handle API key change (debounced fetch)
   useEffect(() => {
     const timer = setTimeout(() => {
       if (apiKey && apiKey !== config?.apiKey) {
         loadLiveModels(apiKey);
       }
-    }, 1000); // 1s debounce
+    }, 1000);
 
     return () => clearTimeout(timer);
   }, [apiKey]);
@@ -274,19 +260,17 @@ export function ProviderConfigForm({ provider, displayName, defaultModel, config
   }
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden mb-6">
-      <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-        <h3 className="text-lg font-semibold text-slate-800">{displayName}</h3>
+    <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden mb-6">
+      <div className="px-6 py-5 border-b border-border flex justify-between items-center bg-muted/30">
+        <h3 className="text-lg font-semibold text-foreground">{displayName}</h3>
         {config?.isActive && (
-          <span className="px-2.5 py-1 text-xs font-semibold bg-emerald-100 text-emerald-700 rounded-full">
-            Active
-          </span>
+          <Badge variant="secondary" className="bg-chart-2/10 text-chart-2">Active</Badge>
         )}
       </div>
 
       <form onSubmit={handleSubmit} className="p-6 space-y-5">
         {message && (
-          <div className={`p-4 rounded-xl text-sm font-medium ${message.type === 'error' ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+          <div className={`p-4 rounded-xl text-sm font-medium ${message.type === 'error' ? 'bg-destructive/10 text-destructive border border-destructive/20' : 'bg-chart-2/10 text-chart-2 border border-chart-2/20'}`}>
             {message.text}
           </div>
         )}
@@ -316,31 +300,22 @@ export function ProviderConfigForm({ provider, displayName, defaultModel, config
             id={`${provider}-isActive`}
             name="isActive"
             defaultChecked={config ? (config.isActive ?? true) : true}
-            className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
+            className="w-4 h-4 text-primary border-input rounded focus:ring-primary"
           />
-          <label htmlFor={`${provider}-isActive`} className="text-sm font-medium text-slate-700">
+          <Label htmlFor={`${provider}-isActive`}>
             Set as active provider for AI tasks
-          </label>
+          </Label>
         </div>
 
-        <div className="flex gap-3 pt-4 border-t border-slate-100">
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50"
-          >
+        <div className="flex gap-3 pt-4 border-t border-border">
+          <Button type="submit" disabled={loading}>
             {loading ? 'Saving...' : 'Save Configuration'}
-          </button>
+          </Button>
           
           {config && (
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={loading}
-              className="px-5 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 text-sm font-semibold rounded-xl transition-colors disabled:opacity-50"
-            >
+            <Button type="button" variant="destructive" onClick={handleDelete} disabled={loading}>
               Remove
-            </button>
+            </Button>
           )}
         </div>
       </form>

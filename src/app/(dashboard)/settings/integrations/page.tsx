@@ -23,8 +23,8 @@ export default async function IntegrationsPage() {
   return (
     <div className="max-w-4xl">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Integrations</h1>
-        <p className="text-slate-500 mt-2 text-sm max-w-2xl">
+        <h1 className="text-3xl font-bold text-card-foreground tracking-tight">Integrations</h1>
+        <p className="text-muted-foreground mt-2 text-sm max-w-2xl">
           Configure your AI providers for lead research and enrichment. Setting an active provider will route all AI requests to that service.
         </p>
       </div>

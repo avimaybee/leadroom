@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 const US_STATES = [
   'Texas, USA',
@@ -29,7 +32,6 @@ export default function NewScopePage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Get current user ID
     fetch('/api/auth/me')
       .then((res) => {
         if (res.ok) return res.json() as Promise<{ user: { id: string } }>;
@@ -56,14 +58,12 @@ export default function NewScopePage() {
     setError(null);
 
     try {
-      // 1. Resolve Location (fallback to random US State if empty)
       let resolvedLocation = location.trim();
       if (!resolvedLocation) {
         const randomStateIndex = Math.floor(Math.random() * US_STATES.length);
         resolvedLocation = US_STATES[randomStateIndex];
       }
 
-      // Format niche and location: capitalize first letter of words
       const formatString = (str: string) =>
         str
           .split(' ')
@@ -72,11 +72,8 @@ export default function NewScopePage() {
 
       const formattedNiche = formatString(niche.trim());
       const formattedLocation = formatString(resolvedLocation);
-
-      // 2. Auto-generate Name
       const campaignName = `${formattedNiche} in ${formattedLocation}`;
 
-      // 3. Create Campaign (Scope)
       const scopeRes = await fetch('/api/scopes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -100,7 +97,6 @@ export default function NewScopePage() {
       const scopeData = await scopeRes.json() as { data: { id: string } };
       const campaignId = scopeData.data.id;
 
-      // 4. Immediately trigger discovery search
       const searchRes = await fetch('/api/discovery/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -113,12 +109,9 @@ export default function NewScopePage() {
       });
 
       if (!searchRes.ok) {
-        // We still redirect to the campaign page since it has been created,
-        // and they can try running the crawler again or see the error there.
         console.error('Failed to trigger crawler search immediately.');
       }
 
-      // 5. Redirect to Campaign detail view
       router.push(`/scopes/${campaignId}`);
       router.refresh();
     } catch (err: unknown) {
@@ -131,68 +124,62 @@ export default function NewScopePage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-8 animate-fade-in text-left">
-      {/* Back and Breadcrumbs */}
       <div className="space-y-1.5">
         <Link
           href="/scopes"
-          className="text-xs font-bold text-slate-500 hover:text-indigo-600 flex items-center gap-1 transition w-fit py-2.5 pr-4 -my-2.5 -ml-1"
+          className="text-xs font-bold text-muted-foreground hover:text-primary flex items-center gap-1 transition w-fit py-2.5 pr-4 -my-2.5 -ml-1"
         >
           &larr; Back to Campaigns
         </Link>
       </div>
 
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-200 pb-5">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-border pb-5">
         <div>
-          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">New Campaign</h1>
-          <p className="text-sm text-slate-500 mt-1">Configure keywords to scan Google Maps and build a campaign workspace.</p>
+          <h1 className="text-3xl font-extrabold text-foreground tracking-tight">New Campaign</h1>
+          <p className="text-sm text-muted-foreground mt-1">Configure keywords to scan Google Maps and build a campaign workspace.</p>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+      <form onSubmit={handleSubmit} className="bg-card p-8 rounded-2xl border border-border shadow-sm space-y-6">
         {error && (
-          <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm border border-red-100 font-semibold">
+          <div className="bg-destructive/10 text-destructive p-4 rounded-xl text-sm border border-destructive/20 font-semibold">
             {error}
           </div>
         )}
 
         <div className="space-y-5">
-          {/* Keyword / Niche */}
           <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Target Niche / Keyword *</label>
-            <input
+            <Label className="text-xs uppercase tracking-wider mb-2 block">Target Niche / Keyword *</Label>
+            <Input
               required
               disabled={submitting}
               type="text"
               placeholder="e.g. Roofers, Dental Clinics, Plumbers"
               value={niche}
               onChange={(e) => setNiche(e.target.value)}
-              className="block w-full rounded-xl border border-slate-200 py-3 px-4 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-sm text-slate-900 placeholder:text-slate-400"
             />
           </div>
 
-          {/* Location */}
           <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-              City &amp; State / Location <span className="text-slate-400 font-normal lowercase">(optional - defaults to random US state)</span>
-            </label>
-            <input
+            <Label className="text-xs uppercase tracking-wider mb-2 block">
+              City &amp; State / Location <span className="text-muted-foreground font-normal lowercase">(optional - defaults to random US state)</span>
+            </Label>
+            <Input
               disabled={submitting}
               type="text"
               placeholder="e.g. Austin, TX"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
-              className="block w-full rounded-xl border border-slate-200 py-3 px-4 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-sm text-slate-900 placeholder:text-slate-400"
             />
           </div>
 
-          {/* Limit */}
           <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Lead Limit</label>
+            <Label className="text-xs uppercase tracking-wider mb-2 block">Lead Limit</Label>
             <select
               disabled={submitting}
               value={limit}
               onChange={(e) => setLimit(Number(e.target.value))}
-              className="block w-full rounded-xl border border-slate-200 py-3 px-4 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-sm text-slate-900 bg-white"
+              className="block w-full rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 text-foreground"
             >
               <option value={10}>10 Leads</option>
               <option value={20}>20 Leads (Recommended)</option>
@@ -202,20 +189,16 @@ export default function NewScopePage() {
           </div>
         </div>
 
-        <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
+        <div className="pt-4 flex justify-end gap-3 border-t border-border">
           <Link
             href="/scopes"
-            className="px-5 py-2.5 bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 rounded-xl font-semibold text-sm transition"
+            className="px-5 py-2.5 bg-card text-foreground hover:bg-muted border border-border rounded-xl font-semibold text-sm transition"
           >
             Cancel
           </Link>
-          <button
-            type="submit"
-            disabled={submitting || !userId}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 shadow-md shadow-indigo-600/10 disabled:opacity-50 hover:scale-[1.01]"
-          >
+          <Button type="submit" disabled={submitting || !userId}>
             {submitting ? 'Creating & Launching Search...' : 'Launch Campaign'}
-          </button>
+          </Button>
         </div>
       </form>
     </div>
