@@ -55,6 +55,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
   
   // Current logged in user ID
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string } | null>(null);
+  const [isSpecsExpanded, setIsSpecsExpanded] = useState(false);
 
   useEffect(() => {
     // Fetch user profile
@@ -207,115 +208,195 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="space-y-8 animate-fade-in relative">
-      {/* Scope Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div className="flex items-center gap-3">
-          <Link 
-            href="/scopes" 
-            className="p-2 border border-slate-200 rounded-lg hover:bg-slate-100 text-slate-500 transition"
-          >
-            &larr; Scopes
-          </Link>
-          <div>
-            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">{scope.name}</h1>
-            <p className="text-sm text-slate-500 mt-1">Configure and qualify leads within this segment.</p>
-          </div>
-        </div>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2.5 rounded-xl text-sm transition shadow-sm hover:scale-[1.01]"
+      {/* Back and Breadcrumbs */}
+      <div className="space-y-1.5 animate-fade-in text-left">
+        <Link 
+          href="/scopes" 
+          className="text-xs font-bold text-slate-500 hover:text-indigo-600 flex items-center gap-1 transition w-fit py-2.5 pr-4 -my-2.5 -ml-1"
         >
-          + Add Candidate Manually
-        </button>
+          &larr; Back to Scopes
+        </Link>
       </div>
 
-      {/* Details & Main Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Sidebar details */}
-        <div className="bg-white border border-slate-200/80 rounded-2xl p-6 h-fit space-y-6">
-          <div>
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Scope Specifications</h3>
-            <div className="space-y-3">
-              <div>
-                <span className="block text-xs font-bold text-slate-500 uppercase">Description</span>
-                <span className="text-sm text-slate-700 font-medium block mt-0.5">
-                  {scope.description || 'No description provided.'}
-                </span>
-              </div>
-              {scope.industryFilter && (
-                <div>
-                  <span className="block text-xs font-bold text-slate-500 uppercase">Target Industry</span>
-                  <span className="text-sm text-slate-700 font-medium block mt-0.5">{scope.industryFilter}</span>
-                </div>
-              )}
-              {scope.geographyFilter && (
-                <div>
-                  <span className="block text-xs font-bold text-slate-500 uppercase">Geography</span>
-                  <span className="text-sm text-slate-700 font-medium block mt-0.5">{scope.geographyFilter}</span>
-                </div>
-              )}
-              {scope.companySizeFilter && (
-                <div>
-                  <span className="block text-xs font-bold text-slate-500 uppercase">Company Size</span>
-                  <span className="text-sm text-slate-700 font-medium block mt-0.5">{scope.companySizeFilter}</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {scope.notes && (
-            <div className="pt-6 border-t border-slate-100">
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Scope Notes</h3>
-              <p className="text-sm text-slate-600 bg-slate-50 p-4 rounded-xl leading-relaxed whitespace-pre-wrap">
-                {scope.notes}
-              </p>
-            </div>
+      {/* Scope Header */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-200 pb-5">
+        <div>
+          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight capitalize">{scope.name}</h1>
+          <p className="text-sm text-slate-500 mt-1">Configure and qualify leads within this segment.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          {candidates.length === 0 && (
+            <Link
+              href={`/discovery?scopeId=${scope.id}&niche=${encodeURIComponent(scope.industryFilter || '')}&location=${encodeURIComponent(scope.geographyFilter || '')}`}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2.5 rounded-xl text-sm transition shadow-sm hover:scale-[1.01]"
+            >
+              Run Discovery Search &rarr;
+            </Link>
           )}
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="border border-slate-200 hover:border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold px-4 py-2.5 rounded-xl text-sm transition shadow-sm"
+          >
+            + Add Candidate Manually
+          </button>
+        </div>
+      </div>
+
+      {/* Scope Specifications Panel (Collapsible Row) */}
+      <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm space-y-4 transition-all duration-200">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-900">Scope Specifications</span>
+            <span className="text-[10px] text-slate-500 font-bold uppercase">•</span>
+            <span className="text-xs text-slate-500 font-bold capitalize">
+              {scope.industryFilter || 'All Industries'} &middot; {scope.geographyFilter || 'All Locations'}
+            </span>
+          </div>
+          <button
+            onClick={() => setIsSpecsExpanded(!isSpecsExpanded)}
+            className="text-indigo-600 hover:text-indigo-700 hover:underline text-xs font-bold flex items-center gap-1 transition"
+          >
+            {isSpecsExpanded ? 'Collapse Details &larr;' : 'Show Full Details &rarr;'}
+          </button>
         </div>
 
-        {/* Candidate lists */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Tabs */}
-          <div className="flex border-b border-slate-200">
-            <button
-              onClick={() => setActiveTab('pending')}
-              className={`pb-4 px-6 font-semibold text-sm border-b-2 transition-all duration-200 ${
-                activeTab === 'pending'
-                  ? 'border-indigo-600 text-indigo-600 font-bold'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              Pending Review ({candidates.filter((c) => c.status === 'NEW' || c.status === 'REVIEWED').length})
-            </button>
-            <button
-              onClick={() => setActiveTab('promoted')}
-              className={`pb-4 px-6 font-semibold text-sm border-b-2 transition-all duration-200 ${
-                activeTab === 'promoted'
-                  ? 'border-indigo-600 text-indigo-600 font-bold'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              Promoted ({candidates.filter((c) => c.status === 'PROMOTED').length})
-            </button>
-            <button
-              onClick={() => setActiveTab('discarded')}
-              className={`pb-4 px-6 font-semibold text-sm border-b-2 transition-all duration-200 ${
-                activeTab === 'discarded'
-                  ? 'border-indigo-600 text-indigo-600 font-bold'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              Discarded ({candidates.filter((c) => c.status === 'DISCARDED').length})
-            </button>
+        {isSpecsExpanded ? (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 pt-4 border-t border-slate-100 animate-fade-in text-left">
+            <div className="space-y-1">
+              <span className="block text-xs font-bold text-slate-900">Description</span>
+              <span className="text-sm text-slate-700 font-semibold block leading-relaxed">
+                {scope.description || 'No description provided.'}
+              </span>
+            </div>
+            {scope.industryFilter && (
+              <div className="space-y-1">
+                <span className="block text-xs font-bold text-slate-900">Target Industry</span>
+                <span className="text-sm text-slate-700 font-semibold block">{scope.industryFilter}</span>
+              </div>
+            )}
+            {scope.geographyFilter && (
+              <div className="space-y-1">
+                <span className="block text-xs font-bold text-slate-900">Geography</span>
+                <span className="text-sm text-slate-700 font-semibold block">{scope.geographyFilter}</span>
+              </div>
+            )}
+            {scope.companySizeFilter && (
+              <div className="space-y-1">
+                <span className="block text-xs font-bold text-slate-900">Company Size</span>
+                <span className="text-sm text-slate-700 font-semibold block">{scope.companySizeFilter}</span>
+              </div>
+            )}
+            {scope.notes && (
+              <div className="md:col-span-4 pt-3 border-t border-slate-100 space-y-1">
+                <span className="block text-xs font-bold text-slate-900">Scope Notes</span>
+                <p className="text-sm text-slate-600 bg-slate-50 p-4 rounded-xl leading-relaxed whitespace-pre-wrap font-semibold">
+                  {scope.notes}
+                </p>
+              </div>
+            )}
           </div>
+        ) : (
+          scope.description && (
+            <p className="text-sm text-slate-500 font-medium truncate pt-3 border-t border-slate-100/60 text-left">
+              {scope.description}
+            </p>
+          )
+        )}
+      </div>
 
-          {/* List display */}
-          <div className="space-y-4">
-            {filteredCandidates.length === 0 ? (
-              <div className="bg-white border border-slate-200 rounded-2xl p-10 text-center text-slate-500">
-                No prospects found in this category.
+      {/* Main Candidate list (full width) */}
+      <div className="space-y-6">
+        {/* Tabs */}
+        <div className="flex border-b border-slate-200">
+          <button
+            onClick={() => setActiveTab('pending')}
+            className={`pb-4 px-6 font-semibold text-sm border-b-2 transition-all duration-200 ${
+              activeTab === 'pending'
+                ? 'border-indigo-600 text-indigo-600 font-bold'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            Pending Review ({candidates.filter((c) => c.status === 'NEW' || c.status === 'REVIEWED').length})
+          </button>
+          <button
+            onClick={() => setActiveTab('promoted')}
+            className={`pb-4 px-6 font-semibold text-sm border-b-2 transition-all duration-200 ${
+              activeTab === 'promoted'
+                ? 'border-indigo-600 text-indigo-600 font-bold'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            Promoted ({candidates.filter((c) => c.status === 'PROMOTED').length})
+          </button>
+          <button
+            onClick={() => setActiveTab('discarded')}
+            className={`pb-4 px-6 font-semibold text-sm border-b-2 transition-all duration-200 ${
+              activeTab === 'discarded'
+                ? 'border-indigo-600 text-indigo-600 font-bold'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            Discarded ({candidates.filter((c) => c.status === 'DISCARDED').length})
+          </button>
+        </div>
+
+        {/* List display */}
+        <div className="space-y-4">
+          {filteredCandidates.length === 0 ? (
+            candidates.length === 0 ? (
+              /* True Empty State - 0 prospects overall */
+              <div className="bg-white border border-slate-200/80 rounded-2xl p-12 text-center max-w-2xl mx-auto space-y-6 shadow-sm my-4 animate-fade-in">
+                <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 mx-auto">
+                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-lg font-bold text-slate-900">No prospects found in this scope yet</h3>
+                  <p className="text-sm text-slate-500 max-w-md mx-auto leading-relaxed">
+                    Run an automated Google Maps scan with this scope's specifications to crawl local businesses and populate your candidate list.
+                  </p>
+                </div>
+                <div className="flex justify-center items-center gap-3 pt-2">
+                  <Link
+                    href={`/discovery?scopeId=${scope.id}&niche=${encodeURIComponent(scope.industryFilter || '')}&location=${encodeURIComponent(scope.geographyFilter || '')}`}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2.5 rounded-xl text-sm transition shadow shadow-indigo-600/10 hover:scale-[1.01]"
+                  >
+                    Run Discovery Search &rarr;
+                  </Link>
+                  <button
+                    onClick={() => setIsModalOpen(true)}
+                    className="border border-slate-200 hover:border-slate-300 text-slate-700 hover:bg-slate-50 font-bold px-5 py-2.5 rounded-xl text-sm transition"
+                  >
+                    Add Manually
+                  </button>
+                </div>
               </div>
             ) : (
+              /* Tab Empty State - some prospects exist but none in activeTab */
+              <div className="bg-white border border-slate-200/80 rounded-2xl p-10 text-center max-w-xl mx-auto space-y-4 shadow-sm my-4 animate-fade-in">
+                <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 mx-auto">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                  </svg>
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-sm font-bold text-slate-900 capitalize">No prospects in {activeTab}</h3>
+                  <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
+                    There are no prospects qualified under the "{activeTab}" filter for this scope.
+                  </p>
+                </div>
+                {activeTab !== 'pending' && (
+                  <button
+                    onClick={() => setActiveTab('pending')}
+                    className="text-xs font-bold text-indigo-600 hover:text-indigo-700 hover:underline transition"
+                  >
+                    View Pending Review &rarr;
+                  </button>
+                )}
+              </div>
+            )
+          ) : (
               filteredCandidates.map((candidate) => (
                 <div
                   key={candidate.id}
@@ -364,7 +445,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                       <>
                         <button
                           onClick={() => handleUpdateStatus(candidate.id, 'PROMOTED')}
-                          className="bg-slate-950 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow hover:scale-[1.01]"
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow shadow-indigo-600/10 hover:scale-[1.01]"
                         >
                           Promote to Lead
                         </button>
@@ -394,7 +475,6 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
             )}
           </div>
         </div>
-      </div>
 
       {/* Manual Candidate Intake Modal */}
       {isModalOpen && (
@@ -420,7 +500,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
               )}
 
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Business Name *</label>
+                <label className="block text-xs font-bold text-slate-900 mb-1.5">Business Name *</label>
                 <input
                   required
                   type="text"
@@ -432,7 +512,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Website URL</label>
+                <label className="block text-xs font-bold text-slate-900 mb-1.5">Website URL</label>
                 <input
                   type="url"
                   placeholder="e.g. https://austinsmiles.com"
@@ -444,7 +524,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Location</label>
+                  <label className="block text-xs font-bold text-slate-900 mb-1.5">Location</label>
                   <input
                     type="text"
                     placeholder="e.g. Austin, TX"
@@ -454,7 +534,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Contact Info</label>
+                  <label className="block text-xs font-bold text-slate-900 mb-1.5">Contact Info</label>
                   <input
                     type="text"
                     placeholder="e.g. hello@website.com"
@@ -466,7 +546,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">Internal Prospect Notes</label>
+                <label className="block text-xs font-bold text-slate-900 mb-1.5">Internal Prospect Notes</label>
                 <textarea
                   placeholder="e.g. Website has poor SEO; no live chat system implemented..."
                   rows={3}

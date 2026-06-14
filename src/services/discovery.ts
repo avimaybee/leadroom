@@ -1,5 +1,5 @@
 import { Db } from '../db';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { discoveryScopes, candidateLeads } from '../db/schema/discovery';
 import { leads, activities } from '../db/schema/core';
 import { CreateDiscoveryScopeInput, CreateCandidateLeadInput } from '../db/models/discovery';
@@ -55,6 +55,15 @@ export class DiscoveryService {
 
   async listCandidatesByScope(scopeId: string) {
     return this.db.select().from(candidateLeads).where(eq(candidateLeads.discoveryScopeId, scopeId));
+  }
+
+  async countPendingCandidates(): Promise<number> {
+    const result = await this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(candidateLeads)
+      .where(eq(candidateLeads.status, 'NEW'));
+    
+    return Number(result[0]?.count || 0);
   }
 
   async updateCandidateStatus(candidateId: string, status: 'NEW' | 'REVIEWED' | 'PROMOTED' | 'DISCARDED') {

@@ -157,7 +157,7 @@ export async function triggerResearchWorkflow(
   if (ctx && typeof ctx.waitUntil === 'function') {
     ctx.waitUntil(runSimulation());
   } else {
-    runSimulation();
+    runSimulation().catch((err) => console.error('[WorkflowClient] Unhandled research simulation error:', err));
   }
 }
 
@@ -262,7 +262,7 @@ export async function triggerTriageWorkflow(
   if (ctx && typeof ctx.waitUntil === 'function') {
     ctx.waitUntil(runTriageSimulation());
   } else {
-    runTriageSimulation();
+    runTriageSimulation().catch((err) => console.error('[WorkflowClient] Unhandled triage simulation error:', err));
   }
 }
 
@@ -366,7 +366,7 @@ export async function triggerDiscoverySearchWorkflow(
   if (ctx && typeof ctx.waitUntil === 'function') {
     ctx.waitUntil(runSimulation());
   } else {
-    runSimulation();
+    runSimulation().catch((err) => console.error('[WorkflowClient] Unhandled discovery search simulation error:', err));
   }
 }
 
@@ -483,7 +483,7 @@ export async function triggerAuditWorkflow(
   if (ctx && typeof ctx.waitUntil === 'function') {
     ctx.waitUntil(runSimulation());
   } else {
-    runSimulation();
+    runSimulation().catch((err) => console.error('[WorkflowClient] Unhandled audit simulation error:', err));
   }
 }
 

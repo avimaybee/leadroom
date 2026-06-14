@@ -2,6 +2,7 @@
 
 import { useTransition } from 'react';
 import Link from 'next/link';
+import { formatUTC } from '@/lib/date';
 
 interface DashboardTask {
   id: string;
@@ -72,7 +73,7 @@ export default function DashboardTaskList({ tasks, toggleTaskStatusAction }: Das
               {task.title}
             </span>
             {task.leadName && (
-              <p className="text-xs text-slate-500 leading-normal line-clamp-1">
+              <p className="text-xs text-slate-600 leading-normal line-clamp-1">
                 For: <Link href={`/leads/${task.leadId}`} className="hover:underline text-indigo-600 font-medium">{task.leadName}</Link>
               </p>
             )}
@@ -83,12 +84,12 @@ export default function DashboardTaskList({ tasks, toggleTaskStatusAction }: Das
               </span>
               {task.dueDate && (
                 <span className={`text-[10px] font-semibold flex items-center gap-1 ${
-                  new Date(task.dueDate) < new Date() ? 'text-red-500' : 'text-slate-400'
+                  new Date(task.dueDate) < new Date() ? 'text-red-600' : 'text-slate-500'
                 }`}>
-                  <svg className={`w-3.5 h-3.5 ${new Date(task.dueDate) < new Date() ? 'text-red-400' : 'text-slate-300'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className={`w-3.5 h-3.5 ${new Date(task.dueDate) < new Date() ? 'text-red-500' : 'text-slate-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
-                  {new Date(task.dueDate).toLocaleDateString()}
+                  {formatUTC(task.dueDate)}
                   {new Date(task.dueDate) < new Date() && ' (Overdue)'}
                 </span>
               )}

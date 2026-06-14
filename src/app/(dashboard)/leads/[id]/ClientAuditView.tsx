@@ -122,7 +122,7 @@ export default function ClientAuditView({
 
   return (
     <div className="bg-slate-50/50 p-6 rounded-2xl border border-slate-200/50 space-y-4">
-      <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+      <h3 className="text-base font-bold text-slate-900">
         Digital Presence Audit &amp; Lead Scoring
       </h3>
 

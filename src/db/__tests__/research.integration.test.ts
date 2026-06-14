@@ -123,34 +123,6 @@ function setupTestDb() {
 test('ResearchService integration', async (t) => {
   const { leadService, researchService, db } = setupTestDb();
 
-  await t.test('enrichLead should run enrichment and save snapshot', async () => {
-    const lead = await leadService.createLead({
-      name: 'Innovative Tech Solutions',
-      company: 'Innovative Tech',
-      industry: 'Software Development',
-      website: 'https://innovativetech.io',
-    });
-
-    const snapshot = await researchService.enrichLead(lead.id, null);
-    assert.ok(snapshot);
-    assert.strictEqual(snapshot.leadId, lead.id);
-    assert.strictEqual(snapshot.origin, 'AI_GENERATED');
-    assert.ok(snapshot.companySummary);
-    assert.ok(snapshot.opportunityHypotheses);
-    assert.strictEqual(snapshot.confidenceLevel, 'MEDIUM'); // fallback mock default
-
-    // Verify JobRun was completed
-    const runs = await db.select().from(jobRuns).where(eq(jobRuns.targetLeadId, lead.id));
-    assert.strictEqual(runs.length, 1);
-    assert.strictEqual(runs[0].status, 'COMPLETED');
-    assert.strictEqual(runs[0].jobType, 'ENRICHMENT');
-
-    // Verify system activity log was created
-    const logs = await db.select().from(activities).where(eq(activities.leadId, lead.id));
-    const enrichmentLog = logs.find((l: any) => l.type === 'Research generated');
-    assert.ok(enrichmentLog);
-  });
-
   await t.test('saveResearchSnapshot should store manual edits historically', async () => {
     const lead = await leadService.createLead({ name: 'Manual Edit Test' });
     
@@ -221,5 +193,55 @@ test('ResearchService integration', async (t) => {
     
     const bobUpdated = updatedList.find((c: any) => c.id === c2.id);
     assert.strictEqual(bobUpdated?.isPrimary, 0);
+  });
+
+  await t.test('updateContact should modify contact details and handle primary swap', async () => {
+    const { leadService, researchService } = setupTestDb();
+    const lead = await leadService.createLead({ name: 'Contact Update Test' });
+
+    const c1 = await researchService.addContact(lead.id, {
+      fullName: 'Alice Developer',
+      isPrimary: true,
+    }, null);
+
+    const c2 = await researchService.addContact(lead.id, {
+      fullName: 'Bob Engineer',
+      isPrimary: false,
+    }, null);
+
+    // Update c2 to be primary
+    await researchService.updateContact(lead.id, c2.id, {
+      fullName: 'Bob Manager',
+      isPrimary: true,
+    }, null);
+
+    const list = await researchService.getContacts(lead.id);
+    const updatedC1 = list.find(c => c.id === c1.id);
+    const updatedC2 = list.find(c => c.id === c2.id);
+
+    assert.strictEqual(updatedC2?.fullName, 'Bob Manager');
+    assert.strictEqual(updatedC2?.isPrimary, 1);
+    // Alice should be demoted
+    assert.strictEqual(updatedC1?.isPrimary, 0);
+  });
+
+  await t.test('deleteContact should soft delete the contact and set deletedAt', async () => {
+    const { leadService, researchService, db } = setupTestDb();
+    const lead = await leadService.createLead({ name: 'Contact Delete Test' });
+
+    const c1 = await researchService.addContact(lead.id, {
+      fullName: 'Alice Developer',
+    }, null);
+
+    await researchService.deleteContact(lead.id, c1.id, null);
+
+    const list = await researchService.getContacts(lead.id);
+    // getContacts filters out soft deleted contacts
+    assert.strictEqual(list.length, 0);
+
+    // Verify contact still exists in DB but with deletedAt set
+    const [dbContact] = await db.select().from(contacts).where(eq(contacts.id, c1.id)).limit(1);
+    assert.ok(dbContact);
+    assert.ok(dbContact.deletedAt);
   });
 });

@@ -38,7 +38,7 @@ export function ResearchEditForm({
       <div className="flex justify-between items-center border-b border-slate-100 pb-4">
         <div>
           <h4 className="text-base font-bold text-slate-950">Edit Research Snapshot</h4>
-          <p className="text-xs text-slate-400 mt-0.5">Edit research fields or enrich outcomes manually.</p>
+          <p className="text-xs text-slate-500 mt-0.5">Edit research fields or enrich outcomes manually.</p>
         </div>
         <div className="flex gap-2">
           <button
@@ -50,7 +50,7 @@ export function ResearchEditForm({
           </button>
           <button
             type="submit"
-            className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-4 py-2 rounded-xl transition"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition"
           >
             Save Snapshot
           </button>
@@ -61,7 +61,7 @@ export function ResearchEditForm({
 
       <div className="grid grid-cols-1 gap-5">
         <div>
-          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Company Summary</label>
+          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Company Summary</label>
           <textarea
             name="companySummary"
             defaultValue={initialSnapshot?.companySummary || ''}
@@ -72,7 +72,7 @@ export function ResearchEditForm({
         </div>
 
         <div>
-          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Products & Services</label>
+          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Products & Services</label>
           <textarea
             name="productsServicesSummary"
             defaultValue={initialSnapshot?.productsServicesSummary || ''}
@@ -84,7 +84,7 @@ export function ResearchEditForm({
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Digital Footprint Notes</label>
+            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Digital Footprint Notes</label>
             <textarea
               name="digitalPresenceNotes"
               defaultValue={initialSnapshot?.digitalPresenceNotes || ''}
@@ -94,7 +94,7 @@ export function ResearchEditForm({
             />
           </div>
           <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Website Critique</label>
+            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Website Critique</label>
             <textarea
               name="websiteNotes"
               defaultValue={initialSnapshot?.websiteNotes || ''}
@@ -104,7 +104,7 @@ export function ResearchEditForm({
             />
           </div>
           <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Branding Observations</label>
+            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Branding Observations</label>
             <textarea
               name="brandingNotes"
               defaultValue={initialSnapshot?.brandingNotes || ''}
@@ -117,7 +117,7 @@ export function ResearchEditForm({
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Pain Points Hypotheses</label>
+            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Pain Points Hypotheses</label>
             <textarea
               name="painPointsHypotheses"
               defaultValue={initialSnapshot?.painPointsHypotheses || ''}
@@ -127,7 +127,7 @@ export function ResearchEditForm({
             />
           </div>
           <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Agency Growth Opportunities</label>
+            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Agency Growth Opportunities</label>
             <textarea
               name="opportunityHypotheses"
               defaultValue={initialSnapshot?.opportunityHypotheses || ''}
@@ -140,7 +140,7 @@ export function ResearchEditForm({
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Sources (one URL per line)</label>
+            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Sources (one URL per line)</label>
             <textarea
               name="sources"
               defaultValue={sourcesList.join('\n')}
@@ -150,7 +150,7 @@ export function ResearchEditForm({
             />
           </div>
           <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Research Confidence</label>
+            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Research Confidence</label>
             <select
               name="confidenceLevel"
               defaultValue={initialSnapshot?.confidenceLevel || 'MEDIUM'}

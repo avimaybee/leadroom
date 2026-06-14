@@ -29,6 +29,13 @@ export const AIAuditSchema = z.object({
 
 export type AIAuditOutput = z.infer<typeof AIAuditSchema>;
 
+export const AITriageSchema = z.object({
+  status: z.enum(['MODERN', 'OUTDATED']),
+  reason: z.string(),
+});
+
+export type AITriageOutput = z.infer<typeof AITriageSchema>;
+
 import { IntegrationsService } from '../services/integrations';
 
 export async function generateResearch(
@@ -462,7 +469,7 @@ async function callOpenRouterAPI(
 export async function runTriageAI(
   db: Db,
   scrapedContent: string
-): Promise<{ status: 'MODERN' | 'OUTDATED'; reason: string }> {
+): Promise<AITriageOutput> {
   const integrationsService = new IntegrationsService(db);
   
   // Get active provider config
@@ -539,7 +546,8 @@ export async function runTriageAI(
         }>;
       };
       const text = data.choices?.[0]?.message?.content?.trim();
-      return JSON.parse(text || '{}');
+      const parsed = JSON.parse(text || '{}');
+      return AITriageSchema.parse(parsed);
     }
 
     if (provider === 'nvidia') {
@@ -568,7 +576,8 @@ export async function runTriageAI(
         }>;
       };
       const text = data.choices?.[0]?.message?.content?.trim();
-      return JSON.parse(text || '{}');
+      const parsed = JSON.parse(text || '{}');
+      return AITriageSchema.parse(parsed);
     }
 
     if (provider === 'groq') {
@@ -597,7 +606,8 @@ export async function runTriageAI(
         }>;
       };
       const text = data.choices?.[0]?.message?.content?.trim();
-      return JSON.parse(text || '{}');
+      const parsed = JSON.parse(text || '{}');
+      return AITriageSchema.parse(parsed);
     }
 
     if (provider === 'aiml') {
@@ -626,7 +636,8 @@ export async function runTriageAI(
         }>;
       };
       const text = data.choices?.[0]?.message?.content?.trim();
-      return JSON.parse(text || '{}');
+      const parsed = JSON.parse(text || '{}');
+      return AITriageSchema.parse(parsed);
     }
 
     // Gemini
@@ -662,7 +673,8 @@ export async function runTriageAI(
       }>;
     };
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    return JSON.parse(text || '{}');
+    const parsed = JSON.parse(text || '{}');
+    return AITriageSchema.parse(parsed);
 
   } catch (err: unknown) {
     const errMsg = err instanceof Error ? err.message : String(err);

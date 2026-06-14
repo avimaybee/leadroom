@@ -1,116 +1,10 @@
 import { Db } from '../db';
 import { eq, desc, and, isNull } from 'drizzle-orm';
-import { jobRuns, researchSnapshots, contacts } from '../db/schema/research';
-import { leads, activities } from '../db/schema/core';
-import { generateResearch } from '../lib/ai';
+import { researchSnapshots, contacts } from '../db/schema/research';
+import { activities } from '../db/schema/core';
 
 export class ResearchService {
   constructor(private db: Db) {}
-
-  async enrichLead(leadId: string, triggeredByUserId?: string | null) {
-    const jobId = crypto.randomUUID();
-    const now = new Date();
-
-    // Create a job run row in RUNNING status
-    await this.db.insert(jobRuns).values({
-      id: jobId,
-      jobType: 'ENRICHMENT',
-      status: 'RUNNING',
-      targetLeadId: leadId,
-      triggeredByUserId: triggeredByUserId || null,
-      startedAt: now,
-      createdAt: now,
-    });
-
-    try {
-      // Fetch lead info
-      const [lead] = await this.db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
-      if (!lead) {
-        throw new Error('Lead not found');
-      }
-
-      // Generate AI research
-      const research = await generateResearch(
-        this.db,
-        lead.name,
-        lead.company || null,
-        lead.website || null,
-        lead.industry || null
-      );
-
-      const snapshotId = crypto.randomUUID();
-
-      // Store research snapshot
-      await this.db.insert(researchSnapshots).values({
-        id: snapshotId,
-        leadId,
-        createdByUserId: triggeredByUserId || null,
-        origin: 'AI_GENERATED',
-        snapshotTitle: 'AI Research Snapshot',
-        companySummary: research.companySummary,
-        productsServicesSummary: research.productsServicesSummary,
-        digitalPresenceNotes: research.digitalPresenceNotes,
-        websiteNotes: research.websiteNotes,
-        brandingNotes: research.brandingNotes,
-        painPointsHypotheses: research.painPointsHypotheses,
-        opportunityHypotheses: research.opportunityHypotheses,
-        sources: JSON.stringify(research.sources),
-        confidenceLevel: research.confidenceLevel,
-        jobRunId: jobId,
-        createdAt: now,
-        updatedAt: now,
-      });
-
-      // Log system audit activity
-      await this.db.insert(activities).values({
-        id: crypto.randomUUID(),
-        leadId,
-        type: 'Research generated',
-        summary: `AI research snapshot generated with ${research.confidenceLevel} confidence`,
-        timestamp: now,
-      });
-
-      // Update job run to COMPLETED
-      await this.db.update(jobRuns)
-        .set({
-          status: 'COMPLETED',
-          finishedAt: new Date(),
-        })
-        .where(eq(jobRuns.id, jobId));
-
-      // Fetch the created snapshot
-      const [snapshot] = await this.db.select()
-        .from(researchSnapshots)
-        .where(eq(researchSnapshots.id, snapshotId))
-        .limit(1);
-
-      return snapshot;
-    } catch (error: unknown) {
-      console.error('Enrichment job failed:', error);
-      
-      const errMsg = error instanceof Error ? error.message : 'Unknown error occurred during enrichment';
-
-      // Update job run to FAILED
-      await this.db.update(jobRuns)
-        .set({
-          status: 'FAILED',
-          errorSummary: errMsg,
-          finishedAt: new Date(),
-        })
-        .where(eq(jobRuns.id, jobId));
-
-      // Log failure activity
-      await this.db.insert(activities).values({
-        id: crypto.randomUUID(),
-        leadId,
-        type: 'Enrichment failed',
-        summary: `AI research generation failed: ${errMsg}`,
-        timestamp: now,
-      });
-
-      throw error;
-    }
-  }
 
   async getLatestResearch(leadId: string) {
     const [snapshot] = await this.db.select()
@@ -244,5 +138,80 @@ export class ResearchService {
       .limit(1);
 
     return contact;
+  }
+
+  async updateContact(
+    leadId: string,
+    contactId: string,
+    input: {
+      fullName?: string | null;
+      roleTitle?: string | null;
+      email?: string | null;
+      phone?: string | null;
+      linkedinUrl?: string | null;
+      isPrimary?: boolean;
+    },
+    userId?: string | null
+  ) {
+    const now = new Date();
+    const isPrimaryInt = input.isPrimary ? 1 : 0;
+
+    // If making this contact primary, unmark others for this lead
+    if (isPrimaryInt === 1) {
+      await this.db.update(contacts)
+        .set({ isPrimary: 0, updatedAt: now })
+        .where(eq(contacts.leadId, leadId));
+    }
+
+    await this.db.update(contacts)
+      .set({
+        fullName: input.fullName !== undefined ? input.fullName : undefined,
+        roleTitle: input.roleTitle !== undefined ? input.roleTitle : undefined,
+        email: input.email !== undefined ? input.email : undefined,
+        phone: input.phone !== undefined ? input.phone : undefined,
+        linkedinUrl: input.linkedinUrl !== undefined ? input.linkedinUrl : undefined,
+        isPrimary: input.isPrimary !== undefined ? isPrimaryInt : undefined,
+        updatedAt: now,
+      })
+      .where(eq(contacts.id, contactId));
+
+    // Log activity
+    await this.db.insert(activities).values({
+      id: crypto.randomUUID(),
+      leadId,
+      type: 'Contact updated',
+      summary: `Contact ${input.fullName || 'unnamed'} was updated`,
+      timestamp: now,
+    });
+
+    const [contact] = await this.db.select()
+      .from(contacts)
+      .where(eq(contacts.id, contactId))
+      .limit(1);
+
+    return contact;
+  }
+
+  async deleteContact(leadId: string, contactId: string, userId?: string | null) {
+    const now = new Date();
+    
+    // Fetch contact details before soft deletion for summary logging
+    const [c] = await this.db.select().from(contacts).where(eq(contacts.id, contactId)).limit(1);
+    
+    await this.db.update(contacts)
+      .set({
+        deletedAt: now,
+        updatedAt: now,
+      })
+      .where(eq(contacts.id, contactId));
+
+    // Log activity
+    await this.db.insert(activities).values({
+      id: crypto.randomUUID(),
+      leadId,
+      type: 'Contact deleted',
+      summary: `Contact ${c?.fullName || c?.email || 'unnamed'} was deleted`,
+      timestamp: now,
+    });
   }
 }

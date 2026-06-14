@@ -6,9 +6,11 @@ import { ScoringService } from '@/services/scoring';
 import { getDb } from '@/db';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import { formatDateTimeUTC } from '@/lib/date';
 import { 
   updateStageAction, 
-  addNoteAction 
+  addNoteAction,
+  updateLeadAction
 } from '@/app/actions/leads';
 import { 
   createTaskAction, 
@@ -16,7 +18,9 @@ import {
 } from '@/app/actions/tasks';
 import { 
   saveResearchSnapshotAction, 
-  addContactAction 
+  addContactAction,
+  updateContactAction,
+  deleteContactAction
 } from '@/app/actions/research';
 import { 
   triggerAuditAction, 
@@ -28,6 +32,7 @@ import ClientTaskItem from './ClientTaskItem';
 import ClientResearchView from './ClientResearchView';
 import ClientAuditView from './ClientAuditView';
 import ClientContactsList from './ClientContactsList';
+import ClientLeadProfile from './ClientLeadProfile';
 
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -73,26 +78,57 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Back and Breadcrumbs */}
-      <div className="flex items-center gap-3">
+      <div className="space-y-1.5 animate-fade-in">
         <Link 
           href="/leads" 
-          className="p-2 border border-slate-200 rounded-lg hover:bg-slate-100 text-slate-500 transition"
+          className="text-xs font-bold text-slate-500 hover:text-indigo-600 flex items-center gap-1 transition w-fit py-2.5 pr-4 -my-2.5 -ml-1"
         >
-          &larr; Leads
+          &larr; Back to Leads
         </Link>
-        <div>
-          <div className="flex items-center gap-3 mt-0.5">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">{lead.name}</h1>
             {currentScore && (
-              <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold ${
-                currentScore.scoreLabel === 'High' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
-                currentScore.scoreLabel === 'Medium' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                'bg-slate-50 text-slate-600 border border-slate-200'
-              }`}>
+              <span 
+                aria-label={`${currentScore.scoreLabel} Priority, score ${currentScore.scoreValue} out of 100`}
+                className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold ${
+                  currentScore.scoreLabel === 'High' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                  currentScore.scoreLabel === 'Medium' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                  'bg-slate-50 text-slate-600 border border-slate-200'
+                }`}
+              >
+                <span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${
+                  currentScore.scoreLabel === 'High' ? 'bg-rose-600 animate-pulse' :
+                  currentScore.scoreLabel === 'Medium' ? 'bg-amber-500' : 'bg-slate-400'
+                }`} />
                 {currentScore.scoreLabel} Priority ({currentScore.scoreValue})
               </span>
             )}
+            <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold ${getStageBadgeClass(lead.stage)}`}>
+              {lead.stage}
+            </span>
           </div>
+
+          {/* Compact Inline Pipeline Stage Form */}
+          <form action={updateStageAction} className="flex items-center gap-2">
+            <input type="hidden" name="leadId" value={lead.id} />
+            <select 
+              name="stage" 
+              aria-label="Change pipeline stage"
+              defaultValue={lead.stage}
+              className="block rounded-xl border border-slate-200 py-1.5 px-3 text-xs font-bold focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 bg-white"
+            >
+              {stages.map((st) => (
+                <option key={st} value={st}>{st}</option>
+              ))}
+            </select>
+            <button 
+              type="submit"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition shadow shadow-indigo-600/10"
+            >
+              Update
+            </button>
+          </form>
         </div>
       </div>
 
@@ -103,53 +139,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         <div className="lg:col-span-2 space-y-8">
           
           {/* Lead Information Card */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-6">
-            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-3">
-              Contact & Business Profile
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {lead.company && (
-                <div>
-                  <span className="block text-xs font-bold text-slate-400 uppercase">Company</span>
-                  <span className="text-sm text-slate-800 font-semibold mt-1 block">{lead.company}</span>
-                </div>
-              )}
-              {lead.email && (
-                <div>
-                  <span className="block text-xs font-bold text-slate-400 uppercase">Email Address</span>
-                  <a href={`mailto:${lead.email}`} className="text-sm text-indigo-600 hover:underline font-semibold mt-1 block">
-                    {lead.email}
-                  </a>
-                </div>
-              )}
-              {lead.phone && (
-                <div>
-                  <span className="block text-xs font-bold text-slate-400 uppercase">Phone Number</span>
-                  <span className="text-sm text-slate-800 font-semibold mt-1 block">{lead.phone}</span>
-                </div>
-              )}
-              {lead.website && (
-                <div>
-                  <span className="block text-xs font-bold text-slate-400 uppercase">Website</span>
-                  <a href={lead.website} target="_blank" rel="noreferrer" className="text-sm text-indigo-600 hover:underline font-semibold mt-1 block">
-                    {lead.website}
-                  </a>
-                </div>
-              )}
-              {lead.city && (
-                <div>
-                  <span className="block text-xs font-bold text-slate-400 uppercase">Location / City</span>
-                  <span className="text-sm text-slate-800 font-semibold mt-1 block">{lead.city}</span>
-                </div>
-              )}
-              {lead.industry && (
-                <div>
-                  <span className="block text-xs font-bold text-slate-400 uppercase">Industry</span>
-                  <span className="text-sm text-slate-800 font-semibold mt-1 block">{lead.industry}</span>
-                </div>
-              )}
-            </div>
-          </div>
+          <ClientLeadProfile lead={lead} updateLeadAction={updateLeadAction} />
 
           {/* AI Research & Enrichment Section */}
           <ClientResearchView
@@ -167,37 +157,6 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             manualOverrideScoreAction={manualOverrideScoreAction}
           />
 
-          {/* Pipeline Stage Form */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                Pipeline Stage Status
-              </h3>
-              <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold ${getStageBadgeClass(lead.stage)}`}>
-                {lead.stage}
-              </span>
-            </div>
-            
-            <form action={updateStageAction} className="flex flex-col sm:flex-row gap-3 pt-2">
-              <input type="hidden" name="leadId" value={lead.id} />
-              <select 
-                name="stage" 
-                defaultValue={lead.stage}
-                className="flex-1 rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 bg-white"
-              >
-                {stages.map((st) => (
-                  <option key={st} value={st}>{st}</option>
-                ))}
-              </select>
-              <button 
-                type="submit"
-                className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-4 py-3 rounded-xl transition"
-              >
-                Update Stage
-              </button>
-            </form>
-          </div>
-
           {/* Notes Appending & Activity Feed */}
           <div className="space-y-6">
             <h3 className="text-lg font-bold text-slate-900">Notes & Activity History</h3>
@@ -208,7 +167,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             {/* Activities Timeline */}
             <div className="space-y-4">
               {activities.length === 0 ? (
-                <div className="bg-white border border-slate-200 rounded-2xl p-6 text-center text-slate-400 font-medium">
+                <div className="bg-white border border-slate-200 rounded-2xl p-6 text-center text-slate-500 font-medium">
                   No activity log found.
                 </div>
               ) : (
@@ -236,8 +195,8 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                             {act.summary}
                           </p>
                         </div>
-                        <span className="text-xs text-slate-400 font-medium shrink-0">
-                          {new Date(act.timestamp).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
+                        <span className="text-xs text-slate-500 font-semibold shrink-0">
+                          {formatDateTimeUTC(act.timestamp)}
                         </span>
                       </div>
                     </div>
@@ -252,20 +211,18 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         <div className="space-y-8">
           
           <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-6">
-            <h3 className="text-sm font-bold text-slate-950 uppercase tracking-wider border-b border-slate-100 pb-3">
-              Task Checklist
-            </h3>
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="text-base font-bold text-slate-950">
+                Task Checklist
+              </h3>
+            </div>
             
             {/* Task Creation Form */}
-            <ClientTaskForm leadId={lead.id} createTaskAction={createTaskAction} />
+            <ClientTaskForm leadId={lead.id} createTaskAction={createTaskAction} tasksCount={tasks.length} />
 
             {/* Tasks list */}
             <div className="space-y-3 pt-2">
-              {tasks.length === 0 ? (
-                <p className="text-center text-xs font-semibold text-slate-400 py-4">
-                  No tasks configured.
-                </p>
-              ) : (
+              {tasks.length > 0 && (
                 tasks.map((task: any) => (
                   <ClientTaskItem 
                     key={task.id} 
@@ -283,6 +240,8 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             leadId={lead.id}
             initialContacts={contactsList}
             addContactAction={addContactAction}
+            updateContactAction={updateContactAction}
+            deleteContactAction={deleteContactAction}
           />
 
         </div>

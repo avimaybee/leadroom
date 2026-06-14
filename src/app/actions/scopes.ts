@@ -27,8 +27,16 @@ export async function createScopeAction(prevState: ActionState, formData: FormDa
     return { error: 'Unauthorized. Please log in.' };
   }
 
+  let nameInput = (formData.get('name') as string) || '';
+  if (nameInput) {
+    nameInput = nameInput
+      .split(' ')
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  }
+
   const rawData = {
-    name: formData.get('name') as string,
+    name: nameInput,
     description: formData.get('description') as string,
     industryFilter: formData.get('industryFilter') as string,
     geographyFilter: formData.get('geographyFilter') as string,

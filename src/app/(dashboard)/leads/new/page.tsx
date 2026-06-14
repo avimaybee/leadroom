@@ -24,13 +24,17 @@ export default function NewLeadPage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-8 animate-fade-in">
-      <div className="flex items-center gap-3">
+      {/* Back and Breadcrumbs */}
+      <div className="space-y-1.5 text-left">
         <Link 
           href="/leads" 
-          className="p-2 border border-slate-200 rounded-lg hover:bg-slate-100 text-slate-500 transition"
+          className="text-xs font-bold text-slate-500 hover:text-indigo-600 flex items-center gap-1 transition w-fit py-2.5 pr-4 -my-2.5 -ml-1"
         >
-          &larr; Back
+          &larr; Back to Leads
         </Link>
+      </div>
+
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-200 pb-5">
         <div>
           <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">New Lead</h1>
           <p className="text-sm text-slate-500 mt-1">Enter the details of your new active pipeline prospect.</p>

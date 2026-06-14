@@ -17,7 +17,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Dashboard', href: '/' },
     { name: 'Leads', href: '/leads' },
     { name: 'Discovery', href: '/discovery' },
-    { name: 'Discovery Scopes', href: '/scopes' },
+    { name: 'Scopes', href: '/scopes' },
     { name: 'Integrations', href: '/settings/integrations' },
   ];
 

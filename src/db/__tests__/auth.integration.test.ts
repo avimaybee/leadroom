@@ -1,5 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
+
+process.env.AUTH_SECRET = 'test-only-secret-key-minimum-32-chars-long';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { AuthService } from '../../services/auth';

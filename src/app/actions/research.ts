@@ -24,22 +24,6 @@ async function getUserId() {
 
 export type ActionState = { error?: string | null, success?: boolean, issues?: unknown } | null | undefined;
 
-export async function triggerEnrichmentAction(leadId: string) {
-  const service = await getService();
-  const userId = await getUserId();
-  
-  try {
-    await service.enrichLead(leadId, userId);
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'Enrichment failed';
-    return { error: msg };
-  }
-  
-  revalidatePath('/');
-  revalidatePath(`/leads/${leadId}`);
-  return { error: null };
-}
-
 export async function saveResearchSnapshotAction(prevState: ActionState, formData: FormData) {
   const service = await getService();
   const userId = await getUserId();
@@ -128,6 +112,56 @@ export async function addContactAction(prevState: ActionState, formData: FormDat
     );
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'Failed to add contact';
+    return { error: msg };
+  }
+
+  revalidatePath(`/leads/${leadId}`);
+  return { error: null, success: true };
+}
+
+export async function deleteContactAction(leadId: string, contactId: string) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  const service = await getService();
+  await service.deleteContact(leadId, contactId, userId);
+  revalidatePath(`/leads/${leadId}`);
+}
+
+export async function updateContactAction(prevState: ActionState, formData: FormData) {
+  const userId = await getUserId();
+  if (!userId) return { error: 'Unauthorized' };
+
+  const service = await getService();
+  const leadId = formData.get('leadId') as string;
+  const contactId = formData.get('contactId') as string;
+  const fullName = formData.get('fullName') as string;
+  const roleTitle = formData.get('roleTitle') as string;
+  const email = formData.get('email') as string;
+  const phone = formData.get('phone') as string;
+  const linkedinUrl = formData.get('linkedinUrl') as string;
+  const isPrimary = formData.get('isPrimary') === 'true' || formData.get('isPrimary') === 'on';
+
+  if (!leadId || !contactId) {
+    return { error: 'Lead ID and Contact ID are required' };
+  }
+
+  try {
+    await service.updateContact(
+      leadId,
+      contactId,
+      {
+        fullName: fullName || null,
+        roleTitle: roleTitle || null,
+        email: email || null,
+        phone: phone || null,
+        linkedinUrl: linkedinUrl || null,
+        isPrimary,
+      },
+      userId
+    );
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Failed to update contact';
     return { error: msg };
   }
 

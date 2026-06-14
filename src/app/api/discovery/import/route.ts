@@ -61,7 +61,7 @@ export async function POST(request: Request) {
         region: item.region || null,
         industry: item.industry || null,
         ownerId: userId,
-        stage: 'NEW',
+        stage: 'New',
         status: 'Active',
         triagePriority: 'UNASSESSED',
         createdAt: now,

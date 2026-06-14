@@ -16,15 +16,10 @@ export function ResearchEmptyState({
   isEnriching = false,
 }: ResearchEmptyStateProps) {
   return (
-    <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm text-center space-y-4 py-12">
-      <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl w-fit mx-auto">
-        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-        </svg>
-      </div>
+    <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm text-center space-y-4 py-8">
       <div>
         <h4 className="text-base font-bold text-slate-900">No Research Available</h4>
-        <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto leading-relaxed">
+        <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto leading-relaxed">
           Run an automated enrichment scan or input custom branding observations to kickstart outreach preparation.
         </p>
       </div>
@@ -51,7 +46,7 @@ export function ResearchEmptyState({
         </div>
       )}
 
-      <div className="flex justify-center gap-3 pt-2">
+      <div className="flex justify-center items-center gap-3 pt-2">
         <button
           onClick={onEnrich}
           disabled={isEnriching}
@@ -69,7 +64,7 @@ export function ResearchEmptyState({
         </button>
         <button
           onClick={onEdit}
-          className="border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold px-4 py-2.5 rounded-xl transition"
+          className="text-indigo-600 hover:text-indigo-700 hover:underline text-xs font-bold px-2 py-2 transition"
         >
           Add Notes Manually
         </button>

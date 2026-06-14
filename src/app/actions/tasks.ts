@@ -3,15 +3,31 @@
 import { LeadService } from '@/services/lead';
 import { getDb } from '@/db';
 import { revalidatePath } from 'next/cache';
+import { cookies } from 'next/headers';
+import { decrypt } from '@/lib/auth';
 
 async function getService() {
   const db = getDb();
   return new LeadService(db);
 }
 
+async function getUserId() {
+  try {
+    const cookieStore = await cookies();
+    const sessionToken = cookieStore.get('session')?.value;
+    const payload = await decrypt(sessionToken);
+    return payload?.userId || null;
+  } catch (e) {
+    return null;
+  }
+}
+
 export type ActionState = { error?: string | null, success?: boolean, issues?: unknown } | null | undefined;
 
 export async function createTaskAction(prevState: ActionState, formData: FormData) {
+  const userId = await getUserId();
+  if (!userId) return { error: 'Unauthorized' };
+
   const service = await getService();
   
   const leadId = formData.get('leadId') as string;
@@ -45,6 +61,9 @@ export async function createTaskAction(prevState: ActionState, formData: FormDat
 }
 
 export async function toggleTaskStatusAction(id: string, currentStatus: string, leadId?: string | null) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
   const service = await getService();
   await service.toggleTaskStatus(id, currentStatus);
   

@@ -39,14 +39,19 @@ export default function ClientNotesForm({ leadId, addNoteAction }: ClientNotesFo
         </div>
       )}
       <input type="hidden" name="leadId" value={leadId} />
+      <label htmlFor="note-body-input" className="sr-only">Add notes to lead</label>
       <textarea
         required
+        id="note-body-input"
         name="body"
         placeholder="Type notes from calls, meetings, or research..."
         rows={3}
         className="block w-full rounded-xl border border-slate-200 py-3 px-4 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-sm text-slate-900 placeholder:text-slate-400"
       />
-      <div className="flex justify-end">
+      <div className="flex justify-between items-center">
+        <span className="text-[10px] text-slate-400 font-semibold italic">
+          e.g. &apos;Called 6/14 — interested, follow up Friday&apos;
+        </span>
         <SubmitButton />
       </div>
     </form>

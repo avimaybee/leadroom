@@ -12,7 +12,14 @@ function getSecretKey(): Uint8Array {
   if (!secret) {
     secret = (typeof process !== 'undefined' ? process.env : undefined)?.AUTH_SECRET;
   }
-  return new TextEncoder().encode(secret || 'fallback-secret-key-at-least-32-chars-long');
+  if (!secret) {
+    throw new Error(
+      'AUTH_SECRET environment variable is required but not set. ' +
+      'Set it in .env.local (local dev) or as a Cloudflare secret (production). ' +
+      'Generate one with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
+    );
+  }
+  return new TextEncoder().encode(secret);
 }
 
 export interface SessionPayload {
