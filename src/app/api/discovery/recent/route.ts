@@ -21,23 +21,28 @@ async function getUserId() {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const userId = await getUserId();
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const { searchParams } = new URL(request.url);
+  const filterScopeId = searchParams.get('scopeId');
+
   const db = getDb();
 
   try {
+    // If filtering by scope, fetch more runs so we can filter in memory and return up to 5.
     const runs = await db
       .select()
       .from(jobRuns)
       .where(eq(jobRuns.jobType, 'DISCOVERY_SEARCH'))
       .orderBy(desc(jobRuns.createdAt))
-      .limit(5);
+      .limit(filterScopeId ? 100 : 5);
 
-    const formattedRuns = runs.map((run) => {
+    const formattedRuns = [];
+    for (const run of runs) {
       let niche = '';
       let location = '';
       let scopeId: string | null = null;
@@ -52,7 +57,11 @@ export async function GET() {
         console.error('Failed to parse jobMeta:', e);
       }
 
-      return {
+      if (filterScopeId && scopeId !== filterScopeId) {
+        continue;
+      }
+
+      formattedRuns.push({
         id: run.id,
         status: run.status,
         niche,
@@ -61,8 +70,12 @@ export async function GET() {
         createdAt: run.createdAt,
         finishedAt: run.finishedAt,
         errorSummary: run.errorSummary,
-      };
-    });
+      });
+
+      if (formattedRuns.length >= 5) {
+        break;
+      }
+    }
 
     return NextResponse.json({ success: true, data: formattedRuns });
   } catch (error: unknown) {

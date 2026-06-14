@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { decrypt } from '@/lib/auth';
 import { jobRuns } from '@/db/schema/research';
-import { triggerAuditWorkflow, CloudflareWorkflow } from '@/lib/workflow-client';
+import { triggerAuditWorkflow, triggerTriageWorkflow, CloudflareWorkflow } from '@/lib/workflow-client';
 import { ScoringService } from '@/services/scoring';
 import { AuditService } from '@/services/audits';
 import { and, eq, or } from 'drizzle-orm';
@@ -141,5 +141,30 @@ export async function getAuditAndScoreDetails(leadId: string) {
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'Failed to fetch details';
     return { audit: null, score: null, error: msg };
+  }
+}
+
+/**
+ * Next.js Server Action to manually trigger a background triage scan for a lead.
+ */
+export async function triggerTriageAction(leadId: string) {
+  const db = getDb();
+  const userId = await getUserId();
+
+  if (!userId) {
+    return { error: 'Unauthorized' };
+  }
+
+  try {
+    const env = (process.env as unknown as Record<string, unknown>);
+    const workflowBinding = env?.TRIAGE_WORKFLOW as CloudflareWorkflow | undefined;
+
+    await triggerTriageWorkflow(db, workflowBinding, leadId);
+
+    revalidatePath(`/leads/${leadId}`);
+    return { error: null, success: true };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Failed to trigger triage';
+    return { error: msg, success: false };
   }
 }

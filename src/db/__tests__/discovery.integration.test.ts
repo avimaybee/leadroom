@@ -3,6 +3,7 @@ import assert from 'node:assert';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { DiscoveryService } from '../../services/discovery';
+import { eq } from 'drizzle-orm';
 
 function setupTestDb() {
   const sqlite = new Database(':memory:');
@@ -69,9 +70,46 @@ function setupTestDb() {
       raw_location TEXT,
       notes TEXT,
       status TEXT NOT NULL DEFAULT 'NEW',
+      triage_priority TEXT DEFAULT 'UNASSESSED' NOT NULL,
+      triage_reason TEXT,
       promoted_lead_id TEXT,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE audits (
+      id TEXT PRIMARY KEY,
+      lead_id TEXT NOT NULL REFERENCES leads(id),
+      created_by_user_id TEXT REFERENCES users(id),
+      origin TEXT NOT NULL DEFAULT 'AI_GENERATED',
+      website_quality_score INTEGER,
+      design_aesthetic_score INTEGER,
+      messaging_clarity_score INTEGER,
+      social_presence_score INTEGER,
+      overall_branding_score INTEGER,
+      key_strengths TEXT,
+      key_weaknesses TEXT,
+      recommended_improvements TEXT,
+      opportunity_notes TEXT,
+      sources TEXT,
+      job_run_id TEXT,
+      created_at INTEGER,
+      updated_at INTEGER
+    );
+
+    CREATE TABLE lead_scores (
+      id TEXT PRIMARY KEY,
+      lead_id TEXT NOT NULL REFERENCES leads(id),
+      score_value INTEGER NOT NULL,
+      score_label TEXT,
+      rationale_summary TEXT,
+      factors TEXT,
+      origin TEXT NOT NULL DEFAULT 'RULE_BASED',
+      is_current INTEGER NOT NULL DEFAULT 1,
+      created_by_user_id TEXT REFERENCES users(id),
+      job_run_id TEXT,
+      created_at INTEGER,
+      updated_at INTEGER
     );
   `);
 
@@ -157,6 +195,8 @@ test('DiscoveryService - promoteCandidate works', async () => {
     rawWebsiteUrl: 'https://austinsmiles.com',
     rawLocation: 'Austin, TX',
     status: 'NEW',
+    triagePriority: 'MEDIUM',
+    triageReason: 'Website outdated',
   });
 
   // Create test user to satisfy foreign key constraint
@@ -175,16 +215,30 @@ test('DiscoveryService - promoteCandidate works', async () => {
   assert.strictEqual(promotedLead.city, 'Austin, TX');
   assert.strictEqual(promotedLead.ownerId, 'owner_123');
   assert.strictEqual(promotedLead.stage, 'New');
+  assert.strictEqual(promotedLead.triagePriority, 'MEDIUM');
+  assert.strictEqual(promotedLead.triageReason, 'Website outdated');
+
+  // Verify baseline score calculated
+  const [score] = await db.select().from(require('../schema/audits').leadScores).where(eq(require('../schema/audits').leadScores.leadId, promotedLead.id));
+  assert.ok(score);
+  assert.strictEqual(score.scoreLabel, 'Low'); // 10 base + 15 website + 5 location + 5 triage medium = 35 -> Low (< 45)
+  assert.ok(score.scoreValue > 0);
 
   // Verify candidate status updated
   const candidates = await service.listCandidatesByScope('scope_1');
   assert.strictEqual(candidates[0].status, 'PROMOTED');
   assert.strictEqual(candidates[0].promotedLeadId, promotedLead.id);
 
-  // Verify activity log was created
+  // Verify activity logs were created
   const results = await db.select().from(require('../schema/core').activities);
-  assert.strictEqual(results.length, 1);
-  assert.strictEqual(results[0].leadId, promotedLead.id);
-  assert.strictEqual(results[0].type, 'SYSTEM');
-  assert.ok(results[0].summary.includes('Scope: Dentists in Austin'));
+  assert.strictEqual(results.length, 2);
+  
+  const systemLog = results.find(r => r.type === 'SYSTEM');
+  assert.ok(systemLog);
+  assert.strictEqual(systemLog.leadId, promotedLead.id);
+  assert.ok(systemLog.summary.includes('Scope: Dentists in Austin'));
+
+  const scoreLog = results.find(r => r.type === 'Score updated');
+  assert.ok(scoreLog);
+  assert.strictEqual(scoreLog.leadId, promotedLead.id);
 });

@@ -66,6 +66,41 @@ function setupTestDb() {
       body TEXT NOT NULL,
       created_at INTEGER
     );
+
+    CREATE TABLE audits (
+      id TEXT PRIMARY KEY,
+      lead_id TEXT NOT NULL REFERENCES leads(id),
+      created_by_user_id TEXT REFERENCES users(id),
+      origin TEXT NOT NULL DEFAULT 'AI_GENERATED',
+      website_quality_score INTEGER,
+      design_aesthetic_score INTEGER,
+      messaging_clarity_score INTEGER,
+      social_presence_score INTEGER,
+      overall_branding_score INTEGER,
+      key_strengths TEXT,
+      key_weaknesses TEXT,
+      recommended_improvements TEXT,
+      opportunity_notes TEXT,
+      sources TEXT,
+      job_run_id TEXT,
+      created_at INTEGER,
+      updated_at INTEGER
+    );
+
+    CREATE TABLE lead_scores (
+      id TEXT PRIMARY KEY,
+      lead_id TEXT NOT NULL REFERENCES leads(id),
+      score_value INTEGER NOT NULL,
+      score_label TEXT,
+      rationale_summary TEXT,
+      factors TEXT,
+      origin TEXT NOT NULL DEFAULT 'RULE_BASED',
+      is_current INTEGER NOT NULL DEFAULT 1,
+      created_by_user_id TEXT REFERENCES users(id),
+      job_run_id TEXT,
+      created_at INTEGER,
+      updated_at INTEGER
+    );
   `);
 
   const db = drizzle(sqlite);

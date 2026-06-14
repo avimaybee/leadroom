@@ -1,9 +1,8 @@
 'use client';
 
-
-
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect, useCallback, use } from 'react';
 import Link from 'next/link';
+import { formatUTC } from '@/lib/date';
 
 interface Scope {
   id: string;
@@ -26,8 +25,21 @@ interface Candidate {
   rawLocation: string | null;
   notes: string | null;
   status: 'NEW' | 'REVIEWED' | 'PROMOTED' | 'DISCARDED';
+  triagePriority: 'UNASSESSED' | 'HIGH' | 'MEDIUM' | 'SKIP';
+  triageReason: string | null;
   promotedLeadId: string | null;
   createdAt: string;
+}
+
+interface RecentRun {
+  id: string;
+  status: string;
+  niche: string;
+  location: string;
+  scopeId: string | null;
+  createdAt: string;
+  finishedAt: string | null;
+  errorSummary: string | null;
 }
 
 export default function ScopeDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -41,7 +53,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
   // Tab control: 'pending', 'promoted', 'discarded'
   const [activeTab, setActiveTab] = useState<'pending' | 'promoted' | 'discarded'>('pending');
   
-  // Modal state
+  // Modal state for manual candidate
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newCandidate, setNewCandidate] = useState({
     rawName: '',
@@ -53,9 +65,74 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
   const [modalError, setModalError] = useState('');
   const [submittingCandidate, setSubmittingCandidate] = useState(false);
   
+  // Refine Search / Find More Leads Modal
+  const [isRefineModalOpen, setIsRefineModalOpen] = useState(false);
+  const [refineForm, setRefineForm] = useState({
+    niche: '',
+    location: '',
+    limit: 20,
+  });
+  
+  // Recent runs history & Polling status
+  const [recentRuns, setRecentRuns] = useState<RecentRun[]>([]);
+  const [activeJobRun, setActiveJobRun] = useState<RecentRun | null>(null);
+  const [pollingJobId, setPollingJobId] = useState<string | null>(null);
+  const [isRecentRunsExpanded, setIsRecentRunsExpanded] = useState(false);
+
   // Current logged in user ID
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string } | null>(null);
   const [isSpecsExpanded, setIsSpecsExpanded] = useState(false);
+
+  const fetchRecentRuns = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/discovery/recent?scopeId=${id}`);
+      if (res.ok) {
+        const data = await res.json() as any;
+        if (data.success && Array.isArray(data.data)) {
+          setRecentRuns(data.data);
+          
+          // Check if there is a running/queued job
+          const activeRun = data.data.find(
+            (run: any) => run.status === 'RUNNING' || run.status === 'QUEUED'
+          );
+          if (activeRun) {
+            setActiveJobRun(activeRun);
+            setPollingJobId(activeRun.id);
+          } else {
+            setActiveJobRun(null);
+            setPollingJobId(null);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load recent discovery runs:', e);
+    }
+  }, [id]);
+
+  const fetchData = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const [scopeRes, candidatesRes] = await Promise.all([
+        fetch(`/api/scopes?id=${id}`),
+        fetch(`/api/candidates?scopeId=${id}`),
+      ]);
+
+      if (!scopeRes.ok) throw new Error('Failed to load campaign');
+      if (!candidatesRes.ok) throw new Error('Failed to load candidates');
+
+      const scopeData = (await scopeRes.json()) as { data: Scope };
+      const candidatesData = (await candidatesRes.json()) as { data: Candidate[] };
+
+      setScope(scopeData.data);
+      setCandidates(candidatesData.data);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'An error occurred while fetching data';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     // Fetch user profile
@@ -71,34 +148,63 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
         console.warn('Unable to retrieve current user info');
       });
 
-    // Fetch Scope and Candidates
+    // Fetch Campaign and Candidates
     fetchData();
-  }, [id]);
+    fetchRecentRuns();
+  }, [id, fetchRecentRuns]);
 
-  const fetchData = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const [scopeRes, candidatesRes] = await Promise.all([
-        fetch(`/api/scopes?id=${id}`),
-        fetch(`/api/candidates?scopeId=${id}`),
-      ]);
+  // Polling loop to check crawler job status
+  const checkJobStatus = useCallback(
+    async (jobId: string): Promise<boolean> => {
+      try {
+        const res = await fetch(`/api/jobs/${jobId}`);
+        if (!res.ok) throw new Error('Failed to verify search progress');
 
-      if (!scopeRes.ok) throw new Error('Failed to load scope');
-      if (!candidatesRes.ok) throw new Error('Failed to load candidates');
+        const raw = await res.json() as { status: string; errorSummary?: string };
 
-      const scopeData = (await scopeRes.json()) as { data: Scope };
-      const candidatesData = (await candidatesRes.json()) as { data: Candidate[] };
+        if (raw.status === 'COMPLETED') {
+          // Re-fetch candidates and recent runs
+          const candidatesRes = await fetch(`/api/candidates?scopeId=${id}`);
+          if (candidatesRes.ok) {
+            const data = await candidatesRes.json() as { data: Candidate[] };
+            setCandidates(data.data);
+          }
+          await fetchRecentRuns();
+          return true; // done
+        } else if (raw.status === 'FAILED') {
+          await fetchRecentRuns();
+          return true; // done
+        }
+        return false; // still running
+      } catch (err: unknown) {
+        console.error('Polling failed:', err);
+        return true; // stop polling
+      }
+    },
+    [id, fetchRecentRuns],
+  );
 
-      setScope(scopeData.data);
-      setCandidates(candidatesData.data);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'An error occurred while fetching data';
-      setError(msg);
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    if (!pollingJobId) return;
+
+    let stopped = false;
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    const poll = async () => {
+      if (stopped) return;
+      const done = await checkJobStatus(pollingJobId);
+      if (!done && !stopped) {
+        timeoutId = setTimeout(poll, 6000); // 6s between polls
+      }
+    };
+
+    poll();
+
+    return () => {
+      stopped = true;
+      clearTimeout(timeoutId);
+    };
+  }, [pollingJobId, checkJobStatus]);
 
   const handleUpdateStatus = async (candidateId: string, status: 'PROMOTED' | 'DISCARDED') => {
     try {
@@ -180,11 +286,98 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
     }
   };
 
-  const filteredCandidates = candidates.filter((c) => {
-    if (activeTab === 'pending') return c.status === 'NEW' || c.status === 'REVIEWED';
-    if (activeTab === 'promoted') return c.status === 'PROMOTED';
-    return c.status === 'DISCARDED';
-  });
+  const handleRefineSearchSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!refineForm.niche || !refineForm.location) return;
+
+    setIsRefineModalOpen(false);
+    
+    // Optimistically show starting state
+    setActiveJobRun({
+      id: 'starting',
+      status: 'QUEUED',
+      niche: refineForm.niche,
+      location: refineForm.location,
+      scopeId: id,
+      createdAt: new Date().toISOString(),
+      finishedAt: null,
+      errorSummary: null,
+    });
+
+    try {
+      const res = await fetch('/api/discovery/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          niche: refineForm.niche.trim(),
+          location: refineForm.location.trim(),
+          limit: refineForm.limit,
+          scopeId: id,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json() as { error?: string };
+        throw new Error(data.error || 'Failed to start search');
+      }
+
+      const data = await res.json() as { jobId: string };
+      setPollingJobId(data.jobId);
+      await fetchRecentRuns();
+    } catch (err: unknown) {
+      console.error(err);
+      alert(err instanceof Error ? err.message : 'Failed to launch refined search');
+      await fetchRecentRuns();
+    }
+  };
+  
+  const handleBulkDiscardSkip = async () => {
+    const skipCandidates = candidates.filter(
+      (c) => (c.status === 'NEW' || c.status === 'REVIEWED') && c.triagePriority === 'SKIP'
+    );
+    if (skipCandidates.length === 0) return;
+
+    if (!confirm(`Are you sure you want to discard all ${skipCandidates.length} low-priority (SKIP) candidates?`)) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await Promise.all(
+        skipCandidates.map((c) =>
+          fetch('/api/candidates', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: c.id, status: 'DISCARDED' }),
+          })
+        )
+      );
+      await fetchData();
+    } catch (err: unknown) {
+      alert('Failed to discard some candidates.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const priorityMap: Record<string, number> = {
+    HIGH: 1,
+    MEDIUM: 2,
+    UNASSESSED: 3,
+    SKIP: 4,
+  };
+
+  const filteredCandidates = candidates
+    .filter((c) => {
+      if (activeTab === 'pending') return c.status === 'NEW' || c.status === 'REVIEWED';
+      if (activeTab === 'promoted') return c.status === 'PROMOTED';
+      return c.status === 'DISCARDED';
+    })
+    .sort((a, b) => {
+      const orderA = priorityMap[a.triagePriority || 'UNASSESSED'] ?? 3;
+      const orderB = priorityMap[b.triagePriority || 'UNASSESSED'] ?? 3;
+      return orderA - orderB;
+    });
 
   if (loading && !scope) {
     return (
@@ -197,56 +390,80 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
   if (error || !scope) {
     return (
       <div className="bg-red-50 text-red-600 p-6 rounded-2xl border border-red-100 max-w-xl mx-auto mt-10">
-        <h3 className="font-bold text-lg">Error loading scope</h3>
-        <p className="mt-1 text-sm">{error || 'Scope not found.'}</p>
+        <h3 className="font-bold text-lg">Error loading campaign</h3>
+        <p className="mt-1 text-sm">{error || 'Campaign not found.'}</p>
         <Link href="/scopes" className="mt-4 inline-block font-semibold text-sm underline">
-          &larr; Back to Scopes
+          &larr; Back to Campaigns
         </Link>
       </div>
     );
   }
 
   return (
-    <div className="space-y-8 animate-fade-in relative">
+    <div className="space-y-8 animate-fade-in relative text-left">
       {/* Back and Breadcrumbs */}
-      <div className="space-y-1.5 animate-fade-in text-left">
+      <div className="space-y-1.5 text-left">
         <Link 
           href="/scopes" 
           className="text-xs font-bold text-slate-500 hover:text-indigo-600 flex items-center gap-1 transition w-fit py-2.5 pr-4 -my-2.5 -ml-1"
         >
-          &larr; Back to Scopes
+          &larr; Back to Campaigns
         </Link>
       </div>
 
-      {/* Scope Header */}
+      {/* Campaign Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-200 pb-5">
         <div>
           <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight capitalize">{scope.name}</h1>
-          <p className="text-sm text-slate-500 mt-1">Configure and qualify leads within this segment.</p>
+          <p className="text-sm text-slate-500 mt-1">Configure and qualify leads within this campaign segment.</p>
         </div>
         <div className="flex items-center gap-3">
-          {candidates.length === 0 && (
-            <Link
-              href={`/discovery?scopeId=${scope.id}&niche=${encodeURIComponent(scope.industryFilter || '')}&location=${encodeURIComponent(scope.geographyFilter || '')}`}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2.5 rounded-xl text-sm transition shadow-sm hover:scale-[1.01]"
-            >
-              Run Discovery Search &rarr;
-            </Link>
-          )}
+          <button
+            onClick={() => {
+              setRefineForm({
+                niche: scope.industryFilter || '',
+                location: scope.geographyFilter || '',
+                limit: 20,
+              });
+              setIsRefineModalOpen(true);
+            }}
+            disabled={!!activeJobRun}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2.5 rounded-xl text-sm transition shadow-sm hover:scale-[1.01] disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+          >
+            Find More Leads
+          </button>
           <button
             onClick={() => setIsModalOpen(true)}
-            className="border border-slate-200 hover:border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold px-4 py-2.5 rounded-xl text-sm transition shadow-sm"
+            className="border border-slate-200 hover:border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold px-4 py-2.5 rounded-xl text-sm transition shadow-sm whitespace-nowrap"
           >
             + Add Candidate Manually
           </button>
         </div>
       </div>
 
-      {/* Scope Specifications Panel (Collapsible Row) */}
+      {/* Active Job Progress Card */}
+      {activeJobRun && (
+        <div className="bg-white p-6 rounded-2xl border border-indigo-200/80 shadow-md flex items-center gap-4 animate-pulse">
+          <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 shrink-0">
+            <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-bold text-slate-900">Crawler is actively scanning...</h3>
+            <p className="text-xs text-slate-500 mt-0.5 truncate leading-relaxed">
+              Searching Google Maps for <span className="font-semibold text-slate-700">"{activeJobRun.niche}"</span> in <span className="font-semibold text-slate-700">"{activeJobRun.location}"</span>. Discovered candidates will automatically populate this campaign. (typically takes 1-3 minutes)
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Campaign Specifications Panel (Collapsible Row) */}
       <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm space-y-4 transition-all duration-200">
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-900">Scope Specifications</span>
+            <span className="text-xs font-bold text-slate-900">Campaign Specifications</span>
             <span className="text-[10px] text-slate-500 font-bold uppercase">•</span>
             <span className="text-xs text-slate-500 font-bold capitalize">
               {scope.industryFilter || 'All Industries'} &middot; {scope.geographyFilter || 'All Locations'}
@@ -261,7 +478,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
         </div>
 
         {isSpecsExpanded ? (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 pt-4 border-t border-slate-100 animate-fade-in text-left">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 pt-4 border-t border-slate-100 animate-fade-in">
             <div className="space-y-1">
               <span className="block text-xs font-bold text-slate-900">Description</span>
               <span className="text-sm text-slate-700 font-semibold block leading-relaxed">
@@ -288,7 +505,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
             )}
             {scope.notes && (
               <div className="md:col-span-4 pt-3 border-t border-slate-100 space-y-1">
-                <span className="block text-xs font-bold text-slate-900">Scope Notes</span>
+                <span className="block text-xs font-bold text-slate-900">Campaign Notes</span>
                 <p className="text-sm text-slate-600 bg-slate-50 p-4 rounded-xl leading-relaxed whitespace-pre-wrap font-semibold">
                   {scope.notes}
                 </p>
@@ -297,14 +514,14 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
           </div>
         ) : (
           scope.description && (
-            <p className="text-sm text-slate-500 font-medium truncate pt-3 border-t border-slate-100/60 text-left">
+            <p className="text-sm text-slate-500 font-medium truncate pt-3 border-t border-slate-100/60">
               {scope.description}
             </p>
           )
         )}
       </div>
 
-      {/* Main Candidate list (full width) */}
+      {/* Main Candidate list */}
       <div className="space-y-6">
         {/* Tabs */}
         <div className="flex border-b border-slate-200">
@@ -352,18 +569,25 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                   </svg>
                 </div>
                 <div className="space-y-2">
-                  <h3 className="text-lg font-bold text-slate-900">No prospects found in this scope yet</h3>
+                  <h3 className="text-lg font-bold text-slate-900">No prospects found in this campaign yet</h3>
                   <p className="text-sm text-slate-500 max-w-md mx-auto leading-relaxed">
-                    Run an automated Google Maps scan with this scope's specifications to crawl local businesses and populate your candidate list.
+                    Run an automated Google Maps scan with this campaign's specifications to crawl local businesses and populate your candidate list.
                   </p>
                 </div>
                 <div className="flex justify-center items-center gap-3 pt-2">
-                  <Link
-                    href={`/discovery?scopeId=${scope.id}&niche=${encodeURIComponent(scope.industryFilter || '')}&location=${encodeURIComponent(scope.geographyFilter || '')}`}
+                  <button
+                    onClick={() => {
+                      setRefineForm({
+                        niche: scope.industryFilter || '',
+                        location: scope.geographyFilter || '',
+                        limit: 20,
+                      });
+                      setIsRefineModalOpen(true);
+                    }}
                     className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2.5 rounded-xl text-sm transition shadow shadow-indigo-600/10 hover:scale-[1.01]"
                   >
-                    Run Discovery Search &rarr;
-                  </Link>
+                    Find Leads &rarr;
+                  </button>
                   <button
                     onClick={() => setIsModalOpen(true)}
                     className="border border-slate-200 hover:border-slate-300 text-slate-700 hover:bg-slate-50 font-bold px-5 py-2.5 rounded-xl text-sm transition"
@@ -383,7 +607,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                 <div className="space-y-1">
                   <h3 className="text-sm font-bold text-slate-900 capitalize">No prospects in {activeTab}</h3>
                   <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
-                    There are no prospects qualified under the "{activeTab}" filter for this scope.
+                    There are no prospects qualified under the "{activeTab}" filter for this campaign.
                   </p>
                 </div>
                 {activeTab !== 'pending' && (
@@ -397,14 +621,45 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
               </div>
             )
           ) : (
-              filteredCandidates.map((candidate) => (
+            <>
+              {activeTab === 'pending' && candidates.some(c => (c.status === 'NEW' || c.status === 'REVIEWED') && c.triagePriority === 'SKIP') && (
+                <div className="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center bg-slate-50 border border-slate-200/60 p-4 rounded-2xl shadow-sm mb-4 text-left">
+                  <div className="text-xs text-slate-500 font-semibold leading-relaxed">
+                    Sorted by priority: outdated or offline websites are pushed to the top; modern sites are greyed out at the bottom.
+                  </div>
+                  <button
+                    onClick={handleBulkDiscardSkip}
+                    className="text-xs font-bold text-slate-500 hover:text-rose-600 bg-white hover:bg-rose-50 px-3.5 py-2 rounded-xl border border-slate-200 hover:border-rose-100 transition flex items-center gap-1.5 shadow-sm shrink-0"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Discard all low-priority (SKIP) candidates
+                  </button>
+                </div>
+              )}
+              {filteredCandidates.map((candidate) => (
                 <div
                   key={candidate.id}
-                  className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row justify-between md:items-center gap-6"
+                  className={`bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row justify-between md:items-center gap-6 transition-all duration-200 ${
+                    candidate.triagePriority === 'HIGH' ? 'border-l-4 border-l-rose-500' :
+                    candidate.triagePriority === 'MEDIUM' ? 'border-l-4 border-l-amber-500' :
+                    candidate.triagePriority === 'SKIP' ? 'opacity-60 bg-slate-50/50' : ''
+                  }`}
                 >
-                  <div className="space-y-2 flex-1">
+                  <div className="space-y-2.5 flex-1">
                     <div className="flex flex-wrap items-center gap-3">
                       <h4 className="font-extrabold text-slate-900 text-lg leading-snug">{candidate.rawName}</h4>
+                      {candidate.triagePriority && candidate.triagePriority !== 'UNASSESSED' && (
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
+                          candidate.triagePriority === 'HIGH' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                          candidate.triagePriority === 'MEDIUM' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                          candidate.triagePriority === 'SKIP' ? 'bg-slate-50 text-slate-500 border border-slate-200' :
+                          'bg-slate-100 text-slate-400'
+                        }`}>
+                          {candidate.triagePriority} Priority
+                        </span>
+                      )}
                       {candidate.rawLocation && (
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-slate-100 text-slate-600">
                           {candidate.rawLocation}
@@ -417,13 +672,19 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                         href={candidate.rawWebsiteUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-indigo-600 hover:underline text-sm font-semibold flex items-center gap-1.5"
+                        className="text-indigo-600 hover:underline text-sm font-semibold flex items-center gap-1.5 w-fit"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                         </svg>
                         {candidate.rawWebsiteUrl}
                       </a>
+                    )}
+
+                    {candidate.triageReason && (
+                      <p className="text-xs font-semibold text-slate-500 bg-slate-50/50 p-2.5 rounded-xl border border-slate-100/60 leading-relaxed text-left w-fit max-w-full">
+                        <span className="font-bold text-slate-700">Triage:</span> {candidate.triageReason}
+                      </p>
                     )}
 
                     {candidate.rawContactInfo && (
@@ -471,10 +732,72 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                     )}
                   </div>
                 </div>
-              ))
+              ))}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Collapsible Recent Crawls Section */}
+      <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm space-y-4 transition-all duration-200">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-900">Campaign Discovery History</span>
+            <span className="text-[10px] text-slate-500 font-bold uppercase">•</span>
+            <span className="text-xs text-slate-500 font-bold">
+              {recentRuns.length} recent runs
+            </span>
+          </div>
+          <button
+            onClick={() => setIsRecentRunsExpanded(!isRecentRunsExpanded)}
+            className="text-indigo-600 hover:text-indigo-700 hover:underline text-xs font-bold flex items-center gap-1 transition"
+          >
+            {isRecentRunsExpanded ? 'Hide History &larr;' : 'Show History &rarr;'}
+          </button>
+        </div>
+
+        {isRecentRunsExpanded && (
+          <div className="pt-4 border-t border-slate-100 animate-fade-in">
+            {recentRuns.length === 0 ? (
+              <p className="text-xs text-slate-500 font-medium py-2">No recent discovery runs have been triggered for this campaign.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] tracking-wider border-b border-slate-100">
+                    <tr>
+                      <th className="px-4 py-3">Keyword/Niche</th>
+                      <th className="px-4 py-3">Location</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
+                    {recentRuns.map((run) => (
+                      <tr key={run.id} className="hover:bg-slate-50/50 transition">
+                        <td className="px-4 py-3 font-bold text-slate-900">{run.niche}</td>
+                        <td className="px-4 py-3">{run.location}</td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                            run.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+                            run.status === 'FAILED' ? 'bg-rose-50 text-rose-700 border border-rose-100' :
+                            run.status === 'RUNNING' || run.status === 'QUEUED' ? 'bg-amber-50 text-amber-700 border border-amber-100 animate-pulse' :
+                            'bg-slate-100 text-slate-600'
+                          }`}>
+                            {run.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-slate-500">
+                          {formatUTC(run.createdAt)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
-        </div>
+        )}
+      </div>
 
       {/* Manual Candidate Intake Modal */}
       {isModalOpen && (
@@ -570,6 +893,91 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                   className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition shadow-sm hover:scale-[1.01] disabled:opacity-50"
                 >
                   {submittingCandidate ? 'Saving...' : 'Add Candidate'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Refine Search / Find More Leads Modal (Credit Protection) */}
+      {isRefineModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white rounded-2xl border border-slate-200 w-full max-w-lg shadow-2xl p-6 space-y-6">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+              <h3 className="font-extrabold text-slate-900 text-lg">Find More Leads</h3>
+              <button
+                onClick={() => setIsRefineModalOpen(false)}
+                className="p-1 border border-slate-200 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-100 text-amber-800 p-4 rounded-xl text-xs font-semibold leading-relaxed flex gap-3">
+              <svg className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <div>
+                <span className="font-bold block mb-1">Credit Allocation Warning</span>
+                Apify restarts from scratch on every run. To avoid paying for duplicate results, refine your search criteria by entering a specific Zip code, suburb, or a keyword variation.
+              </div>
+            </div>
+
+            <form onSubmit={handleRefineSearchSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-900 mb-1.5">Niche / Keyword</label>
+                <input
+                  required
+                  type="text"
+                  placeholder="e.g. Roofers, Dentists"
+                  value={refineForm.niche}
+                  onChange={(e) => setRefineForm({ ...refineForm, niche: e.target.value })}
+                  className="block w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 placeholder:text-slate-400 shadow-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-900 mb-1.5">Refined Location (City, Zip Code, Suburb)</label>
+                <input
+                  required
+                  type="text"
+                  placeholder="e.g. Austin TX 78701, Plano"
+                  value={refineForm.location}
+                  onChange={(e) => setRefineForm({ ...refineForm, location: e.target.value })}
+                  className="block w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 placeholder:text-slate-400 shadow-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-900 mb-1.5">Limit</label>
+                <select
+                  value={refineForm.limit}
+                  onChange={(e) => setRefineForm({ ...refineForm, limit: Number(e.target.value) })}
+                  className="block w-full rounded-xl border border-slate-200 py-2.5 px-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-900 bg-white shadow-sm"
+                >
+                  <option value={10}>10 Leads</option>
+                  <option value={20}>20 Leads</option>
+                  <option value={30}>30 Leads</option>
+                  <option value={50}>50 Leads</option>
+                </select>
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsRefineModalOpen(false)}
+                  className="px-5 py-2.5 bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 rounded-xl font-semibold text-sm transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-sm transition shadow-sm hover:scale-[1.01]"
+                >
+                  Start Scan
                 </button>
               </div>
             </form>

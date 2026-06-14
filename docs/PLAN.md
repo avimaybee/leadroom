@@ -321,16 +321,21 @@ If it does not, the product foundation is wrong.
 
 ***
 
-## Stage 2 — Discovery scope and candidate intake
+## Stage 2 — Discovery scope and candidate intake (Consolidated under "Campaigns")
 
 ### Objective
 
 Make lead intake repeatable.
 
+> [!NOTE]
+> **Consolidation Refinement**: The "Discovery Scopes" and "Discovery Engine" screens have been consolidated into a single linear "Campaigns" workflow (`/scopes`). This avoids redundant forms: a user creates a Campaign with Niche and Location, and the system automatically launches the crawler, creates a dedicated workspace, and routes them to it. Subsequent searches inside the workspace warn the user about Apify duplicate costs and require a refined location/keyword variation ("Find More Leads" alert).
+
 ### Included scope
 
-- discovery scope creation.
-- saved targeting definitions.
+- campaign (discovery scope) creation.
+- simplified niche, location, and limit intake form.
+- automated name generation (e.g. `"Niche in Location"`) and geographic fallbacks (random US State).
+- automated crawler trigger on creation.
 - candidate lead intake flow.
 - candidate review before promotion to active lead.
 - source attribution.

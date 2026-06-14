@@ -4,6 +4,8 @@ import { checkApifyRunStatus, fetchApifyResults } from '../lib/discovery/apify';
 import { candidateLeads } from '../db/schema/discovery';
 import { jobRuns } from '../db/schema/research';
 import { eq } from 'drizzle-orm';
+import { fetchSiteContent } from '../lib/scraper';
+import { runTriageAI } from '../lib/ai';
 
 type DiscoveryParams = {
   jobId: string;
@@ -106,8 +108,25 @@ export class DiscoverySearchWorkflow extends WorkflowEntrypoint<Env, DiscoveryPa
         async () => {
           const now = new Date();
           if (results.length > 0) {
-            await db.insert(candidateLeads).values(
-              results.map((r) => ({
+            const candidates = [];
+            for (const r of results) {
+              let triagePriority: 'HIGH' | 'MEDIUM' | 'SKIP' = 'HIGH';
+              let triageReason = 'No website detected.';
+
+              if (r.website) {
+                try {
+                  const siteContent = await fetchSiteContent(r.website);
+                  const triageResult = await runTriageAI(db, siteContent.content.substring(0, 5000));
+                  triagePriority = triageResult.status === 'MODERN' ? 'SKIP' : 'MEDIUM';
+                  triageReason = triageResult.reason;
+                } catch (err: unknown) {
+                  const errMsg = err instanceof Error ? err.message : String(err);
+                  triagePriority = 'HIGH';
+                  triageReason = `Website failed to load or is unreachable. Error: ${errMsg}`;
+                }
+              }
+
+              candidates.push({
                 id: crypto.randomUUID(),
                 discoveryScopeId: scopeId || null,
                 rawName: r.name,
@@ -116,10 +135,14 @@ export class DiscoverySearchWorkflow extends WorkflowEntrypoint<Env, DiscoveryPa
                 rawLocation: [r.city, r.region].filter(Boolean).join(', ') || null,
                 notes: r.industry ? `Industry: ${r.industry}` : null,
                 status: 'NEW' as const,
+                triagePriority,
+                triageReason,
                 createdAt: now,
                 updatedAt: now,
-              })),
-            );
+              });
+            }
+
+            await db.insert(candidateLeads).values(candidates);
           }
 
           await db.update(jobRuns)

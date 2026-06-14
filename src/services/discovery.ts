@@ -3,6 +3,7 @@ import { eq, sql } from 'drizzle-orm';
 import { discoveryScopes, candidateLeads } from '../db/schema/discovery';
 import { leads, activities } from '../db/schema/core';
 import { CreateDiscoveryScopeInput, CreateCandidateLeadInput } from '../db/models/discovery';
+import { ScoringService } from './scoring';
 
 export class DiscoveryService {
   constructor(private db: Db) {}
@@ -44,6 +45,8 @@ export class DiscoveryService {
       rawLocation: input.rawLocation ?? null,
       notes: input.notes ?? null,
       status: input.status || 'NEW',
+      triagePriority: input.triagePriority ?? 'UNASSESSED',
+      triageReason: input.triageReason ?? null,
       promotedLeadId: input.promotedLeadId ?? null,
       createdAt: now,
       updatedAt: now,
@@ -77,6 +80,28 @@ export class DiscoveryService {
     return results[0] || null;
   }
 
+  async updateCandidateTriage(candidateId: string, triagePriority: 'HIGH' | 'MEDIUM' | 'SKIP', triageReason: string | null) {
+    const now = new Date();
+    await this.db
+      .update(candidateLeads)
+      .set({ triagePriority, triageReason, updatedAt: now })
+      .where(eq(candidateLeads.id, candidateId));
+
+    const [candidate] = await this.db.select().from(candidateLeads).where(eq(candidateLeads.id, candidateId)).limit(1);
+
+    if (candidate && candidate.promotedLeadId) {
+      await this.db
+        .update(leads)
+        .set({ triagePriority, triageReason, updatedAt: now })
+        .where(eq(leads.id, candidate.promotedLeadId));
+
+      const scoringService = new ScoringService(this.db);
+      await scoringService.recalculateScore(candidate.promotedLeadId);
+    }
+
+    return candidate || null;
+  }
+
   async promoteCandidate(candidateId: string, ownerId: string) {
     const now = new Date();
 
@@ -108,6 +133,8 @@ export class DiscoveryService {
       city: candidate.rawLocation || null,
       stage: 'New',
       status: 'Active',
+      triagePriority: candidate.triagePriority,
+      triageReason: candidate.triageReason,
       ownerId: ownerId,
       createdAt: now,
       updatedAt: now,
@@ -132,6 +159,10 @@ export class DiscoveryService {
       summary: `Promoted from candidate lead in Scope: ${scopeName}`,
       timestamp: now,
     });
+
+    // 6. Recalculate baseline priority score
+    const scoringService = new ScoringService(this.db);
+    await scoringService.recalculateScore(leadId);
 
     const [promotedLead] = await this.db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
     return promotedLead;

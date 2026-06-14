@@ -14,6 +14,7 @@ Agents should claim a plan by changing its status to `In Progress`, follow its i
 | [006](./006-remove-sync-enrichment.md) | Remove synchronous enrichment logic from ResearchService | Done |
 | [007](./007-contact-management.md) | Implement edit and delete logic for Stage 3 Contacts | Done |
 | [008](./008-audit-ui-resilience.md) | Add ErrorBoundary for Audit & Research UI resilience | Done |
+| [009](./009-stage-5-outreach-data-model.md) | Implement Stage 5 - Outreach Data Model and Service Layer | TODO |
 
 ## Execution rules
 1. Do not start a plan if a dependency plan is not yet `Done`.

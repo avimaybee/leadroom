@@ -222,9 +222,9 @@ This loop is the backbone of the product. New features must strengthen it, not d
 
 ## 10. Functional requirements
 
-### 10.1 Lead discovery scope definition
+### 10.1 Lead discovery scope definition (Campaigns)
 
-The system must allow the user to define a target discovery scope using filters such as:
+The system must allow the user to define a target discovery scope (exposed in the UI as an **Outreach Campaign** or **Campaign**) using filters such as:
 
 - industry.
 - geography or city.
@@ -234,12 +234,15 @@ The system must allow the user to define a target discovery scope using filters 
 - branding or aesthetic weakness signals.
 - custom notes or targeting hypotheses.
 
+> [!NOTE]
+> For ease of use and terminology alignment, "Discovery Scopes" and the standalone "Discovery Search" route have been unified in the UI under **Campaigns** (`/scopes`). Creating a campaign automatically auto-names the workspace, applies geography fallbacks, and triggers a background discovery crawler. Subsequent runs inside the campaign are initiated via a refinement prompt ("Find More Leads") to prevent duplicate API spend.
+
 #### Acceptance criteria
 
-- User can create and save a discovery scope.
-- A scope has a human-readable name.
-- Scope inputs are editable after creation.
-- Scope history is preserved for future review.
+- User can create and save a campaign.
+- A campaign has an automatically generated name based on niche and location.
+- Campaign inputs are editable or refineable.
+- Scraper history is preserved within the campaign workspace.
 
 ### 10.2 Lead record management
 

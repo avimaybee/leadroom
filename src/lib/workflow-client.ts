@@ -5,6 +5,7 @@ import { jobRuns, researchSnapshots } from '@/db/schema/research';
 import { leads, activities } from '@/db/schema/core';
 import { candidateLeads } from '@/db/schema/discovery';
 import { AuditService } from '@/services/audits';
+import { ScoringService } from '@/services/scoring';
 import { checkApifyRunStatus, fetchApifyResults } from '@/lib/discovery/apify';
 import { eq } from 'drizzle-orm';
 
@@ -208,6 +209,8 @@ export async function triggerTriageWorkflow(
           summary: 'Scored HIGH priority due to missing website (Simulation).',
           timestamp: new Date(),
         });
+        const scoringService = new ScoringService(db);
+        await scoringService.recalculateScore(leadId);
         return;
       }
 
@@ -228,6 +231,8 @@ export async function triggerTriageWorkflow(
           summary: 'Scored HIGH priority due to unreachable website (Simulation).',
           timestamp: new Date(),
         });
+        const scoringService = new ScoringService(db);
+        await scoringService.recalculateScore(leadId);
         return;
       }
 
@@ -247,6 +252,9 @@ export async function triggerTriageWorkflow(
         summary: `Scored ${priority} priority. Reason: ${triageResult.reason} (Simulation)`,
         timestamp: new Date(),
       });
+
+      const scoringService = new ScoringService(db);
+      await scoringService.recalculateScore(leadId);
 
     } catch (error: unknown) {
       console.error(`[WorkflowClient Simulation] Triage workflow failed for lead ${leadId}:`, error);
@@ -323,8 +331,25 @@ export async function triggerDiscoverySearchWorkflow(
       // 3. Save candidates & complete job
       const now = new Date();
       if (results.length > 0) {
-        await db.insert(candidateLeads).values(
-          results.map((r) => ({
+        const candidates = [];
+        for (const r of results) {
+          let triagePriority: 'HIGH' | 'MEDIUM' | 'SKIP' = 'HIGH';
+          let triageReason = 'No website detected.';
+
+          if (r.website) {
+            try {
+              const siteContent = await fetchSiteContent(r.website);
+              const triageResult = await runTriageAI(db, siteContent.content.substring(0, 5000));
+              triagePriority = triageResult.status === 'MODERN' ? 'SKIP' : 'MEDIUM';
+              triageReason = triageResult.reason;
+            } catch (err: unknown) {
+              const errMsg = err instanceof Error ? err.message : String(err);
+              triagePriority = 'HIGH';
+              triageReason = `Website failed to load or is unreachable. Error: ${errMsg}`;
+            }
+          }
+
+          candidates.push({
             id: crypto.randomUUID(),
             discoveryScopeId: scopeId || null,
             rawName: r.name,
@@ -333,10 +358,14 @@ export async function triggerDiscoverySearchWorkflow(
             rawLocation: [r.city, r.region].filter(Boolean).join(', ') || null,
             notes: r.industry ? `Industry: ${r.industry}` : null,
             status: 'NEW' as const,
+            triagePriority,
+            triageReason,
             createdAt: now,
             updatedAt: now,
-          })),
-        );
+          });
+        }
+
+        await db.insert(candidateLeads).values(candidates);
       }
 
       await db.update(jobRuns)

@@ -20,6 +20,8 @@ export const CreateCandidateLeadSchema = z.object({
   rawLocation: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
   status: z.enum(['NEW', 'REVIEWED', 'PROMOTED', 'DISCARDED']).default('NEW'),
+  triagePriority: z.enum(['UNASSESSED', 'HIGH', 'MEDIUM', 'SKIP']).default('UNASSESSED'),
+  triageReason: z.string().optional().nullable(),
   promotedLeadId: z.string().optional().nullable(),
 });
 

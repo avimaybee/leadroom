@@ -63,11 +63,14 @@
 
 ## Stage 2: Discovery Intake & AI Triage (Completed)
 
-### 1. Sourcing Lead Slices
+### 1. Sourcing Lead Slices (Consolidated under "Campaigns")
 - [x] Install `apify-client` to connect to Google Maps scraping actors.
 - [x] Create backend service `src/lib/discovery/apify.ts` to query maps search queries.
-- [x] Implement UI at `/discovery` allowing niches and city locations to be searched.
-- [x] Support checkboxes to bulk import discovered leads.
+- [x] Consolidate `/discovery` and `/scopes` into a single **Campaigns** workspace view.
+- [x] Implement simplified campaign creation (Niche, Location, Limit) auto-triggering discovery searches immediately.
+- [x] Display active crawl progress via polling and show collapsible crawler run history in Campaign detail workspace.
+- [x] Add "Find More Leads" warning and refinement modal to protect API credit allocations from duplicate runs.
+- [x] Support checkboxes/manual actions to promote candidate leads or bulk-discard skips.
 
 ### 2. Triage AI (Cloudflare Workflows)
 - [x] Create `src/workflows/triage-workflow.ts` bound in `wrangler.toml`.

@@ -181,8 +181,9 @@ test('ScoringService Integration Tests', async (t) => {
       password: 'hashedpassword',
     });
 
-    // Run base score first
-    const baseScore = await scoringService.recalculateScore(lead.id);
+    // Fetch base score created during createLead
+    const [baseScore] = await db.select().from(leadScores).where(eq(leadScores.leadId, lead.id));
+    assert.ok(baseScore);
     assert.strictEqual(baseScore.isCurrent, 1);
 
     // Perform override

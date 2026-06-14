@@ -74,6 +74,9 @@ Represents a person or general contact channel (e.g. role-based email) as part o
 
 Represents a saved definition of targeting criteria used to find new CandidateLeads.
 
+> [!NOTE]
+> In the user interface, the **DiscoveryScope** entity is presented to the operator as a **Campaign** (or Outreach Campaign) to align with a linear, folder-based workspace workflow.
+
 ### 3.5 CandidateLead
 
 Represents a business discovered through a DiscoveryScope or manual import before it is promoted to a Lead.
@@ -225,6 +228,9 @@ Notes:
 - primary_email on Lead can mirror a primary Contact or stand alone.
 
 ### 5.4 DiscoveryScope
+
+> [!NOTE]
+> In the user interface, the **DiscoveryScope** entity is presented to the operator as a **Campaign** (or Outreach Campaign) to provide a linear, folder-based workspace. The underlying database schemas, tables (`discovery_scopes`), and services retain the terminology `Scope` to avoid unnecessary schema migration churn.
 
 Essential fields:
 

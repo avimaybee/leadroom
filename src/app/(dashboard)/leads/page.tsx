@@ -77,10 +77,10 @@ export default async function LeadsPage() {
               + Add New Lead
             </Link>
             <Link
-              href="/discovery"
+              href="/scopes"
               className="border border-slate-200 hover:border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold px-4 py-2.5 rounded-xl text-sm transition shadow-sm"
             >
-              Run Discovery Search
+              Launch Campaign
             </Link>
           </div>
         </div>

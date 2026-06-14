@@ -24,7 +24,8 @@ import {
 } from '@/app/actions/research';
 import { 
   triggerAuditAction, 
-  manualOverrideScoreAction 
+  manualOverrideScoreAction,
+  triggerTriageAction
 } from '@/app/actions/audits';
 import ClientNotesForm from './ClientNotesForm';
 import ClientTaskForm from './ClientTaskForm';
@@ -153,7 +154,10 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             leadId={lead.id}
             initialAudit={latestAudit}
             initialScore={currentScore}
+            triagePriority={lead.triagePriority || 'UNASSESSED'}
+            triageReason={lead.triageReason || null}
             triggerAuditAction={triggerAuditAction}
+            triggerTriageAction={triggerTriageAction}
             manualOverrideScoreAction={manualOverrideScoreAction}
           />
 

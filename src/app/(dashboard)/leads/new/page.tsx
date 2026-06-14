@@ -78,11 +78,47 @@ export default function NewLeadPage() {
             />
           </div>
           <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Phone Number</label>
+            <input 
+              type="text" 
+              name="phone" 
+              placeholder="e.g. +1 555 123 4567"
+              className="block w-full rounded-xl border border-slate-200 py-3 px-4 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-sm text-slate-900 placeholder:text-slate-400" 
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Website URL</label>
+            <input 
+              type="url" 
+              name="website" 
+              placeholder="e.g. https://example.com"
+              className="block w-full rounded-xl border border-slate-200 py-3 px-4 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-sm text-slate-900 placeholder:text-slate-400" 
+            />
+          </div>
+          <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Industry</label>
             <input 
               type="text" 
               name="industry" 
               placeholder="e.g. Local Services"
+              className="block w-full rounded-xl border border-slate-200 py-3 px-4 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-sm text-slate-900 placeholder:text-slate-400" 
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Location / City</label>
+            <input 
+              type="text" 
+              name="city" 
+              placeholder="e.g. San Francisco"
+              className="block w-full rounded-xl border border-slate-200 py-3 px-4 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-sm text-slate-900 placeholder:text-slate-400" 
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Region / State</label>
+            <input 
+              type="text" 
+              name="region" 
+              placeholder="e.g. CA"
               className="block w-full rounded-xl border border-slate-200 py-3 px-4 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-sm text-slate-900 placeholder:text-slate-400" 
             />
           </div>

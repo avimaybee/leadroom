@@ -2,6 +2,7 @@ import { Db } from '../db';
 import { eq, desc } from 'drizzle-orm';
 import { leads, activities, tasks, notes } from '../db/schema/core';
 import { CreateLeadInput } from '../db/models/lead';
+import { ScoringService } from './scoring';
 
 export class LeadService {
   constructor(private db: Db) {}
@@ -27,6 +28,10 @@ export class LeadService {
       timestamp: now,
     });
 
+    // Recalculate baseline score immediately
+    const scoringService = new ScoringService(this.db);
+    await scoringService.recalculateScore(id);
+
     const [lead] = await this.db.select().from(leads).where(eq(leads.id, id)).limit(1);
     return lead;
   }
@@ -46,6 +51,10 @@ export class LeadService {
       ...input,
       updatedAt: now,
     }).where(eq(leads.id, id));
+
+    // Recalculate baseline score immediately
+    const scoringService = new ScoringService(this.db);
+    await scoringService.recalculateScore(id);
 
     return this.getLead(id);
   }

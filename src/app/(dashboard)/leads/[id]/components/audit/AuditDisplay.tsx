@@ -9,9 +9,14 @@ interface AuditDisplayProps {
   leadId: string;
   audit: AuditSnapshot | null;
   score: LeadScore | null;
+  triagePriority: string;
+  triageReason: string | null;
   onRunAudit: () => void;
+  onRunTriage: () => void;
   isAuditing: boolean;
+  isTriaging: boolean;
   auditError: string | null;
+  triageError: string | null;
   manualOverrideScoreAction: (prevState: ActionState, formData: FormData) => Promise<ActionState>;
 }
 
@@ -19,9 +24,14 @@ export function AuditDisplay({
   leadId,
   audit,
   score,
+  triagePriority,
+  triageReason,
   onRunAudit,
+  onRunTriage,
   isAuditing,
+  isTriaging,
   auditError,
+  triageError,
   manualOverrideScoreAction,
 }: AuditDisplayProps) {
   const [showOverrideForm, setShowOverrideForm] = useState(false);
@@ -84,6 +94,23 @@ export function AuditDisplay({
               className="px-3.5 py-2 border border-slate-200 hover:bg-slate-50 text-xs font-bold rounded-xl transition text-slate-700"
             >
               {showOverrideForm ? 'Hide Override' : 'Override Score'}
+            </button>
+            <button
+              onClick={onRunTriage}
+              disabled={isTriaging}
+              className="border border-slate-200 hover:bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400 text-slate-700 text-xs font-bold px-3.5 py-2.5 rounded-xl transition flex items-center gap-2"
+            >
+              {isTriaging ? (
+                <>
+                  <svg className="animate-spin h-3 w-3 text-slate-400" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  Triaging...
+                </>
+              ) : (
+                'Run Triage Scan'
+              )}
             </button>
             <button
               onClick={onRunAudit}
@@ -149,6 +176,9 @@ export function AuditDisplay({
         {auditError && (
           <p className="text-rose-500 text-xs font-bold">{auditError}</p>
         )}
+        {triageError && (
+          <p className="text-rose-500 text-xs font-bold">{triageError}</p>
+        )}
         {!showOverrideForm && !auditError && (
           <p className="text-xs text-slate-500 font-semibold">
             Trigger background scraper & AI design audits. Scores and recommendations are automatically updated.
@@ -159,8 +189,91 @@ export function AuditDisplay({
       {/* 3-Column Grid for Score & Details */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        {/* Left Column (1/3 width): Stack Priority Score & Digital Sub-categories */}
+        {/* Left Column (2/3 width): Observations & Recommendations */}
+        <div className="lg:col-span-2 space-y-6">
+          {audit ? (
+            <div className="space-y-6">
+              <h4 className="text-xs font-bold text-slate-900">Observations & Opportunities</h4>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm space-y-2">
+                  <span className="text-xs font-bold text-emerald-700 block">Key Strengths</span>
+                  <div className="text-xs text-slate-800 font-medium leading-relaxed bg-slate-50/30 p-3 rounded-xl border border-slate-200/30 prose-markdown">
+                    {audit.keyStrengths ? (
+                      <ReactMarkdown>{audit.keyStrengths}</ReactMarkdown>
+                    ) : (
+                      'No strengths noted.'
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm space-y-2">
+                  <span className="text-xs font-bold text-rose-700 block">Key Weaknesses</span>
+                  <div className="text-xs text-slate-800 font-medium leading-relaxed bg-slate-50/30 p-3 rounded-xl border border-slate-200/30 prose-markdown">
+                    {audit.keyWeaknesses ? (
+                      <ReactMarkdown>{audit.keyWeaknesses}</ReactMarkdown>
+                    ) : (
+                      'No weaknesses noted.'
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
+                <span className="text-xs font-bold text-indigo-700 block">Recommended Creative Improvements</span>
+                <div className="text-xs text-slate-800 font-medium leading-relaxed bg-indigo-50/20 p-4 rounded-xl border border-indigo-200/30 prose-markdown">
+                  {audit.recommendedImprovements ? (
+                    <ReactMarkdown>{audit.recommendedImprovements}</ReactMarkdown>
+                  ) : (
+                    'No creative recommendations generated.'
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center space-y-4 h-full flex flex-col justify-center items-center">
+              <svg className="w-12 h-12 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <div className="space-y-1">
+                <h4 className="text-sm font-bold text-slate-800">No Web Presence Audit Found</h4>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto font-medium">
+                  Run a design and branding audit to scrape this lead's website, generate visual subscores, and compute their priority scores.
+                </p>
+              </div>
+              <button
+                onClick={onRunAudit}
+                disabled={isAuditing}
+                className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition shadow shadow-indigo-600/10"
+              >
+                {isAuditing ? 'Auditing Website...' : 'Trigger First-Pass Audit'}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Right Column (1/3 width): Stack Priority Score, Digital Sub-categories & Drivers */}
         <div className="lg:col-span-1 space-y-6">
+          {/* Initial Triage Card */}
+          {triagePriority && triagePriority !== 'UNASSESSED' && (
+            <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-3 text-left">
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-bold text-slate-900">Initial Triage</span>
+                <span className={`px-2.5 py-0.5 rounded-lg text-xs font-bold ${
+                  triagePriority === 'HIGH' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                  triagePriority === 'MEDIUM' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                  triagePriority === 'SKIP' ? 'bg-slate-100 text-slate-500 border border-slate-200' :
+                  'bg-slate-100 text-slate-400'
+                }`}>
+                  {triagePriority} Priority
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 font-semibold leading-relaxed">
+                {triageReason || 'No details provided.'}
+              </p>
+            </div>
+          )}
+
           {/* Priority Score Card */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between space-y-4">
             <div>
@@ -215,108 +328,46 @@ export function AuditDisplay({
               </div>
             </div>
           )}
-        </div>
 
-        {/* Right Column (2/3 width): Observations, Recommendations, & Drivers */}
-        <div className="lg:col-span-2">
-          {audit ? (
-            <div className="space-y-6">
-              <h4 className="text-xs font-bold text-slate-900">Observations & Opportunities</h4>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm space-y-2">
-                  <span className="text-xs font-bold text-emerald-700 block">Key Strengths</span>
-                  <div className="text-xs text-slate-800 font-medium leading-relaxed bg-slate-50/30 p-3 rounded-xl border border-slate-200/30 prose-markdown">
-                    {audit.keyStrengths ? (
-                      <ReactMarkdown>{audit.keyStrengths}</ReactMarkdown>
-                    ) : (
-                      'No strengths noted.'
-                    )}
-                  </div>
-                </div>
-
-                <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm space-y-2">
-                  <span className="text-xs font-bold text-rose-700 block">Key Weaknesses</span>
-                  <div className="text-xs text-slate-800 font-medium leading-relaxed bg-slate-50/30 p-3 rounded-xl border border-slate-200/30 prose-markdown">
-                    {audit.keyWeaknesses ? (
-                      <ReactMarkdown>{audit.keyWeaknesses}</ReactMarkdown>
-                    ) : (
-                      'No weaknesses noted.'
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
-                <span className="text-xs font-bold text-indigo-700 block">Recommended Creative Improvements</span>
-                <div className="text-xs text-slate-800 font-medium leading-relaxed bg-indigo-50/20 p-4 rounded-xl border border-indigo-200/30 prose-markdown">
-                  {audit.recommendedImprovements ? (
-                    <ReactMarkdown>{audit.recommendedImprovements}</ReactMarkdown>
-                  ) : (
-                    'No creative recommendations generated.'
-                  )}
-                </div>
-              </div>
-
-              {/* Scoring Drivers Breakdown */}
-              {factorsList.length > 0 && (
-                <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200/60 space-y-4">
-                  <h4 className="text-xs font-bold text-slate-900">Priority Score Driver Breakdown</h4>
-                  <div className="space-y-3">
-                    {factorsList.map((f, idx) => {
-                      const isTop3 = idx < 3;
-                      const magnitudePercent = Math.min(100, Math.abs(f.value) * 4); // Scale magnitude
-                      return (
-                        <div
-                          key={idx}
-                          className={`flex justify-between items-start text-xs border-b border-slate-200/30 pb-2.5 last:border-0 last:pb-0 ${
-                            isTop3 ? 'bg-indigo-50/40 border border-indigo-100 p-3 rounded-xl shadow-sm' : ''
-                          }`}
-                        >
-                          <div className="flex-1 pr-4">
-                            <span className={`text-slate-700 block ${isTop3 ? 'font-bold' : 'font-semibold'}`}>{f.name}</span>
-                            <span className="text-[10px] text-slate-500 font-medium">{f.description}</span>
-                          </div>
-                          <div className="flex items-center gap-3 shrink-0">
-                            {/* Horizontal visual magnitude indicator bar */}
-                            <div className="w-16 bg-slate-200/60 h-1.5 rounded-full overflow-hidden hidden sm:block">
-                              <div
-                                className={`h-full rounded-full transition-all duration-500 ${f.value > 0 ? 'bg-emerald-500' : 'bg-rose-500'}`}
-                                style={{ width: `${magnitudePercent}%` }}
-                              />
-                            </div>
-                            <span className={`font-black ${f.value > 0 ? 'text-emerald-600' : (f.value < 0 ? 'text-rose-600' : 'text-slate-500')}`}>
-                              {f.value > 0 ? `+${f.value}` : f.value}
-                            </span>
-                          </div>
+          {/* Scoring Drivers Breakdown */}
+          {factorsList.length > 0 && (
+            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200/60 space-y-4">
+              <h4 className="text-xs font-bold text-slate-900">Priority Score Driver Breakdown</h4>
+              <div className="space-y-3">
+                {factorsList.map((f, idx) => {
+                  const isTop3 = idx < 3;
+                  const magnitudePercent = Math.min(100, Math.abs(f.value) * 4); // Scale magnitude
+                  return (
+                    <div
+                      key={idx}
+                      className={`flex justify-between items-start text-xs border-b border-slate-200/30 pb-2.5 last:border-0 last:pb-0 ${
+                        isTop3 ? 'bg-indigo-50/40 border border-indigo-100 p-3 rounded-xl shadow-sm' : ''
+                      }`}
+                    >
+                      <div className="flex-1 pr-4">
+                        <span className={`text-slate-700 block ${isTop3 ? 'font-bold' : 'font-semibold'}`}>{f.name}</span>
+                        <span className="text-[10px] text-slate-500 font-medium">{f.description}</span>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        {/* Horizontal visual magnitude indicator bar */}
+                        <div className="w-16 bg-slate-200/60 h-1.5 rounded-full overflow-hidden hidden sm:block">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${f.value > 0 ? 'bg-emerald-500' : 'bg-rose-500'}`}
+                            style={{ width: `${magnitudePercent}%` }}
+                          />
                         </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center space-y-4 h-full flex flex-col justify-center items-center">
-              <svg className="w-12 h-12 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <div className="space-y-1">
-                <h4 className="text-sm font-bold text-slate-800">No Web Presence Audit Found</h4>
-                <p className="text-xs text-slate-500 max-w-sm mx-auto font-medium">
-                  Run a design and branding audit to scrape this lead's website, generate visual subscores, and compute their priority scores.
-                </p>
+                        <span className={`font-black ${f.value > 0 ? 'text-emerald-600' : (f.value < 0 ? 'text-rose-600' : 'text-slate-500')}`}>
+                          {f.value > 0 ? `+${f.value}` : f.value}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              <button
-                onClick={onRunAudit}
-                disabled={isAuditing}
-                className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition shadow shadow-indigo-600/10"
-              >
-                {isAuditing ? 'Auditing Website...' : 'Trigger First-Pass Audit'}
-              </button>
             </div>
           )}
         </div>
+
       </div>
     </div>
   );

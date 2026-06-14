@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { decrypt } from '@/lib/auth';
+import { triggerTriageWorkflow, CloudflareWorkflow } from '@/lib/workflow-client';
 
 async function getService() {
   const db = getDb();
@@ -51,7 +52,13 @@ export async function createLeadAction(prevState: ActionState, formData: FormDat
   }
 
   try {
-    await service.createLead({ ...validated.data, ownerId: userId });
+    const lead = await service.createLead({ ...validated.data, ownerId: userId });
+    if (lead && lead.website) {
+      const db = getDb();
+      const env = (process.env as unknown as Record<string, unknown>);
+      const workflowBinding = env?.TRIAGE_WORKFLOW as CloudflareWorkflow | undefined;
+      await triggerTriageWorkflow(db, workflowBinding, lead.id);
+    }
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Failed to create lead.';
     return { error: msg };
@@ -111,7 +118,15 @@ export async function updateLeadAction(prevState: ActionState, formData: FormDat
   }
 
   try {
+    const oldLead = await service.getLead(id);
     await service.updateLead(id, validated.data);
+    
+    if (validated.data.website && validated.data.website !== oldLead?.website) {
+      const db = getDb();
+      const env = (process.env as unknown as Record<string, unknown>);
+      const workflowBinding = env?.TRIAGE_WORKFLOW as CloudflareWorkflow | undefined;
+      await triggerTriageWorkflow(db, workflowBinding, id);
+    }
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Failed to update lead.';
     return { error: msg };

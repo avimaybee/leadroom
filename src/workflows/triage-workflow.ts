@@ -4,6 +4,7 @@ import { leads, activities } from '@/db/schema/core';
 import { eq } from 'drizzle-orm';
 import { fetchSiteContent } from '@/lib/scraper';
 import { runTriageAI } from '@/lib/ai';
+import { ScoringService } from '@/services/scoring';
 
 type TriageParams = {
   leadId: string;
@@ -70,6 +71,9 @@ export class TriageWorkflow extends WorkflowEntrypoint<Env, TriageParams> {
             summary: 'Scored HIGH priority due to missing website.',
             timestamp: new Date(),
           });
+
+          const scoringService = new ScoringService(db);
+          await scoringService.recalculateScore(leadId);
         }
       );
       return { status: 'COMPLETED', priority: 'HIGH' };
@@ -113,6 +117,17 @@ export class TriageWorkflow extends WorkflowEntrypoint<Env, TriageParams> {
           await db.update(leads)
             .set({ triagePriority: 'HIGH', triageReason: 'Website failed to load or is unreachable.' })
             .where(eq(leads.id, leadId));
+
+          await db.insert(activities).values({
+            id: crypto.randomUUID(),
+            leadId,
+            type: 'Triage complete',
+            summary: 'Scored HIGH priority due to unreachable website.',
+            timestamp: new Date(),
+          });
+
+          const scoringService = new ScoringService(db);
+          await scoringService.recalculateScore(leadId);
         }
       );
       return { status: 'COMPLETED', priority: 'HIGH' };
@@ -161,6 +176,9 @@ export class TriageWorkflow extends WorkflowEntrypoint<Env, TriageParams> {
           summary: `Scored ${priority} priority. Reason: ${triageResult.reason}`,
           timestamp: new Date(),
         });
+
+        const scoringService = new ScoringService(db);
+        await scoringService.recalculateScore(leadId);
       }
     );
 
