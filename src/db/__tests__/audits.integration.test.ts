@@ -100,9 +100,9 @@ function setupTestDb() {
   const db = drizzle(sqlite);
   return {
     db,
-    leadService: new LeadService(db),
-    auditService: new AuditService(db),
-    scoringService: new ScoringService(db),
+    leadService: new LeadService(db as any),
+    auditService: new AuditService(db as any),
+    scoringService: new ScoringService(db as any),
   };
 }
 

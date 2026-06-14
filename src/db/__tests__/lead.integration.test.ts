@@ -104,7 +104,7 @@ function setupTestDb() {
   `);
 
   const db = drizzle(sqlite);
-  return { db, service: new LeadService(db) };
+  return { db, service: new LeadService(db as any) };
 }
 
 test('LeadService integration', async (t) => {

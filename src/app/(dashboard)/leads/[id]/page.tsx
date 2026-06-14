@@ -34,6 +34,9 @@ import ClientResearchView from './ClientResearchView';
 import ClientAuditView from './ClientAuditView';
 import ClientContactsList from './ClientContactsList';
 import ClientLeadProfile from './ClientLeadProfile';
+import OutreachAssistant from './OutreachAssistant';
+import { OutreachService } from '@/services/outreach';
+
 
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -48,8 +51,9 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
 
   const auditService = new AuditService(db);
   const scoringService = new ScoringService(db);
+  const outreachService = new OutreachService(db);
 
-  const [notes, tasks, activities, latestSnapshot, contactsList, latestAudit, currentScore] = await Promise.all([
+  const [notes, tasks, activities, latestSnapshot, contactsList, latestAudit, currentScore, outreachDrafts] = await Promise.all([
     service.getNotes(id),
     service.getTasks(id),
     service.getActivities(id),
@@ -57,6 +61,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
     researchService.getContacts(id),
     auditService.getLatestAudit(id),
     scoringService.getCurrentScore(id),
+    outreachService.getDraftsForLead(id),
   ]);
 
   const stages = ['New', 'Researching', 'Qualified', 'Outreach in Progress', 'Meeting / Call'];
@@ -159,6 +164,18 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             triggerAuditAction={triggerAuditAction}
             triggerTriageAction={triggerTriageAction}
             manualOverrideScoreAction={manualOverrideScoreAction}
+          />
+
+          {/* Outreach Assistant Section */}
+          <OutreachAssistant
+            leadId={lead.id}
+            initialDrafts={outreachDrafts.map((d: any) => ({
+              ...d,
+              createdAt: d.createdAt ? new Date(d.createdAt) : null,
+              updatedAt: d.updatedAt ? new Date(d.updatedAt) : null,
+            }))}
+            researchSnapshot={latestSnapshot}
+            auditSnapshot={latestAudit}
           />
 
           {/* Notes Appending & Activity Feed */}

@@ -114,7 +114,7 @@ function setupTestDb() {
   `);
 
   const db = drizzle(sqlite);
-  return { db, service: new DiscoveryService(db) };
+  return { db, service: new DiscoveryService(db as any) };
 }
 
 test('DiscoveryService - createScope and listScopes works', async () => {

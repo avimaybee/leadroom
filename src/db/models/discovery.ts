@@ -25,5 +25,6 @@ export const CreateCandidateLeadSchema = z.object({
   promotedLeadId: z.string().optional().nullable(),
 });
 
-export type CreateDiscoveryScopeInput = z.infer<typeof CreateDiscoveryScopeSchema>;
-export type CreateCandidateLeadInput = z.infer<typeof CreateCandidateLeadSchema>;
+export type CreateDiscoveryScopeInput = z.input<typeof CreateDiscoveryScopeSchema>;
+export type CreateCandidateLeadInput = z.input<typeof CreateCandidateLeadSchema>;
+

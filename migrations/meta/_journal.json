@@ -22,6 +22,20 @@
       "when": 1781434776737,
       "tag": "0002_glossy_yellowjacket",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1781442340716,
+      "tag": "0003_fancy_wither",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1781448011813,
+      "tag": "0004_brief_fabian_cortez",
+      "breakpoints": true
     }
   ]
 }

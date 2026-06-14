@@ -36,6 +36,20 @@ export const AITriageSchema = z.object({
 
 export type AITriageOutput = z.infer<typeof AITriageSchema>;
 
+export const AIOutreachDraftSchema = z.object({
+  drafts: z.array(z.object({
+    subject: z.string().nullable().optional(),
+    body: z.string(),
+    variationTone: z.string().optional()
+  })).min(1).max(2)
+});
+
+export type AIOutreachDraftOutput = z.infer<typeof AIOutreachDraftSchema>;
+
+/** Cache for vision capability checks. Key: "provider:modelName", Value: { result: boolean, timestamp: number } */
+const _visionCapabilityCache = new Map<string, { result: boolean; timestamp: number }>();
+const VISION_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 import { IntegrationsService } from '../services/integrations';
 
 export async function generateResearch(
@@ -1034,5 +1048,348 @@ function generateMockAudit(
     sources: websiteUrl ? [websiteUrl] : [`https://${name.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`],
   };
 }
+
+export async function generateOutreachDraft(
+  db: Db,
+  leadName: string,
+  companyName: string | null,
+  websiteUrl: string | null,
+  industry: string | null,
+  channel: 'EMAIL' | 'LINKEDIN' | 'CALL' | 'MEETING',
+  contactsList: any[],
+  researchSnapshot: any | null,
+  auditSnapshot: any | null,
+  customPrompt?: string | null,
+  attachments?: Array<{ name: string; type: string; base64: string }>
+): Promise<AIOutreachDraftOutput> {
+  const integrationsService = new IntegrationsService(db);
+  
+  // Get active provider config
+  let config = null;
+  for (const p of ['openrouter', 'nvidia', 'groq', 'aiml', 'gemini']) {
+    const pConfig = await integrationsService.getProviderConfig(p);
+    if (pConfig && pConfig.isActive) {
+      config = pConfig;
+      break;
+    }
+  }
+
+  let provider = config?.provider || 'gemini';
+  let apiKey = config?.apiKey || (process as any).env?.GEMINI_API_KEY;
+  let modelName = config?.modelName || (
+    provider === 'openrouter' ? 'google/gemini-2.5-flash' : 
+    provider === 'nvidia' ? 'meta/llama-3.1-70b-instruct' : 
+    provider === 'groq' ? 'llama3-70b-8192' :
+    provider === 'aiml' ? 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning' :
+    'gemini-2.5-flash'
+  );
+
+  if (!apiKey || apiKey === 'placeholder' || apiKey === '') {
+    return generateMockOutreachDraft(leadName, companyName, websiteUrl, industry, channel, contactsList, researchSnapshot, auditSnapshot);
+  }
+
+  const name = companyName || leadName;
+  const ind = industry || 'General Business';
+  const web = websiteUrl || 'No website provided';
+  const contactText = contactsList && contactsList.length > 0 
+    ? contactsList.map(c => `- ${c.name} (${c.role || 'Stakeholder'})${c.email ? `, Email: ${c.email}` : ''}`).join('\n')
+    : 'No contact stakeholders found';
+
+  const prompt = `Draft outreach prep/copy for the company "${name}".
+Industry: ${ind}
+Website: ${web}
+Channel: ${channel} (Use EMAIL for a cold email draft, LINKEDIN for a LinkedIn message, CALL for phone call prep script/bullets, or MEETING for a meeting/visit prep guide with agenda and discovery questions).
+
+Stakeholders:
+${contactText}
+
+${researchSnapshot ? `Research Context:\n- Company Summary: ${researchSnapshot.companySummary}\n- Pain Points: ${researchSnapshot.painPointsHypotheses}\n- Opportunity Hypotheses: ${researchSnapshot.opportunityHypotheses}\n` : ''}
+${auditSnapshot ? `Website & Branding Audit Context:\n- Overall Branding Score: ${auditSnapshot.overallBrandingScore}/100\n- Design Aesthetic Score: ${auditSnapshot.designAestheticScore}/100\n- Key Weaknesses: ${auditSnapshot.keyWeaknesses}\n- Recommended Improvements: ${auditSnapshot.recommendedImprovements}\n` : ''}
+${customPrompt ? `\nSPECIAL INSTRUCTIONS FROM THE OPERATOR:\n${customPrompt}\n` : ''}
+${attachments && attachments.length > 0 ? `\nNote: The operator has attached ${attachments.length} files (images or PDFs) showing mockup/branding/website context. Please reference or adapt your feedback specifically incorporating visual details or document findings if vision support is active.\n` : ''}
+Instructions:
+1. Craft a highly personalized outreach message (or call prep script/bullets) designed to offer our creative/digital agency services (e.g. brand refresh, website redesign, UX optimization).
+2. Reference specific findings (like audit scores or key weaknesses/pain points) naturally to show we did our homework.
+3. Be professional, direct, non-spammy, and concise.
+4. For EMAIL, specify a compelling subject line. For LINKEDIN or CALL, leave "subject" as null.
+5. In "body", use plain text or simple markdown (line breaks, bullet points) for readability.
+
+Provide your response strictly in JSON format. The response must match the following JSON schema:
+{
+  "drafts": [
+    {
+      "subject": "Compelling subject line (string or null)",
+      "body": "The drafted message body or call prep guide (string)",
+      "variationTone": "e.g. Direct/Value-led or Conversational/Soft"
+    }
+  ]
+}`;
+
+  try {
+    let textResult = '';
+
+    if (provider === 'gemini') {
+      const parts: any[] = [{ text: prompt }];
+      if (attachments && attachments.length > 0) {
+        for (const file of attachments) {
+          parts.push({
+            inlineData: {
+              mimeType: file.type,
+              data: file.base64
+            }
+          });
+        }
+      }
+
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts }],
+            generationConfig: {
+              responseMimeType: 'application/json',
+              responseSchema: {
+                type: 'OBJECT',
+                properties: {
+                  drafts: {
+                    type: 'ARRAY',
+                    items: {
+                      type: 'OBJECT',
+                      properties: {
+                        subject: { type: 'STRING' },
+                        body: { type: 'STRING' },
+                        variationTone: { type: 'STRING' }
+                      },
+                      required: ['body']
+                    }
+                  }
+                },
+                required: ['drafts'],
+              },
+            },
+          }),
+        }
+      );
+      if (response.ok) {
+        const data = (await response.json()) as any;
+        textResult = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      } else {
+        throw new Error(`Gemini API returned status ${response.status}`);
+      }
+    } else {
+      const url = 
+        provider === 'openrouter' ? 'https://openrouter.ai/api/v1/chat/completions' :
+        provider === 'groq' ? 'https://api.groq.com/openai/v1/chat/completions' :
+        provider === 'nvidia' ? 'https://integrate.api.nvidia.com/v1/chat/completions' :
+        'https://api.aimlapi.com/v1/chat/completions';
+
+      // Setup payload content structure for potential multimodal input
+      let userMessageContent: any = prompt;
+      const modelHasVision = await checkModelVisionCapability(provider, modelName, apiKey);
+      if (attachments && attachments.length > 0 && modelHasVision) {
+        userMessageContent = [{ type: 'text', text: prompt }];
+        for (const file of attachments) {
+          if (file.type.startsWith('image/')) {
+            userMessageContent.push({
+              type: 'image_url',
+              image_url: {
+                url: `data:${file.type};base64,${file.base64}`
+              }
+            });
+          }
+        }
+      }
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: modelName,
+          messages: [
+            { role: 'system', content: 'You are a professional outreach assistant. Output strictly JSON.' },
+            { role: 'user', content: userMessageContent }
+          ],
+          temperature: 0.2,
+          response_format: { type: 'json_object' }
+        }),
+      });
+
+      if (response.ok) {
+        const data = (await response.json()) as any;
+        textResult = data.choices?.[0]?.message?.content || '';
+      } else {
+        throw new Error(`${provider} API returned status ${response.status}`);
+      }
+    }
+
+    textResult = textResult.trim();
+    if (textResult.startsWith('```json')) {
+      textResult = textResult.replace(/^```json\n/, '').replace(/\n```$/, '');
+    } else if (textResult.startsWith('```')) {
+      textResult = textResult.replace(/^```\n/, '').replace(/\n```$/, '');
+    }
+
+    const parsed = JSON.parse(textResult);
+    return AIOutreachDraftSchema.parse(parsed);
+  } catch (error: unknown) {
+    console.error(`generateOutreachDraft API call failed for ${provider}, falling back to mock:`, error);
+    return generateMockOutreachDraft(leadName, companyName, websiteUrl, industry, channel, contactsList, researchSnapshot, auditSnapshot);
+  }
+}
+
+export async function checkModelVisionCapability(provider: string, modelName: string, apiKey?: string): Promise<boolean> {
+  const cacheKey = `${provider}:${modelName}`;
+  const cached = _visionCapabilityCache.get(cacheKey);
+  if (cached && (Date.now() - cached.timestamp) < VISION_CACHE_TTL_MS) {
+    return cached.result;
+  }
+
+  const p = provider.toLowerCase();
+  const m = modelName.toLowerCase();
+
+  if (!apiKey || apiKey === 'placeholder' || apiKey === '') {
+    const result = true; // mockup fallback
+    _visionCapabilityCache.set(cacheKey, { result, timestamp: Date.now() });
+    return result;
+  }
+
+  // Dynamic OpenRouter check
+  if (p === 'openrouter') {
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/models', {
+        headers: {
+          'HTTP-Referer': 'https://github.com/googlemind/draftroom',
+          'X-Title': 'Draftroom',
+        }
+      });
+      if (response.ok) {
+        const data = (await response.json()) as any;
+        const modelObj = data.data?.find((x: any) => x.id === modelName);
+        if (modelObj?.architecture?.input_modalities) {
+          const result = modelObj.architecture.input_modalities.includes('image');
+          _visionCapabilityCache.set(cacheKey, { result, timestamp: Date.now() });
+          return result;
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching OpenRouter models:', e);
+    }
+  }
+
+  // Dynamic Gemini check
+  if (p === 'gemini') {
+    try {
+      const formattedModel = modelName.startsWith('models/') ? modelName : `models/${modelName}`;
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${formattedModel}?key=${apiKey}`);
+      if (response.ok) {
+        const data = (await response.json()) as any;
+        const result = data.name?.includes('gemini') && !data.name?.includes('embedding');
+        _visionCapabilityCache.set(cacheKey, { result, timestamp: Date.now() });
+        return result;
+      }
+    } catch (e) {
+      console.error('Error fetching Gemini model metadata:', e);
+    }
+  }
+
+  // Dynamic Groq / Nvidia / AIML checks
+  if (['groq', 'nvidia', 'aiml'].includes(p)) {
+    try {
+      const url = p === 'groq' ? 'https://api.groq.com/openai/v1/models' :
+                  p === 'nvidia' ? 'https://integrate.api.nvidia.com/v1/models' :
+                  'https://api.aimlapi.com/v1/models';
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`
+        }
+      });
+      if (response.ok) {
+        const data = (await response.json()) as any;
+        const modelObj = data.data?.find((x: any) => x.id === modelName);
+        if (modelObj) {
+          const id = modelObj.id.toLowerCase();
+          const result = id.includes('vision') || id.includes('llava') || id.includes('pixtral') || (id.includes('llama-3.2') && (id.includes('11b') || id.includes('90b')));
+          _visionCapabilityCache.set(cacheKey, { result, timestamp: Date.now() });
+          return result;
+        }
+      }
+    } catch (e) {
+      console.error(`Error fetching models for ${p}:`, e);
+    }
+  }
+
+  const visionKeywords = ['vision', 'llava', 'pixtral', 'gemini', 'claude-3', 'gpt-4o', 'gpt-4-vision', 'llama-3.2-11b', 'llama-3.2-90b'];
+  const fallbackResult = visionKeywords.some(keyword => m.includes(keyword)) && !m.includes('embedding');
+  _visionCapabilityCache.set(cacheKey, { result: fallbackResult, timestamp: Date.now() });
+  return fallbackResult;
+}
+
+export async function getModelInfo(db: Db): Promise<{ provider: string; modelName: string; hasVision: boolean }> {
+  const integrationsService = new IntegrationsService(db);
+  let config = null;
+  for (const p of ['openrouter', 'nvidia', 'groq', 'aiml', 'gemini']) {
+    const pConfig = await integrationsService.getProviderConfig(p);
+    if (pConfig && pConfig.isActive) {
+      config = pConfig;
+      break;
+    }
+  }
+
+  const provider = config?.provider || 'gemini';
+  const apiKey = config?.apiKey || (process as any).env?.GEMINI_API_KEY;
+  const modelName = config?.modelName || (
+    provider === 'openrouter' ? 'google/gemini-2.5-flash' : 
+    provider === 'nvidia' ? 'meta/llama-3.1-70b-instruct' : 
+    provider === 'groq' ? 'llama3-70b-8192' :
+    provider === 'aiml' ? 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning' :
+    'gemini-2.5-flash'
+  );
+
+  const hasApiKey = !!(apiKey && apiKey !== 'placeholder' && apiKey !== '');
+  const hasVision = hasApiKey ? await checkModelVisionCapability(provider, modelName, apiKey) : true;
+
+  return {
+    provider,
+    modelName,
+    hasVision,
+  };
+}
+
+export function generateMockOutreachDraft(
+  leadName: string,
+  companyName: string | null,
+  websiteUrl: string | null,
+  industry: string | null,
+  channel: 'EMAIL' | 'LINKEDIN' | 'CALL' | 'MEETING',
+  contactsList: any[],
+  researchSnapshot: any | null,
+  auditSnapshot: any | null
+): AIOutreachDraftOutput {
+  const name = companyName || leadName;
+  const primaryContact = contactsList.find(c => c.isPrimary) || contactsList[0];
+  const contactName = primaryContact ? primaryContact.name : 'there';
+  const score = auditSnapshot ? auditSnapshot.overallBrandingScore : 50;
+
+  if (channel === 'EMAIL') {
+    const subject = `Question about ${name}'s digital presence`;
+    const body = `Hi ${contactName},\n\nI was looking at ${name}'s website (${websiteUrl || 'your website'}) and noticed a few opportunities to improve your brand presence and user flow. Our digital agency ran a quick assessment and identified that while you have great strengths, there are key areas we can help with, particularly:\n\n${auditSnapshot?.keyWeaknesses || '- Outdated mobile responsive layout\n- Slow loading speed'}\n\nWe typically recommend:\n${auditSnapshot?.recommendedImprovements || '- Modernizing the design aesthetic\n- Simplifying call-to-actions'}\n\nDo you have 10 minutes for a quick chat next week to discuss how we can help you grow?\n\nBest,\n[Your Name]`;
+    return { drafts: [{ subject, body, variationTone: 'Direct' }] };
+  } else if (channel === 'LINKEDIN') {
+    const body = `Hi ${contactName}, I came across ${name} and really liked your business. I noticed a few quick areas of improvement on your digital presence/website that could help with conversions (specifically website responsiveness and layout). Would love to connect and share some quick thoughts!`;
+    return { drafts: [{ subject: null, body, variationTone: 'Conversational' }] };
+  } else if (channel === 'CALL') {
+    const body = `CALL PREP GUIDE FOR ${name.toUpperCase()}\n\nPrimary Stakeholder: ${contactName} (${primaryContact?.role || 'Decision Maker'})\nPhone: ${primaryContact?.phone || 'No phone listed'}\nWebsite Audit Score: ${score}/100\n\nIntro Hook:\n"Hi ${contactName}, this is [Your Name] from [Agency]. I'm calling because I was reviewing ${name}'s digital presence and wanted to share two quick opportunities we identified for your website."\n\nKey Talking Points:\n1. Mention the audit score of ${score}/100.\n2. Note specific pain point: ${researchSnapshot?.painPointsHypotheses ? 'Pain points found in research.' : 'Inconsistent branding and user UX.'}\n3. Suggest specific value: ${auditSnapshot?.recommendedImprovements ? 'Recommended improvements.' : 'Redesigning the landing page to simplify checkout/contact.'}\n\nCall Goal: Book a 10-minute discovery call.`;
+    return { drafts: [{ subject: null, body, variationTone: 'Direct' }] };
+  } else {
+    const body = `MEETING PREP GUIDE & AGENDA FOR ${name.toUpperCase()}\n\nMeeting Stakeholder: ${contactName} (${primaryContact?.role || 'Decision Maker'})\nWebsite Audit Score: ${score}/100\n\nProposed Agenda:\n1. Introductions & Agency Capabilities\n2. ${name}'s Current Digital Presence Review (Audit Score: ${score}/100)\n3. Key Opportunities: Website redesign & brand refresh\n4. Next Steps & Q&A\n\nDiscovery Questions to Ask:\n- What are the main conversion challenges on your website today?\n- How does your current brand identity align with your future goals?\n- What digital improvements would have the biggest impact on your sales?`;
+    return { drafts: [{ subject: null, body, variationTone: 'Direct' }] };
+  }
+}
+
 
 

@@ -22,7 +22,7 @@ function setupTestDb() {
   `);
 
   const db = drizzle(sqlite);
-  return { db, service: new AuthService(db) };
+  return { db, service: new AuthService(db as any) };
 }
 
 test('AuthService integration', async (t) => {

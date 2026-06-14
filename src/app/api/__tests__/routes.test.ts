@@ -5,7 +5,8 @@ import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { eq } from 'drizzle-orm';
 
 // Ensure test environment
-process.env.NODE_ENV = 'test';
+(process.env as any).NODE_ENV = 'test';
+
 
 // Import route handlers
 import { POST as triggerResearch } from '../leads/[id]/research/route';

@@ -6,7 +6,8 @@ import { eq } from 'drizzle-orm';
 import { providerConfigs } from '../schema/core';
 
 // Ensure test environment
-process.env.NODE_ENV = 'test';
+(process.env as any).NODE_ENV = 'test';
+
 
 import { saveIntegrationConfigAction, setActiveProviderAndModelAction } from '../../app/(dashboard)/settings/integrations/actions';
 

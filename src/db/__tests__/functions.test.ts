@@ -265,7 +265,7 @@ test('API Endpoint - POST /api/candidates creates a candidate successfully', asy
 test('API Endpoint - PATCH /api/candidates updates status successfully', async () => {
   const mockD1 = setupTestDb();
   const db = drizzle((mockD1 as any).sqlite);
-  const service = new DiscoveryService(db);
+  const service = new DiscoveryService(db as any);
 
   // Setup candidate
   await service.createCandidateLead('cand_123', {
@@ -298,7 +298,7 @@ test('API Endpoint - PATCH /api/candidates updates status successfully', async (
 test('API Endpoint - PATCH /api/candidates promotes candidate successfully', async () => {
   const mockD1 = setupTestDb();
   const db = drizzle((mockD1 as any).sqlite);
-  const service = new DiscoveryService(db);
+  const service = new DiscoveryService(db as any);
 
   // Insert user to avoid FK error
   await db.insert(users).values({
