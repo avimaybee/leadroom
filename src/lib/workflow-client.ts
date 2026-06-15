@@ -1,7 +1,7 @@
 import { getDb, type Db } from '@/db';
 import { fetchSiteContent } from '@/lib/scraper';
 import { generateResearch, generateAudit, heuristicSiteTriage } from '@/lib/ai';
-import { heuristicTriage } from '@/lib/triage/heuristics';
+import { metadataTriage } from '@/lib/triage/heuristics';
 import { enrichCandidate } from '@/lib/triage/enricher';
 import { jobRuns, researchSnapshots } from '@/db/schema/research';
 import { leads, activities } from '@/db/schema/core';
@@ -373,7 +373,7 @@ export async function triggerDiscoverySearchWorkflow(
       // 3. Save all candidates immediately with heuristic triage (zero cost)
       if (results.length > 0) {
         const candidates = results.map((r) => {
-          const heuristic = heuristicTriage({ website: r.website || null, phone: r.phone || null });
+          const heuristic = metadataTriage({ website: r.website || null, phone: r.phone || null });
           return {
             id: crypto.randomUUID(),
             discoveryScopeId: scopeId || null,
@@ -408,7 +408,7 @@ export async function triggerDiscoverySearchWorkflow(
 
         // Only enrich candidates that heuristics flagged as UNASSESSED
         const toEnrich = results.filter((r) => {
-          const heuristic = heuristicTriage({ website: r.website, phone: r.phone });
+          const heuristic = metadataTriage({ website: r.website, phone: r.phone });
           return heuristic.triagePriority === 'UNASSESSED';
         });
 

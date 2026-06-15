@@ -4,7 +4,7 @@ import { checkApifyRunStatus, fetchApifyResults } from '../lib/discovery/apify';
 import { candidateLeads } from '../db/schema/discovery';
 import { jobRuns } from '../db/schema/research';
 import { eq } from 'drizzle-orm';
-import { heuristicTriage } from '../lib/triage/heuristics';
+import { metadataTriage } from '../lib/triage/heuristics';
 import { enrichCandidate } from '../lib/triage/enricher';
 
 type DiscoveryParams = {
@@ -114,7 +114,7 @@ export class DiscoverySearchWorkflow extends WorkflowEntrypoint<Env, DiscoveryPa
           const now = new Date();
           if (results.length > 0) {
             const candidates = results.map((r) => {
-              const heuristic = heuristicTriage({ website: r.website || null, phone: r.phone || null });
+              const heuristic = metadataTriage({ website: r.website || null, phone: r.phone || null });
               return {
                 id: crypto.randomUUID(),
                 discoveryScopeId: scopeId || null,
@@ -159,7 +159,7 @@ export class DiscoverySearchWorkflow extends WorkflowEntrypoint<Env, DiscoveryPa
 
             // Only enrich candidates that heuristics flagged as UNASSESSED
             const toEnrich = results.filter((r) => {
-              const heuristic = heuristicTriage({ website: r.website, phone: r.phone });
+              const heuristic = metadataTriage({ website: r.website, phone: r.phone });
               return heuristic.triagePriority === 'UNASSESSED';
             });
 

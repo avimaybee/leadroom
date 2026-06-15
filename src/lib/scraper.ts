@@ -194,6 +194,14 @@ function isLikelySPAOrEmpty(html: string, cleanedText: string): boolean {
 }
 
 /**
+ * Truncates content to a maximum character limit with a truncation notice.
+ */
+function truncateContent(content: string, maxChars: number = 15000): string {
+  if (content.length <= maxChars) return content;
+  return content.substring(0, maxChars) + '\n\n[Content truncated due to length limitations]';
+}
+
+/**
  * Fetches website content via Cloudflare Browser Run Quick Action /snapshot.
  */
 export async function scrapeWithBrowserRun(url: string, browserBinding: any, timeoutMs: number = 30000): Promise<ScrapedContent> {
@@ -218,16 +226,10 @@ export async function scrapeWithBrowserRun(url: string, browserBinding: any, tim
     const description = html ? extractDescription(html) : "";
     const screenshot = snapshot.screenshot || undefined;
 
-    const maxChars = 15000;
-    let truncatedContent = content;
-    if (content.length > maxChars) {
-      truncatedContent = content.substring(0, maxChars) + '\n\n[Content truncated due to length limitations]';
-    }
-
     return {
       title,
       url: normalized,
-      content: truncatedContent,
+      content: truncateContent(content),
       description,
       screenshot,
     };
@@ -296,16 +298,10 @@ async function fetchSiteContentViaJina(url: string, timeoutMs: number = 15000): 
       const content = data.content || '';
       const description = data.description || '';
 
-      const maxChars = 15000;
-      let truncatedContent = content;
-      if (content.length > maxChars) {
-        truncatedContent = content.substring(0, maxChars) + '\n\n[Content truncated due to length limitations]';
-      }
-
       return {
         title,
         url: normalized,
-        content: truncatedContent,
+        content: truncateContent(content),
         description,
       };
     } else {
@@ -338,15 +334,10 @@ export async function fetchSiteContent(url: string, timeoutMs: number = 20000): 
       
       if (!isLikelySPAOrEmpty(html, cleaned)) {
         console.log(`Fetch-First successful for ${normalized} (${cleaned.length} chars)`);
-        const maxChars = 15000;
-        let truncatedContent = cleaned;
-        if (cleaned.length > maxChars) {
-          truncatedContent = cleaned.substring(0, maxChars) + '\n\n[Content truncated due to length limitations]';
-        }
         return {
           title,
           url: normalized,
-          content: truncatedContent,
+          content: truncateContent(cleaned),
           description,
         };
       } else {

@@ -27,7 +27,7 @@ const FREE_SUBDOMAIN_PATTERNS = [
   '.squarespace',
 ];
 
-export function heuristicTriage(input: HeuristicInput): HeuristicResult {
+export function metadataTriage(input: HeuristicInput): HeuristicResult {
   const url = (input.website || '').toLowerCase().trim();
 
   // No website — biggest opportunity
