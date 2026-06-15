@@ -2,6 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
+
+// Ensure test environment
+(process.env as any).NODE_ENV = 'test';
+
 import { users } from '../schema/core';
 import { GET as getScopes, POST as postScope } from '../../app/api/scopes/route';
 import { GET as getCandidates, POST as postCandidate, PATCH as patchCandidate } from '../../app/api/candidates/route';

@@ -75,7 +75,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
   const [refineForm, setRefineForm] = useState({
     niche: '',
     location: '',
-    limit: 20,
+    limit: 1,
   });
   
   // Recent runs history & Polling status
@@ -83,6 +83,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
   const [activeJobRun, setActiveJobRun] = useState<RecentRun | null>(null);
   const [pollingJobId, setPollingJobId] = useState<string | null>(null);
   const [isRecentRunsExpanded, setIsRecentRunsExpanded] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
 
   // Enrichment progress (from discovery jobs)
   const [enrichProgress, setEnrichProgress] = useState<{
@@ -363,6 +364,29 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
       await fetchRecentRuns();
     }
   };
+
+  const handleCancelSearch = async () => {
+    if (!activeJobRun || activeJobRun.id === 'starting') return;
+    if (!confirm('Are you sure you want to cancel the active discovery search?')) return;
+
+    setIsCancelling(true);
+    try {
+      const res = await fetch(`/api/jobs/${activeJobRun.id}/cancel`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        throw new Error('Failed to cancel search');
+      }
+      setPollingJobId(null);
+      setActiveJobRun(null);
+      setEnrichProgress(null);
+      await fetchRecentRuns();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Error canceling search');
+    } finally {
+      setIsCancelling(false);
+    }
+  };
   
   const handleBulkDiscardSkip = async () => {
     const skipCandidates = candidates.filter(
@@ -456,7 +480,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
               setRefineForm({
                 niche: scope.industryFilter || '',
                 location: scope.geographyFilter || '',
-                limit: 20,
+                limit: 1,
               });
               setIsRefineModalOpen(true);
             }}
@@ -508,9 +532,22 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
             </div>
           )}
 
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            Candidates appear as they are discovered. Priority badges populate as enrichment completes.
-          </p>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2 border-t border-border/40">
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Candidates appear as they are discovered. Priority badges populate as enrichment completes.
+            </p>
+            {activeJobRun.id !== 'starting' && (
+              <Button
+                onClick={handleCancelSearch}
+                variant="outline"
+                size="sm"
+                disabled={isCancelling}
+                className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 hover:border-destructive/20 shrink-0 w-fit"
+              >
+                {isCancelling ? 'Cancelling...' : 'Cancel Search'}
+              </Button>
+            )}
+          </div>
         </div>
       )}
 
@@ -975,6 +1012,8 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                   onChange={(e) => setRefineForm({ ...refineForm, limit: Number(e.target.value) })}
                   className="flex h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                 >
+                  <option value={1}>1 Lead</option>
+                  <option value={5}>5 Leads</option>
                   <option value={10}>10 Leads</option>
                   <option value={20}>20 Leads</option>
                   <option value={30}>30 Leads</option>

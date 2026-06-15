@@ -140,6 +140,9 @@ function setupTestDb() {
       error_summary TEXT,
       external_run_id TEXT,
       job_meta TEXT,
+      total_items INTEGER,
+      items_processed INTEGER,
+      current_stage TEXT,
       started_at INTEGER,
       finished_at INTEGER,
       created_at INTEGER DEFAULT (strftime('%s', 'now'))

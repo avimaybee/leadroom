@@ -59,6 +59,19 @@ export class DiscoverySearchWorkflow extends WorkflowEntrypoint<Env, DiscoveryPa
           throw new Error('Apify actor run timed out after 50 minutes of polling');
         }
         await step.sleep(`wait-for-apify-retry-${retries}`, '15 seconds');
+
+        const isCancelled = await step.do(
+          `check-job-cancelled-${retries}`,
+          { timeout: '10 seconds' },
+          async () => {
+            const [j] = await db.select().from(jobRuns).where(eq(jobRuns.id, jobId)).limit(1);
+            return !!(j && (j.status === 'FAILED' || j.errorSummary === 'Cancelled by user'));
+          }
+        );
+        if (isCancelled) {
+          throw new Error('Cancelled by user');
+        }
+
         status = await step.do(
           `check-apify-status-retry-${retries}`,
           {
@@ -101,12 +114,12 @@ export class DiscoverySearchWorkflow extends WorkflowEntrypoint<Env, DiscoveryPa
           const now = new Date();
           if (results.length > 0) {
             const candidates = results.map((r) => {
-              const heuristic = heuristicTriage({ website: r.website, phone: r.phone });
+              const heuristic = heuristicTriage({ website: r.website || null, phone: r.phone || null });
               return {
                 id: crypto.randomUUID(),
                 discoveryScopeId: scopeId || null,
-                rawName: r.name,
-                rawWebsiteUrl: r.website,
+                rawName: r.name || 'Unknown Business',
+                rawWebsiteUrl: r.website || null,
                 rawContactInfo: r.phone || null,
                 rawLocation: [r.city, r.region].filter(Boolean).join(', ') || null,
                 notes: r.industry ? `Industry: ${r.industry}` : null,
@@ -151,6 +164,11 @@ export class DiscoverySearchWorkflow extends WorkflowEntrypoint<Env, DiscoveryPa
             });
 
             for (let i = 0; i < toEnrich.length; i += BATCH_SIZE) {
+              const [j] = await db.select().from(jobRuns).where(eq(jobRuns.id, jobId)).limit(1);
+              if (j && (j.status === 'FAILED' || j.errorSummary === 'Cancelled by user')) {
+                throw new Error('Cancelled by user');
+              }
+
               const batch = toEnrich.slice(i, i + BATCH_SIZE);
 
               const batchResults = await Promise.allSettled(

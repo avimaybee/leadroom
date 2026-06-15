@@ -330,6 +330,12 @@ export async function triggerDiscoverySearchWorkflow(
           throw new Error(`Apify actor did not finish within ${(apifyMaxRetries * 5) / 60} minutes`);
         }
         await new Promise((resolve) => setTimeout(resolve, 5000));
+
+        const [j] = await db.select().from(jobRuns).where(eq(jobRuns.id, jobId)).limit(1);
+        if (j && (j.status === 'FAILED' || j.errorSummary === 'Cancelled by user')) {
+          throw new Error('Cancelled by user');
+        }
+
         status = await checkApifyRunStatus(runId);
         apifyRetries++;
       }
@@ -348,12 +354,12 @@ export async function triggerDiscoverySearchWorkflow(
       // 3. Save all candidates immediately with heuristic triage (zero cost)
       if (results.length > 0) {
         const candidates = results.map((r) => {
-          const heuristic = heuristicTriage({ website: r.website, phone: r.phone });
+          const heuristic = heuristicTriage({ website: r.website || null, phone: r.phone || null });
           return {
             id: crypto.randomUUID(),
             discoveryScopeId: scopeId || null,
-            rawName: r.name,
-            rawWebsiteUrl: r.website,
+            rawName: r.name || 'Unknown Business',
+            rawWebsiteUrl: r.website || null,
             rawContactInfo: r.phone || null,
             rawLocation: [r.city, r.region].filter(Boolean).join(', ') || null,
             notes: r.industry ? `Industry: ${r.industry}` : null,
@@ -388,6 +394,11 @@ export async function triggerDiscoverySearchWorkflow(
         });
 
         for (let i = 0; i < toEnrich.length; i += BATCH_SIZE) {
+          const [j] = await db.select().from(jobRuns).where(eq(jobRuns.id, jobId)).limit(1);
+          if (j && (j.status === 'FAILED' || j.errorSummary === 'Cancelled by user')) {
+            throw new Error('Cancelled by user');
+          }
+
           const batch = toEnrich.slice(i, i + BATCH_SIZE);
 
           const batchResults = await Promise.allSettled(
