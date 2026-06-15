@@ -143,12 +143,12 @@ export function ResearchEditForm({
             <select
               name="confidenceLevel"
               defaultValue={initialSnapshot?.confidenceLevel || 'MEDIUM'}
-              className="flex h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="flex h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 text-foreground"
             >
-              <option value="HIGH">High Confidence</option>
-              <option value="MEDIUM">Medium Confidence</option>
-              <option value="LOW">Low Confidence</option>
-              <option value="UNKNOWN">Unknown</option>
+              <option value="HIGH" className="bg-card text-foreground">High Confidence</option>
+              <option value="MEDIUM" className="bg-card text-foreground">Medium Confidence</option>
+              <option value="LOW" className="bg-card text-foreground">Low Confidence</option>
+              <option value="UNKNOWN" className="bg-card text-foreground">Unknown</option>
             </select>
           </div>
         </div>

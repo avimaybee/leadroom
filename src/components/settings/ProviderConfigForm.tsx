@@ -131,11 +131,11 @@ function ModelSelectSection({
         className="w-full rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 text-foreground"
       >
         {models.map((model) => (
-          <option key={model.id} value={model.id}>
+          <option key={model.id} value={model.id} className="bg-card text-foreground">
             {model.name} ({model.id})
           </option>
         ))}
-        <option value="custom">-- Custom Model Name... --</option>
+        <option value="custom" className="bg-card text-foreground">-- Custom Model Name... --</option>
       </select>
 
       {isCustomModel && (

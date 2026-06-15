@@ -90,13 +90,18 @@ export default async function LeadsPage() {
               <tbody className="bg-card divide-y divide-border">
                 {activeLeads.map((lead: any) => (
                   <tr key={lead.id} className="hover:bg-muted/50 transition duration-150">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <Link href={`/leads/${lead.id}`} className="hover:underline">
-                        <div className="font-bold text-card-foreground text-sm leading-snug">{lead.name}</div>
+                    <td className="px-6 py-4 min-w-[200px]">
+                      <Link href={`/leads/${lead.id}`} className="hover:underline group block">
+                        <div className="font-bold text-card-foreground text-sm leading-snug group-hover:text-primary transition-colors truncate max-w-[240px] md:max-w-[320px]">{lead.name}</div>
                       </Link>
-                      {lead.email && (
-                        <div className="text-xs text-muted-foreground font-medium mt-0.5">{lead.email}</div>
-                      )}
+                      <div className="flex flex-col gap-0.5 mt-1">
+                        {lead.company && (
+                          <div className="text-xs text-foreground/85 font-semibold truncate max-w-[240px] md:max-w-[320px]">{lead.company}</div>
+                        )}
+                        {lead.email && (
+                          <div className="text-xs text-muted-foreground font-medium truncate max-w-[240px] md:max-w-[320px]">{lead.email}</div>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {lead.scoreValue !== null && lead.scoreValue !== undefined ? (
@@ -104,13 +109,13 @@ export default async function LeadsPage() {
                           aria-label={`${lead.scoreLabel} Priority, score ${lead.scoreValue} out of 100`}
                           className={`inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-bold border ${
                             lead.scoreLabel === 'High' ? 'bg-destructive/10 text-destructive border-destructive/20' :
-                            lead.scoreLabel === 'Medium' ? 'bg-chart-5/10 text-chart-5 border-chart-5/20' :
+                            lead.scoreLabel === 'Medium' ? 'bg-chart-3/15 text-chart-3 border-chart-3/30' :
                             'bg-muted text-muted-foreground border-border'
                           }`}
                         >
                           <span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${
                             lead.scoreLabel === 'High' ? 'bg-destructive animate-pulse' :
-                            lead.scoreLabel === 'Medium' ? 'bg-chart-5' : 'bg-muted-foreground'
+                            lead.scoreLabel === 'Medium' ? 'bg-chart-3' : 'bg-muted-foreground'
                           }`} />
                           {lead.scoreLabel} ({lead.scoreValue})
                         </span>

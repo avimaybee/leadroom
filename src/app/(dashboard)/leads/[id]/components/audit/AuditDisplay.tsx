@@ -2,7 +2,7 @@
 
 import { useState, useActionState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Loader2, FileText } from 'lucide-react';
+import { Loader2, FileText, Clock, ShieldAlert, AlertTriangle } from 'lucide-react';
 import { AuditSnapshot, LeadScore } from './types';
 import { ActionState } from '@/app/actions/audits';
 import { Button } from '@/components/ui/button';
@@ -218,21 +218,32 @@ export function AuditDisplay({
         {/* Right Column (1/3 width): Stack Priority Score, Digital Sub-categories & Drivers */}
         <div className="lg:col-span-1 space-y-6">
           {/* Initial Triage Card */}
-          {triagePriority && triagePriority !== 'UNASSESSED' && (
-            <div className="bg-card p-6 rounded-2xl border border-border shadow-sm space-y-3 text-left">
-              <div className="flex justify-between items-center">
+          {triagePriority && (
+            <div className={`bg-card p-6 rounded-2xl border border-border shadow-sm space-y-3 text-left border-l-4 ${
+              triagePriority === 'HIGH' ? 'border-l-destructive shadow-sm' :
+              triagePriority === 'MEDIUM' ? 'border-l-chart-3' :
+              triagePriority === 'SKIP' ? 'opacity-65 border-l-muted' :
+              'border-l-blue-400/50'
+            }`}>
+              <div className="flex justify-between items-center gap-2">
                 <span className="text-xs font-bold text-card-foreground">Initial Triage</span>
-                <span className={`px-2.5 py-0.5 rounded-lg text-xs font-bold ${
-                  triagePriority === 'HIGH' ? 'bg-destructive/10 text-destructive border border-destructive/20' :
-                  triagePriority === 'MEDIUM' ? 'bg-chart-5/10 text-chart-5 border border-chart-5/20' :
-                  triagePriority === 'SKIP' ? 'bg-muted text-muted-foreground border border-border' :
-                  'bg-muted text-muted-foreground'
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold border ${
+                  triagePriority === 'HIGH' ? 'bg-destructive/10 text-destructive border-destructive/20' :
+                  triagePriority === 'MEDIUM' ? 'bg-chart-3/15 text-chart-3 border-chart-3/30' :
+                  triagePriority === 'SKIP' ? 'bg-muted text-muted-foreground border-border' :
+                  'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
                 }`}>
-                  {triagePriority} Priority
+                  {triagePriority === 'HIGH' && <ShieldAlert className="w-3.5 h-3.5 shrink-0" />}
+                  {triagePriority === 'MEDIUM' && <AlertTriangle className="w-3.5 h-3.5 shrink-0" />}
+                  {triagePriority === 'UNASSESSED' && <Clock className="w-3.5 h-3.5 shrink-0 animate-pulse text-blue-500" />}
+                  {triagePriority === 'UNASSESSED' ? 'Pending Triage' : `${triagePriority} Priority`}
                 </span>
               </div>
               <p className="text-xs text-muted-foreground font-semibold leading-relaxed">
-                {triageReason || 'No details provided.'}
+                {triagePriority === 'UNASSESSED' 
+                  ? "No automated triage scan has been performed on this lead. Click 'Run Triage Scan' to analyze." 
+                  : (triageReason || 'No details provided.')
+                }
               </p>
             </div>
           )}

@@ -144,8 +144,15 @@ export default function ClientLeadProfile({ lead, updateLeadAction }: ClientLead
         {lead.website && (
           <div>
             <span className="block text-xs font-bold text-muted-foreground uppercase">Website</span>
-            <a href={lead.website} target="_blank" rel="noreferrer" className="text-sm text-primary hover:underline font-semibold mt-1 block">
-              {lead.website}
+            <a 
+              href={lead.website} 
+              target="_blank" 
+              rel="noreferrer" 
+              className="text-sm text-primary hover:underline font-semibold mt-1 block"
+            >
+              <span className="truncate block max-w-full">
+                {lead.website}
+              </span>
             </a>
           </div>
         )}
