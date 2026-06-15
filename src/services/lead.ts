@@ -1,6 +1,7 @@
 import { Db } from '../db';
 import { eq, desc } from 'drizzle-orm';
 import { leads, activities, tasks, notes } from '../db/schema/core';
+import { candidateLeads, discoveryScopes } from '../db/schema/discovery';
 import { CreateLeadInput } from '../db/models/lead';
 import { ScoringService } from './scoring';
 
@@ -41,8 +42,24 @@ export class LeadService {
   }
 
   async getLead(id: string) {
-    const [lead] = await this.db.select().from(leads).where(eq(leads.id, id)).limit(1);
-    return lead;
+    const [row] = await this.db
+      .select({
+        lead: leads,
+        campaignId: discoveryScopes.id,
+        campaignName: discoveryScopes.name,
+      })
+      .from(leads)
+      .leftJoin(candidateLeads, eq(leads.id, candidateLeads.promotedLeadId))
+      .leftJoin(discoveryScopes, eq(candidateLeads.discoveryScopeId, discoveryScopes.id))
+      .where(eq(leads.id, id))
+      .limit(1);
+
+    if (!row) return null;
+    return {
+      ...row.lead,
+      campaignId: row.campaignId,
+      campaignName: row.campaignName,
+    };
   }
 
   async updateLead(id: string, input: Partial<CreateLeadInput>) {

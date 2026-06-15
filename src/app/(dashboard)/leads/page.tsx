@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { Users } from 'lucide-react';
 import { archiveLeadAction } from '@/app/actions/leads';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { leads, leadScores } from '@/db/schema';
+import { leads, leadScores, candidateLeads, discoveryScopes } from '@/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
 
 export default async function LeadsPage() {
@@ -20,9 +20,13 @@ export default async function LeadsPage() {
       status: leads.status,
       scoreValue: leadScores.scoreValue,
       scoreLabel: leadScores.scoreLabel,
+      campaignId: discoveryScopes.id,
+      campaignName: discoveryScopes.name,
     })
     .from(leads)
     .leftJoin(leadScores, and(eq(leads.id, leadScores.leadId), eq(leadScores.isCurrent, 1)))
+    .leftJoin(candidateLeads, eq(leads.id, candidateLeads.promotedLeadId))
+    .leftJoin(discoveryScopes, eq(candidateLeads.discoveryScopeId, discoveryScopes.id))
     .where(eq(leads.status, 'Active'))
     .orderBy(desc(leadScores.scoreValue));
 
@@ -93,13 +97,22 @@ export default async function LeadsPage() {
                     <td className="px-6 py-4 min-w-[200px]">
                       <Link href={`/leads/${lead.id}`} className="hover:underline group block">
                         <div className="font-bold text-card-foreground text-sm leading-snug group-hover:text-primary transition-colors truncate max-w-[240px] md:max-w-[320px]">{lead.name}</div>
-                      </Link>
-                      <div className="flex flex-col gap-0.5 mt-1">
+                      </Link>                      <div className="flex flex-col gap-0.5 mt-1">
                         {lead.company && (
                           <div className="text-xs text-foreground/85 font-semibold truncate max-w-[240px] md:max-w-[320px]">{lead.company}</div>
                         )}
                         {lead.email && (
                           <div className="text-xs text-muted-foreground font-medium truncate max-w-[240px] md:max-w-[320px]">{lead.email}</div>
+                        )}
+                        {lead.campaignName && (
+                          <div className="mt-1 flex">
+                            <Link 
+                              href={`/scopes/${lead.campaignId}`}
+                              className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-muted/65 text-muted-foreground border border-border/50 uppercase tracking-wide hover:bg-muted hover:text-foreground transition-colors"
+                            >
+                              Campaign: {lead.campaignName}
+                            </Link>
+                          </div>
                         )}
                       </div>
                     </td>

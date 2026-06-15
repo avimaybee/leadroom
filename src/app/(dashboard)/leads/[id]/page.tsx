@@ -91,10 +91,17 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
               >
                 {currentScore.scoreLabel} Priority ({currentScore.scoreValue})
               </span>
-            )}
-            <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-muted/50 text-muted-foreground border border-border">
+            )}            <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-muted/50 text-muted-foreground border border-border">
               {lead.stage}
             </span>
+            {(lead as any).campaignName && (
+              <Link 
+                href={`/scopes/${(lead as any).campaignId}`}
+                className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-muted/65 text-muted-foreground border border-border/50 uppercase tracking-wide hover:bg-muted hover:text-foreground transition-colors"
+              >
+                Campaign: {(lead as any).campaignName}
+              </Link>
+            )}
           </div>
 
           <form action={updateStageAction} className="flex items-center gap-2">

@@ -166,12 +166,42 @@ sqlite.exec(`
   );
 
   CREATE TABLE activities (
-
     id TEXT PRIMARY KEY,
     lead_id TEXT NOT NULL REFERENCES leads(id),
     type TEXT NOT NULL,
     summary TEXT NOT NULL,
     timestamp INTEGER DEFAULT (strftime('%s', 'now'))
+  );
+
+  CREATE TABLE discovery_scopes (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    industry_filter TEXT,
+    geography_filter TEXT,
+    company_size_filter TEXT,
+    business_type_filter TEXT,
+    digital_presence_filter TEXT,
+    notes TEXT,
+    created_by_user_id TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE candidate_leads (
+    id TEXT PRIMARY KEY,
+    discovery_scope_id TEXT REFERENCES discovery_scopes(id),
+    raw_name TEXT NOT NULL,
+    raw_website_url TEXT,
+    raw_contact_info TEXT,
+    raw_location TEXT,
+    notes TEXT,
+    status TEXT NOT NULL DEFAULT 'NEW',
+    triage_priority TEXT DEFAULT 'UNASSESSED' NOT NULL,
+    triage_reason TEXT,
+    promoted_lead_id TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
   );
 
   CREATE TABLE lead_scores (

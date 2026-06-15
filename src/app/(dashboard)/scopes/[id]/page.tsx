@@ -721,9 +721,18 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                     'border-l-blue-400/50'
                   }`}
                 >
-                  <div className="space-y-3 flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h4 className="font-extrabold text-card-foreground text-lg leading-snug mr-1">{candidate.rawName}</h4>
+                  <div className="space-y-3 flex-1 min-w-0">                    <div className="flex flex-wrap items-center gap-2">
+                      {candidate.status === 'PROMOTED' && candidate.promotedLeadId ? (
+                        <Link href={`/leads/${candidate.promotedLeadId}`} className="hover:underline group block">
+                          <h4 className="font-extrabold text-primary text-lg leading-snug mr-1 group-hover:text-primary/80 transition-colors">
+                            {candidate.rawName}
+                          </h4>
+                        </Link>
+                      ) : (
+                        <h4 className="font-extrabold text-card-foreground text-lg leading-snug mr-1">
+                          {candidate.rawName}
+                        </h4>
+                      )}
                       
                       {/* Priority Tag */}
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wide border ${
@@ -807,11 +816,13 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                         </Button>
                       </>
                     )}
-
-                    {candidate.status === 'PROMOTED' && (
-                      <span className="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-bold bg-chart-2/20 text-chart-2 border border-chart-2/30">
-                        Promoted to Lead
-                      </span>
+                    {candidate.status === 'PROMOTED' && candidate.promotedLeadId && (
+                      <Link
+                        href={`/leads/${candidate.promotedLeadId}`}
+                        className="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-bold bg-chart-2/20 text-chart-2 border border-chart-2/30 hover:bg-chart-2/30 hover:text-chart-2/95 transition-colors text-center"
+                      >
+                        Research Lead &rarr;
+                      </Link>
                     )}
 
                     {candidate.status === 'DISCARDED' && (
