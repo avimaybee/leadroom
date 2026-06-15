@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, use } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Loader2, ExternalLink, Search, FileText, Trash2, X, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Loader2, ExternalLink, Search, FileText, Trash2, X, AlertTriangle, Clock, ShieldAlert } from 'lucide-react';
 import { formatUTC } from '@/lib/date';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -714,28 +714,41 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
               {filteredCandidates.map((candidate) => (
                 <div
                   key={candidate.id}
-                  className={`bg-card border border-border/80 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row justify-between md:items-center gap-6 transition-all duration-200 ${
-                    candidate.triagePriority === 'HIGH' ? 'border-l-4 border-l-destructive' :
-                    candidate.triagePriority === 'MEDIUM' ? 'border-l-4 border-l-chart-5' :
-                    candidate.triagePriority === 'SKIP' ? 'opacity-60 bg-muted/50' : ''
+                  className={`bg-card border border-border/80 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row justify-between md:items-start gap-6 transition-all duration-200 border-l-4 ${
+                    candidate.triagePriority === 'HIGH' ? 'border-l-destructive shadow-sm' :
+                    candidate.triagePriority === 'MEDIUM' ? 'border-l-chart-3' :
+                    candidate.triagePriority === 'SKIP' ? 'opacity-65 bg-muted/30 border-l-muted' :
+                    'border-l-blue-400/50'
                   }`}
                 >
-                  <div className="space-y-2.5 flex-1">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <h4 className="font-extrabold text-card-foreground text-lg leading-snug">{candidate.rawName}</h4>
-                      {candidate.triagePriority && candidate.triagePriority !== 'UNASSESSED' && (
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${
-                          candidate.triagePriority === 'HIGH' ? 'bg-destructive/10 text-destructive border border-destructive/20' :
-                          candidate.triagePriority === 'MEDIUM' ? 'bg-chart-5/10 text-chart-5 border border-chart-5/20' :
-                          candidate.triagePriority === 'SKIP' ? 'bg-muted text-muted-foreground border border-border' :
-                          'bg-muted text-muted-foreground'
-                        }`}>
-                          {candidate.triagePriority} Priority
+                  <div className="space-y-3 flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h4 className="font-extrabold text-card-foreground text-lg leading-snug mr-1">{candidate.rawName}</h4>
+                      
+                      {/* Priority Tag */}
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wide border ${
+                        candidate.triagePriority === 'HIGH' ? 'bg-destructive/10 text-destructive border-destructive/20' :
+                        candidate.triagePriority === 'MEDIUM' ? 'bg-chart-3/15 text-chart-3 border-chart-3/30' :
+                        candidate.triagePriority === 'SKIP' ? 'bg-muted text-muted-foreground border-border' :
+                        'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
+                      }`}>
+                        {candidate.triagePriority === 'HIGH' && <ShieldAlert className="w-3 h-3 shrink-0" />}
+                        {candidate.triagePriority === 'MEDIUM' && <AlertTriangle className="w-3 h-3 shrink-0" />}
+                        {candidate.triagePriority === 'UNASSESSED' && <Clock className="w-3 h-3 shrink-0 animate-pulse text-blue-500" />}
+                        {candidate.triagePriority === 'UNASSESSED' ? 'Pending Triage' : `${candidate.triagePriority} Priority`}
+                      </span>
+
+                      {/* Location Tag */}
+                      {candidate.rawLocation && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-muted text-muted-foreground border border-border/30">
+                          {candidate.rawLocation}
                         </span>
                       )}
-                      {candidate.rawLocation && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-muted text-muted-foreground">
-                          {candidate.rawLocation}
+
+                      {/* Industry Tag parsed from notes */}
+                      {candidate.notes && candidate.notes.startsWith('Industry: ') && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
+                          {candidate.notes.replace('Industry: ', '')}
                         </span>
                       )}
                     </div>
@@ -747,37 +760,40 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                         rel="noreferrer"
                         className="text-primary hover:underline text-sm font-semibold flex items-center gap-1.5 w-fit"
                       >
-                        <ExternalLink className="w-4 h-4" />
-                        {candidate.rawWebsiteUrl}
+                        <ExternalLink className="w-4 h-4 shrink-0" />
+                        <span className="truncate max-w-[220px] sm:max-w-md md:max-w-lg block">
+                          {candidate.rawWebsiteUrl}
+                        </span>
                       </a>
                     )}
 
                     {candidate.triageReason && (
-                      <p className="text-xs font-semibold text-muted-foreground bg-muted/50 p-2.5 rounded-xl border border-border/60 leading-relaxed text-left w-fit max-w-full">
+                      <p className="text-xs font-semibold text-muted-foreground bg-muted/40 p-2.5 rounded-xl border border-border/50 leading-relaxed text-left w-fit max-w-full">
                         <span className="font-bold text-foreground">Triage:</span> {candidate.triageReason}
                       </p>
                     )}
 
                     {candidate.rawContactInfo && (
-                      <div className="text-xs font-medium text-muted-foreground">
+                      <div className="text-xs font-semibold text-muted-foreground">
                         <span className="font-bold text-foreground">Contact:</span> {candidate.rawContactInfo}
                       </div>
                     )}
 
-                    {candidate.notes && (
-                      <p className="text-sm text-muted-foreground bg-muted/70 p-3 rounded-lg border border-border whitespace-pre-wrap">
-                        {candidate.notes}
+                    {candidate.notes && !candidate.notes.startsWith('Industry: ') && (
+                      <p className="text-sm text-muted-foreground bg-muted/30 p-3 rounded-xl border border-border whitespace-pre-wrap leading-relaxed">
+                        <span className="font-bold text-foreground">Notes:</span> {candidate.notes}
                       </p>
                     )}
                   </div>
 
                   {/* Right hand Actions */}
-                  <div className="flex md:flex-col gap-2 shrink-0 md:items-end justify-end">
+                  <div className="flex md:flex-col gap-2 shrink-0 md:items-stretch justify-end md:min-w-[130px]">
                     {candidate.status !== 'PROMOTED' && candidate.status !== 'DISCARDED' && (
                       <>
                         <Button
                           onClick={() => handleUpdateStatus(candidate.id, 'PROMOTED')}
                           size="sm"
+                          className="w-full justify-center font-bold"
                         >
                           Promote to Lead
                         </Button>
@@ -785,6 +801,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                           onClick={() => handleUpdateStatus(candidate.id, 'DISCARDED')}
                           variant="outline"
                           size="sm"
+                          className="w-full justify-center font-bold"
                         >
                           Discard
                         </Button>
@@ -792,13 +809,13 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                     )}
 
                     {candidate.status === 'PROMOTED' && (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-chart-2/20 text-chart-2">
+                      <span className="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-bold bg-chart-2/20 text-chart-2 border border-chart-2/30">
                         Promoted to Lead
                       </span>
                     )}
 
                     {candidate.status === 'DISCARDED' && (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-muted text-muted-foreground border border-border">
+                      <span className="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-bold bg-muted text-muted-foreground border border-border">
                         Discarded
                       </span>
                     )}
