@@ -411,13 +411,17 @@ export async function triggerDiscoverySearchWorkflow(
               }
             }),
           );
-
           for (let j = 0; j < batch.length; j++) {
             const r = batch[j];
             const batchResult = batchResults[j];
-            if (batchResult.status !== 'fulfilled' || !batchResult.value) continue;
+            let triagePriority: 'HIGH' | 'MEDIUM' | 'SKIP' = 'MEDIUM';
+            let triageReason = 'Enrichment failed (unreachable or blocked). Needs manual triage.';
 
-            const { triagePriority, triageReason } = batchResult.value;
+            if (batchResult.status === 'fulfilled' && batchResult.value) {
+              triagePriority = batchResult.value.triagePriority;
+              triageReason = batchResult.value.triageReason;
+            }
+
             if (r.website) {
               await db
                 .update(candidateLeads)
