@@ -25,8 +25,7 @@ import {
 } from '@/app/actions/research';
 import { 
   triggerAuditAction, 
-  manualOverrideScoreAction,
-  triggerTriageAction
+  manualOverrideScoreAction 
 } from '@/app/actions/audits';
 import ClientNotesForm from './ClientNotesForm';
 import ClientTaskForm from './ClientTaskForm';
@@ -36,6 +35,7 @@ import ClientAuditView from './ClientAuditView';
 import ClientContactsList from './ClientContactsList';
 import ClientLeadProfile from './ClientLeadProfile';
 import OutreachAssistant from './OutreachAssistant';
+import SidePanel from './SidePanel';
 import { ClientScoreDrivers } from './ClientScoreDrivers';
 import { OutreachService } from '@/services/outreach';
 
@@ -121,9 +121,9 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="flex gap-8 items-start">
         
-        <div className="lg:col-span-2 space-y-8">
+        <div className="flex-1 min-w-0 space-y-8">
           
           <ClientLeadProfile lead={lead} updateLeadAction={updateLeadAction} />
 
@@ -140,7 +140,6 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             triagePriority={lead.triagePriority || 'UNASSESSED'}
             triageReason={lead.triageReason || null}
             triggerAuditAction={triggerAuditAction}
-            triggerTriageAction={triggerTriageAction}
             manualOverrideScoreAction={manualOverrideScoreAction}
           />
 
@@ -169,20 +168,14 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                 activities.map((act: any) => {
                   const isNote = act.type === 'Note added';
                   
-                  return (
+                  return isNote ? (
                     <div 
                       key={act.id} 
-                      className={`p-5 rounded-2xl border transition duration-150 bg-card border-border/80 ${
-                        isNote ? 'ring-1 ring-border/50 shadow-sm' : ''
-                      }`}
+                      className="p-5 rounded-2xl border transition duration-150 bg-card border-border/80 ring-1 ring-border/50 shadow-sm"
                     >
                       <div className="flex justify-between items-start gap-4">
                         <div>
-                          <span className={`inline-block px-2.5 py-0.5 rounded-lg text-xs font-bold uppercase ${
-                            isNote 
-                              ? 'bg-chart-5/10 text-chart-5 border border-chart-5/20' 
-                              : 'bg-muted text-muted-foreground border border-border'
-                          }`}>
+                          <span className="inline-block px-2.5 py-0.5 rounded-lg text-xs font-bold uppercase bg-chart-5/10 text-chart-5 border border-chart-5/20">
                             {act.type}
                           </span>
                           <p className="text-sm font-semibold text-foreground mt-2 leading-relaxed">
@@ -194,6 +187,25 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                         </span>
                       </div>
                     </div>
+                  ) : (
+                    <details key={act.id} className="group p-5 rounded-2xl border transition duration-150 bg-card border-border/80 cursor-pointer">
+                      <summary className="flex justify-between items-start gap-4 list-none marker:content-none">
+                        <div className="flex items-center gap-3">
+                          <svg className="w-4 h-4 text-muted-foreground transition-transform group-open:rotate-90 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                          </svg>
+                          <span className="inline-block px-2.5 py-0.5 rounded-lg text-xs font-bold uppercase bg-muted text-muted-foreground border border-border">
+                            {act.type}
+                          </span>
+                          <span className="text-xs text-muted-foreground font-semibold">
+                            {formatDateTimeUTC(act.timestamp)}
+                          </span>
+                        </div>
+                      </summary>
+                      <p className="text-sm font-semibold text-foreground mt-3 leading-relaxed pl-7">
+                        {act.summary}
+                      </p>
+                    </details>
                   );
                 })
               )}
@@ -201,8 +213,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
           </div>
         </div>
 
-        <div className="space-y-8">
-          
+        <SidePanel>
           <div className="bg-card p-6 rounded-2xl border border-border/80 shadow-sm space-y-6">
             <div className="flex justify-between items-center border-b border-border pb-3">
               <h3 className="text-base font-bold text-foreground">
@@ -233,8 +244,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             updateContactAction={updateContactAction}
             deleteContactAction={deleteContactAction}
           />
-
-        </div>
+        </SidePanel>
 
       </div>
 

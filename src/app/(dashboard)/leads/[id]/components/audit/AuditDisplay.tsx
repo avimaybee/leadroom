@@ -16,11 +16,8 @@ interface AuditDisplayProps {
   triagePriority: string;
   triageReason: string | null;
   onRunAudit: () => void;
-  onRunTriage: () => void;
   isAuditing: boolean;
-  isTriaging: boolean;
   auditError: string | null;
-  triageError: string | null;
   manualOverrideScoreAction: (prevState: ActionState, formData: FormData) => Promise<ActionState>;
 }
 
@@ -31,11 +28,8 @@ export function AuditDisplay({
   triagePriority,
   triageReason,
   onRunAudit,
-  onRunTriage,
   isAuditing,
-  isTriaging,
   auditError,
-  triageError,
   manualOverrideScoreAction,
 }: AuditDisplayProps) {
   const [showOverrideForm, setShowOverrideForm] = useState(false);
@@ -81,18 +75,6 @@ export function AuditDisplay({
               size="sm"
             >
               {showOverrideForm ? 'Hide Override' : 'Override Score'}
-            </Button>
-            <Button
-              onClick={onRunTriage}
-              disabled={isTriaging}
-              variant="outline"
-              size="sm"
-            >
-              {isTriaging ? (
-                <><Loader2 className="h-3 w-3 animate-spin" /> Triaging...</>
-              ) : (
-                'Run Triage Scan'
-              )}
             </Button>
             <Button
               onClick={onRunAudit}
@@ -144,9 +126,6 @@ export function AuditDisplay({
 
         {auditError && (
           <p className="text-destructive text-xs font-bold">{auditError}</p>
-        )}
-        {triageError && (
-          <p className="text-destructive text-xs font-bold">{triageError}</p>
         )}
         {!showOverrideForm && !auditError && (
           <p className="text-xs text-muted-foreground font-semibold">

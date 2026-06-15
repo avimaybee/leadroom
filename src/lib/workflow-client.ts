@@ -203,14 +203,7 @@ export async function triggerTriageWorkflow(
         await db.update(leads)
           .set({ triagePriority: 'HIGH', triageReason: 'No website detected.' })
           .where(eq(leads.id, leadId));
-          
-        await db.insert(activities).values({
-          id: crypto.randomUUID(),
-          leadId,
-          type: 'Triage complete',
-          summary: 'Scored HIGH priority due to missing website (Simulation).',
-          timestamp: new Date(),
-        });
+
         const scoringService = new ScoringService(db);
         await scoringService.recalculateScore(leadId);
         return;

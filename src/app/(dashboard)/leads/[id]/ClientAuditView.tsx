@@ -20,7 +20,6 @@ interface ClientAuditViewProps {
   triagePriority: string;
   triageReason: string | null;
   triggerAuditAction: (leadId: string) => Promise<{ error: string | null; success?: boolean; jobId?: string | null }>;
-  triggerTriageAction: (leadId: string) => Promise<{ error: string | null; success?: boolean }>;
   manualOverrideScoreAction: (prevState: ActionState, formData: FormData) => Promise<ActionState>;
 }
 
@@ -31,14 +30,9 @@ export default function ClientAuditView({
   triagePriority,
   triageReason,
   triggerAuditAction,
-  triggerTriageAction,
   manualOverrideScoreAction,
 }: ClientAuditViewProps) {
   const router = useRouter();
-
-  // Triage state
-  const [isTriaging, setIsTriaging] = useState(false);
-  const [triageError, setTriageError] = useState<string | null>(null);
 
   // Job Polling state
   const [pollingJobId, setPollingJobId] = useState<string | null>(null);
@@ -130,24 +124,6 @@ export default function ClientAuditView({
       setJobError(msg);
     }
   }, [leadId, isAuditing, triggerAuditAction]);
-  const handleRunTriage = useCallback(async () => {
-    if (isTriaging) return;
-    setTriageError(null);
-    setIsTriaging(true);
-
-    try {
-      const res = await triggerTriageAction(leadId);
-      if (res.error) {
-        throw new Error(res.error);
-      }
-      refreshRef.current();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Triage request failed';
-      setTriageError(msg);
-    } finally {
-      setIsTriaging(false);
-    }
-  }, [leadId, isTriaging, triggerTriageAction]);
 
   return (
     <div className="bg-muted/50 p-6 rounded-2xl border border-border/50 space-y-4">
@@ -173,11 +149,8 @@ export default function ClientAuditView({
           triagePriority={triagePriority}
           triageReason={triageReason}
           onRunAudit={handleRunAudit}
-          onRunTriage={handleRunTriage}
           isAuditing={isAuditing}
-          isTriaging={isTriaging}
           auditError={jobError}
-          triageError={triageError}
           manualOverrideScoreAction={manualOverrideScoreAction}
         />
       )}

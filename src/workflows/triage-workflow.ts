@@ -1,6 +1,6 @@
 import { WorkflowEntrypoint, WorkflowStep, WorkflowEvent } from 'cloudflare:workers';
 import { getDb } from '@/db';
-import { leads, activities } from '@/db/schema/core';
+import { leads } from '@/db/schema/core';
 import { researchSnapshots } from '@/db/schema/research';
 import { eq, desc } from 'drizzle-orm';
 import { fetchSiteContent } from '@/lib/scraper';
@@ -64,14 +64,6 @@ export class TriageWorkflow extends WorkflowEntrypoint<Env, TriageParams> {
           await db.update(leads)
             .set({ triagePriority: 'HIGH', triageReason: 'No website detected.' })
             .where(eq(leads.id, leadId));
-            
-          await db.insert(activities).values({
-            id: crypto.randomUUID(),
-            leadId,
-            type: 'Triage complete',
-            summary: 'Scored HIGH priority due to missing website.',
-            timestamp: new Date(),
-          });
 
           const scoringService = new ScoringService(db);
           await scoringService.recalculateScore(leadId);
@@ -145,14 +137,6 @@ export class TriageWorkflow extends WorkflowEntrypoint<Env, TriageParams> {
             .set({ triagePriority: 'HIGH', triageReason: 'Website failed to load or is unreachable.' })
             .where(eq(leads.id, leadId));
 
-          await db.insert(activities).values({
-            id: crypto.randomUUID(),
-            leadId,
-            type: 'Triage complete',
-            summary: 'Scored HIGH priority due to unreachable website.',
-            timestamp: new Date(),
-          });
-
           const scoringService = new ScoringService(db);
           await scoringService.recalculateScore(leadId);
         }
@@ -182,14 +166,6 @@ export class TriageWorkflow extends WorkflowEntrypoint<Env, TriageParams> {
         await db.update(leads)
           .set({ triagePriority: priority, triageReason: triageResult.reason + suffix })
           .where(eq(leads.id, leadId));
-          
-        await db.insert(activities).values({
-          id: crypto.randomUUID(),
-          leadId,
-          type: 'Triage complete',
-          summary: `Scored ${priority} priority. Reason: ${triageResult.reason}${suffix}`,
-          timestamp: new Date(),
-        });
 
         const scoringService = new ScoringService(db);
         await scoringService.recalculateScore(leadId);
