@@ -1,6 +1,10 @@
 /**
  * Web Scraping utility using Fetch-First or Cloudflare Browser Run Quick Actions.
  * Optimised for fetching and extracting website content for LLMs.
+ * 
+ * Two tiers:
+ *   fetchSiteContent — full chain (direct → Browser Run → Jina) for deep research
+ *   fetchSiteContentLight — direct fetch only, no fallbacks (for discovery enrichment)
  */
 
 export interface ScrapedContent {
@@ -12,23 +16,117 @@ export interface ScrapedContent {
 }
 
 /**
- * Normalises a URL to ensure it has a protocol (defaults to https://)
+ * Check whether the given IPv4 address (dotted decimal) is in a private range.
+ */
+function isPrivateIpv4(a: number, b: number, _c: number, _d: number): boolean {
+  if (a === 127 || a === 10 || (a === 192 && b === 168)) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 169 && b === 254) return true;
+  return false;
+}
+
+/**
+ * Converts an integer (decimal or hex) to dotted-decimal IPv4.
+ * Returns null if the integer is out of IPv4 range.
+ */
+function integerToDotted(n: number): string | null {
+  if (n < 0 || n > 0xffffffff) return null;
+  return `${(n >>> 24) & 0xff}.${(n >>> 16) & 0xff}.${(n >>> 8) & 0xff}.${n & 0xff}`;
+}
+
+/**
+ * Pattern-based check for private/internal IP addresses in hostnames.
+ * Catches dotted-decimal, decimal, hex, and hex-per-octet encodings.
+ */
+function isPrivateHostname(hostname: string): boolean {
+  // Normalize: strip brackets for IPv6
+  const h = hostname.replace(/^\[|\]$/g, '').toLowerCase();
+
+  // Exact matches for loopback / invalid
+  if (h === 'localhost' || h === 'localhost.localdomain' || h === '0.0.0.0' || h === '[::1]' || h === '::1') {
+    return true;
+  }
+
+  // IPv4 private ranges (standard dotted decimal)
+  const ipv4Match = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (ipv4Match) {
+    const a = parseInt(ipv4Match[1], 10);
+    const b = parseInt(ipv4Match[2], 10);
+    const c = parseInt(ipv4Match[3], 10);
+    const d = parseInt(ipv4Match[4], 10);
+    if (a <= 255 && b <= 255 && c <= 255 && d <= 255 && isPrivateIpv4(a, b, c, d)) return true;
+  }
+
+  // Decimal integer hostname (e.g. 2130706433 = 127.0.0.1)
+  if (/^\d+$/.test(h) && h.length >= 9) {
+    const dotted = integerToDotted(parseInt(h, 10));
+    if (dotted) {
+      const parts = dotted.split('.').map(Number);
+      if (isPrivateIpv4(parts[0], parts[1], parts[2], parts[3])) return true;
+    }
+  }
+
+  // Hexadecimal integer hostname (e.g. 0x7f000001 = 127.0.0.1)
+  if (/^0x[0-9a-f]{1,8}$/i.test(h)) {
+    const dotted = integerToDotted(parseInt(h, 16));
+    if (dotted) {
+      const parts = dotted.split('.').map(Number);
+      if (isPrivateIpv4(parts[0], parts[1], parts[2], parts[3])) return true;
+    }
+  }
+
+  // Hex-per-octet dotted (e.g. 0x7f.0x00.0x00.0x01)
+  const hexDottedMatch = h.match(/^0x([0-9a-f]{1,2})\.0x([0-9a-f]{1,2})\.0x([0-9a-f]{1,2})\.0x([0-9a-f]{1,2})$/i);
+  if (hexDottedMatch) {
+    const a = parseInt(hexDottedMatch[1], 16);
+    const b = parseInt(hexDottedMatch[2], 16);
+    const c = parseInt(hexDottedMatch[3], 16);
+    const d = parseInt(hexDottedMatch[4], 16);
+    if (isPrivateIpv4(a, b, c, d)) return true;
+  }
+
+  // RFC 3849 documentation prefix (2001:db8::/32) — reject
+  if (h.startsWith('2001:db8:')) return true;
+
+  return false;
+}
+
+/**
+ * Normalises a URL to ensure it has a protocol (defaults to https://).
+ * Rejects URLs pointing to private/internal IPs as an SSRF safeguard.
  */
 export function normalizeUrl(url: string): string {
   let cleaned = url.trim();
   if (!/^https?:\/\//i.test(cleaned)) {
     cleaned = `https://${cleaned}`;
   }
+
+  try {
+    const parsed = new URL(cleaned);
+    if (isPrivateHostname(parsed.hostname)) {
+      throw new Error(`URL rejected: hostname "${parsed.hostname}" is a private/internal address`);
+    }
+  } catch (err: unknown) {
+    if (err instanceof Error && err.message.startsWith('URL rejected')) throw err;
+    throw new Error(`Invalid URL: "${url}" could not be parsed`);
+  }
+
   return cleaned;
 }
 
 // Helpers for Fetch-First
-async function fetchDirectly(url: string, timeoutMs: number): Promise<string | null> {
+async function fetchDirectly(url: string, timeoutMs: number, signal?: AbortSignal): Promise<string | null> {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
+
+  // Link external signal (e.g. enrichment timeout) to our controller
+  const onAbort = () => { clearTimeout(id); controller.abort(); };
+  signal?.addEventListener('abort', onAbort, { once: true });
+
   try {
     const res = await fetch(url, {
       signal: controller.signal,
+      redirect: 'error',
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -36,6 +134,7 @@ async function fetchDirectly(url: string, timeoutMs: number): Promise<string | n
       }
     });
     clearTimeout(id);
+    signal?.removeEventListener('abort', onAbort);
     if (!res.ok) return null;
     const contentType = res.headers.get('content-type') || '';
     if (!contentType.includes('text/html') && !contentType.includes('text/plain')) {
@@ -44,6 +143,7 @@ async function fetchDirectly(url: string, timeoutMs: number): Promise<string | n
     return await res.text();
   } catch {
     clearTimeout(id);
+    signal?.removeEventListener('abort', onAbort);
     return null;
   }
 }
@@ -180,7 +280,7 @@ async function fetchSiteContentViaJina(url: string, timeoutMs: number = 15000): 
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      throw new Error(`Jina Reader returned status ${response.status}: ${response.statusText}`);
+      throw new Error('External scraper returned an error response');
     }
 
     const json = (await response.json()) as {
@@ -274,5 +374,23 @@ export async function fetchSiteContent(url: string, timeoutMs: number = 20000): 
   } else {
     console.log(`Browser Run binding not found. Using Jina Reader for ${normalized}`);
     return await fetchSiteContentViaJina(normalized, timeoutMs);
+  }
+}
+
+/**
+ * Lightweight direct-fetch-only scraper for discovery enrichment.
+ * No Browser Run or Jina fallbacks — just raw HTML extraction.
+ * Returns null if fetch fails, returns SPA, or content is too thin.
+ */
+export async function fetchSiteContentLight(url: string, timeoutMs: number = 15000, signal?: AbortSignal): Promise<string | null> {
+  const normalized = normalizeUrl(url);
+  try {
+    const html = await fetchDirectly(normalized, timeoutMs, signal);
+    if (!html) return null;
+    const cleaned = cleanHtml(html);
+    if (cleaned.length < 600 || isLikelySPAOrEmpty(html, cleaned)) return null;
+    return cleaned.substring(0, 5000);
+  } catch {
+    return null;
   }
 }

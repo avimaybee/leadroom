@@ -76,17 +76,19 @@ export async function startGoogleMapsSearch(
   console.log(`[Apify] Starting actor for "${niche}" in "${location}" (limit ${limit})...`);
 
   const runRes = await fetch(
-    `https://api.apify.com/v2/acts/nwua9Gu5YrADL7ZDj/runs?token=${token}`,
+    'https://api.apify.com/v2/acts/nwua9Gu5YrADL7ZDj/runs',
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify(input),
     },
   );
 
   if (!runRes.ok) {
-    const errorText = await runRes.text();
-    throw new Error(`Failed to start Apify actor: status ${runRes.status} - ${errorText}`);
+    throw new Error(`Apify actor start failed (HTTP ${runRes.status})`);
   }
 
   const runData = (await runRes.json()) as {
@@ -112,10 +114,13 @@ export async function checkApifyRunStatus(runId: string): Promise<ApifyRunStatus
   const token = getApifyToken();
 
   const res = await fetch(
-    `https://api.apify.com/v2/acts/nwua9Gu5YrADL7ZDj/runs/${runId}?token=${token}`,
+    `https://api.apify.com/v2/acts/nwua9Gu5YrADL7ZDj/runs/${runId}`,
+    {
+      headers: { 'Authorization': `Bearer ${token}` },
+    },
   );
   if (!res.ok) {
-    throw new Error(`Failed to check Apify run status: HTTP ${res.status}`);
+    throw new Error(`Apify status check failed (HTTP ${res.status})`);
   }
 
   const data = (await res.json()) as { data?: { status: string } };
@@ -134,10 +139,13 @@ export async function fetchApifyResults(
 
   console.log(`[Apify] Fetching dataset items from ${datasetId}...`);
   const itemsRes = await fetch(
-    `https://api.apify.com/v2/datasets/${datasetId}/items?token=${token}`,
+    `https://api.apify.com/v2/datasets/${datasetId}/items`,
+    {
+      headers: { 'Authorization': `Bearer ${token}` },
+    },
   );
   if (!itemsRes.ok) {
-    throw new Error(`Failed to fetch Apify dataset items: status ${itemsRes.status}`);
+    throw new Error(`Apify dataset fetch failed (HTTP ${itemsRes.status})`);
   }
 
   interface ApifyItem {

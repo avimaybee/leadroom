@@ -2,7 +2,7 @@
 
 import { useState, useActionState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Loader2, FileText, Sparkles } from 'lucide-react';
+import { Loader2, FileText } from 'lucide-react';
 import { AuditSnapshot, LeadScore } from './types';
 import { ActionState } from '@/app/actions/audits';
 import { Button } from '@/components/ui/button';
@@ -40,18 +40,6 @@ export function AuditDisplay({
 }: AuditDisplayProps) {
   const [showOverrideForm, setShowOverrideForm] = useState(false);
   const [state, formAction] = useActionState(manualOverrideScoreAction, undefined);
-
-  // Parse scoring factors from database JSON string and sort by magnitude descending
-  let factorsList: Array<{ name: string; value: number; description: string }> = [];
-  if (score?.factors) {
-    try {
-      factorsList = (JSON.parse(score.factors) as Array<{ name: string; value: number; description: string }>)
-        .sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
-    } catch (e) {
-      console.warn('[AuditDisplay] Failed to parse score factors JSON:', e);
-    }
-  }
-
   const getScoreColor = (val: number) => {
     if (val >= 75) return 'bg-chart-2';
     if (val >= 50) return 'bg-chart-5';
@@ -300,44 +288,6 @@ export function AuditDisplay({
                     </div>
                   </div>
                 ))}
-              </div>
-            </div>
-          )}
-
-          {/* Scoring Drivers Breakdown */}
-          {factorsList.length > 0 && (
-            <div className="bg-muted p-6 rounded-2xl border border-border/60 space-y-4">
-              <h4 className="text-xs font-bold text-card-foreground">Priority Score Driver Breakdown</h4>
-              <div className="space-y-3">
-                {factorsList.map((f, idx) => {
-                  const isTop3 = idx < 3;
-                  const magnitudePercent = Math.min(100, Math.abs(f.value) * 4); // Scale magnitude
-                  return (
-                    <div
-                      key={idx}
-                      className={`flex justify-between items-start text-xs border-b border-border/30 pb-2.5 last:border-0 last:pb-0 ${
-                        isTop3 ? 'bg-primary/5 border border-primary/20 p-3 rounded-xl shadow-sm' : ''
-                      }`}
-                    >
-                      <div className="flex-1 pr-4">
-                        <span className={`text-foreground block ${isTop3 ? 'font-bold' : 'font-semibold'}`}>{f.name}</span>
-                        <span className="text-xs text-muted-foreground font-medium">{f.description}</span>
-                      </div>
-                      <div className="flex items-center gap-3 shrink-0">
-                        {/* Horizontal visual magnitude indicator bar */}
-                        <div className="w-16 bg-muted h-1.5 rounded-full overflow-hidden hidden sm:block">
-                          <div
-                            className={`h-full rounded-full transition-all duration-500 ${f.value > 0 ? 'bg-chart-2' : 'bg-destructive'}`}
-                            style={{ width: `${magnitudePercent}%` }}
-                          />
-                        </div>
-                        <span className={`font-black ${f.value > 0 ? 'text-chart-2' : (f.value < 0 ? 'text-destructive' : 'text-muted-foreground')}`}>
-                          {f.value > 0 ? `+${f.value}` : f.value}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
               </div>
             </div>
           )}

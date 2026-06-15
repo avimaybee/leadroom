@@ -4,7 +4,7 @@ import { users, leads } from './core';
 
 export const jobRuns = sqliteTable('job_runs', {
   id: text('id').primaryKey(),
-  jobType: text('job_type').notNull(), // 'ENRICHMENT' | 'RESEARCH_GENERATION' | 'AUDIT_GENERATION'
+  jobType: text('job_type').notNull(), // 'ENRICHMENT' | 'RESEARCH_GENERATION' | 'AUDIT_GENERATION' | 'DISCOVERY_SEARCH'
   status: text('status').notNull(), // 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED'
   targetLeadId: text('target_lead_id').references(() => leads.id),
   triggeredByUserId: text('triggered_by_user_id').references(() => users.id),
@@ -13,6 +13,9 @@ export const jobRuns = sqliteTable('job_runs', {
   externalRunId: text('external_run_id'),
   /** JSON-serialised partial data used between polling steps (e.g. Apify datasetId) */
   jobMeta: text('job_meta'),
+  totalItems: integer('total_items'),
+  itemsProcessed: integer('items_processed'),
+  currentStage: text('current_stage'),
   startedAt: integer('started_at', { mode: 'timestamp' }),
   finishedAt: integer('finished_at', { mode: 'timestamp' }),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),

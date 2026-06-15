@@ -55,8 +55,14 @@ export async function createLeadAction(prevState: ActionState, formData: FormDat
     const lead = await service.createLead({ ...validated.data, ownerId: userId });
     if (lead && lead.website) {
       const db = getDb();
-      const env = (process.env as unknown as Record<string, unknown>);
-      const workflowBinding = env?.TRIAGE_WORKFLOW as CloudflareWorkflow | undefined;
+      let workflowBinding: any = undefined;
+      try {
+        const { getCloudflareContext } = require('@opennextjs/cloudflare');
+        workflowBinding = getCloudflareContext().env?.TRIAGE_WORKFLOW;
+      } catch (e) {}
+      if (!workflowBinding) {
+        workflowBinding = (process.env as any)?.TRIAGE_WORKFLOW;
+      }
       await triggerTriageWorkflow(db, workflowBinding, lead.id);
     }
   } catch (error: unknown) {
@@ -123,8 +129,14 @@ export async function updateLeadAction(prevState: ActionState, formData: FormDat
     
     if (validated.data.website && validated.data.website !== oldLead?.website) {
       const db = getDb();
-      const env = (process.env as unknown as Record<string, unknown>);
-      const workflowBinding = env?.TRIAGE_WORKFLOW as CloudflareWorkflow | undefined;
+      let workflowBinding: any = undefined;
+      try {
+        const { getCloudflareContext } = require('@opennextjs/cloudflare');
+        workflowBinding = getCloudflareContext().env?.TRIAGE_WORKFLOW;
+      } catch (e) {}
+      if (!workflowBinding) {
+        workflowBinding = (process.env as any)?.TRIAGE_WORKFLOW;
+      }
       await triggerTriageWorkflow(db, workflowBinding, id);
     }
   } catch (error: unknown) {

@@ -1,6 +1,8 @@
 import { getDb, type Db } from '@/db';
 import { fetchSiteContent } from '@/lib/scraper';
 import { generateResearch, runTriageAI, generateAudit } from '@/lib/ai';
+import { heuristicTriage } from '@/lib/triage/heuristics';
+import { enrichCandidate } from '@/lib/triage/enricher';
 import { jobRuns, researchSnapshots } from '@/db/schema/research';
 import { leads, activities } from '@/db/schema/core';
 import { candidateLeads } from '@/db/schema/discovery';
@@ -308,18 +310,33 @@ export async function triggerDiscoverySearchWorkflow(
 
   const runSimulation = async () => {
     try {
-      // 1. Wait/poll Apify
+      // Mark RUNNING immediately so the UI stops showing "QUEUED"
+      const now = new Date();
+      await db.update(jobRuns)
+        .set({ status: 'RUNNING', startedAt: now, currentStage: 'Starting Apify crawler...' })
+        .where(eq(jobRuns.id, jobId));
+
+      // 1. Wait/poll Apify (max ~10 min for simulation, matching user's ≤10 min target)
       let status = await checkApifyRunStatus(runId);
-      const startTime = Date.now();
-      const timeoutMs = 240_000; // 4 minutes
+      let apifyRetries = 0;
+      const apifyMaxRetries = 120; // 120 × 5s = 600s = 10 min
+
+      await db.update(jobRuns)
+        .set({ currentStage: `Waiting for Apify crawler (status: ${status})...` })
+        .where(eq(jobRuns.id, jobId));
 
       while (status === 'RUNNING' || status === 'READY') {
-        if (Date.now() - startTime > timeoutMs) {
-          throw new Error('Apify actor run timed out during local simulation');
+        if (apifyRetries >= apifyMaxRetries) {
+          throw new Error(`Apify actor did not finish within ${(apifyMaxRetries * 5) / 60} minutes`);
         }
         await new Promise((resolve) => setTimeout(resolve, 5000));
         status = await checkApifyRunStatus(runId);
+        apifyRetries++;
       }
+
+      await db.update(jobRuns)
+        .set({ currentStage: `Apify finished with status: ${status}. Fetching results...` })
+        .where(eq(jobRuns.id, jobId));
 
       if (status !== 'SUCCEEDED') {
         throw new Error(`Apify actor run ended with status: ${status}`);
@@ -328,28 +345,11 @@ export async function triggerDiscoverySearchWorkflow(
       // 2. Fetch Apify results
       const results = await fetchApifyResults(datasetId, niche, location);
 
-      // 3. Save candidates & complete job
-      const now = new Date();
+      // 3. Save all candidates immediately with heuristic triage (zero cost)
       if (results.length > 0) {
-        const candidates = [];
-        for (const r of results) {
-          let triagePriority: 'HIGH' | 'MEDIUM' | 'SKIP' = 'HIGH';
-          let triageReason = 'No website detected.';
-
-          if (r.website) {
-            try {
-              const siteContent = await fetchSiteContent(r.website);
-              const triageResult = await runTriageAI(db, siteContent.content.substring(0, 5000));
-              triagePriority = triageResult.status === 'MODERN' ? 'SKIP' : 'MEDIUM';
-              triageReason = triageResult.reason;
-            } catch (err: unknown) {
-              const errMsg = err instanceof Error ? err.message : String(err);
-              triagePriority = 'HIGH';
-              triageReason = `Website failed to load or is unreachable. Error: ${errMsg}`;
-            }
-          }
-
-          candidates.push({
+        const candidates = results.map((r) => {
+          const heuristic = heuristicTriage({ website: r.website, phone: r.phone });
+          return {
             id: crypto.randomUUID(),
             discoveryScopeId: scopeId || null,
             rawName: r.name,
@@ -358,18 +358,87 @@ export async function triggerDiscoverySearchWorkflow(
             rawLocation: [r.city, r.region].filter(Boolean).join(', ') || null,
             notes: r.industry ? `Industry: ${r.industry}` : null,
             status: 'NEW' as const,
-            triagePriority,
-            triageReason,
+            triagePriority: heuristic.triagePriority,
+            triageReason: heuristic.triageReason,
             createdAt: now,
             updatedAt: now,
-          });
-        }
+          };
+        });
 
         await db.insert(candidateLeads).values(candidates);
       }
 
       await db.update(jobRuns)
-        .set({ status: 'COMPLETED', finishedAt: now })
+        .set({
+          totalItems: results.length,
+          itemsProcessed: 0,
+          currentStage: 'Enriching candidates',
+        })
+        .where(eq(jobRuns.id, jobId));
+
+      // 4. Enrich candidates (three-level, only for UNASSESSED)
+      if (results.length > 0) {
+        const BATCH_SIZE = 10;
+        let processed = 0;
+
+        // Only enrich candidates that heuristics flagged as UNASSESSED
+        const toEnrich = results.filter((r) => {
+          const heuristic = heuristicTriage({ website: r.website, phone: r.phone });
+          return heuristic.triagePriority === 'UNASSESSED';
+        });
+
+        for (let i = 0; i < toEnrich.length; i += BATCH_SIZE) {
+          const batch = toEnrich.slice(i, i + BATCH_SIZE);
+
+          const batchResults = await Promise.allSettled(
+            batch.map(async (r) => {
+              if (!r.website) return null;
+              try {
+                return await enrichCandidate(r.website, db);
+              } catch {
+                return null;
+              }
+            }),
+          );
+
+          for (let j = 0; j < batch.length; j++) {
+            const r = batch[j];
+            const batchResult = batchResults[j];
+            if (batchResult.status !== 'fulfilled' || !batchResult.value) continue;
+
+            const { triagePriority, triageReason } = batchResult.value;
+            if (r.website) {
+              await db
+                .update(candidateLeads)
+                .set({ triagePriority, triageReason, updatedAt: new Date() })
+                .where(eq(candidateLeads.rawWebsiteUrl, r.website));
+            }
+          }
+
+          processed += batch.length;
+          const sample = (() => {
+            for (const r of batchResults) {
+              if (r.status === 'fulfilled' && r.value?.triageReason) return r.value.triageReason;
+            }
+            return undefined;
+          })();
+
+          await db.update(jobRuns)
+            .set({
+              itemsProcessed: processed,
+              currentStage: `Enriching ${processed} of ${toEnrich.length}${sample ? ` — ${sample.substring(0, 60)}` : ''}`,
+            })
+            .where(eq(jobRuns.id, jobId));
+        }
+      }
+
+      await db.update(jobRuns)
+        .set({
+          status: 'COMPLETED',
+          itemsProcessed: results.length,
+          currentStage: 'Complete',
+          finishedAt: new Date(),
+        })
         .where(eq(jobRuns.id, jobId));
 
     } catch (error: unknown) {

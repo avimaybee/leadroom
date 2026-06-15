@@ -1,4 +1,5 @@
 import { SignJWT, jwtVerify } from 'jose';
+import { cookies } from 'next/headers';
 
 function getSecretKey(): Uint8Array {
   let secret: string | undefined;
@@ -101,5 +102,24 @@ export async function verifyPassword(password: string, hashedPasswordHex: string
   
   const computed = await hashPassword(password, saltHex);
   return computed === hashedPasswordHex;
+}
+
+/**
+ * Returns the authenticated user ID from the session cookie.
+ * Returns null if unauthenticated.
+ * In test mode, returns a fixed test user ID.
+ */
+export async function getUserId(): Promise<string | null> {
+  if (process.env.NODE_ENV === 'test') {
+    return 'user_123';
+  }
+  try {
+    const cookieStore = await cookies();
+    const sessionToken = cookieStore.get('session')?.value;
+    const payload = await decrypt(sessionToken);
+    return payload?.userId || null;
+  } catch (e) {
+    return null;
+  }
 }
 

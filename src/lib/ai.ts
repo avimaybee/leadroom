@@ -50,7 +50,38 @@ export type AIOutreachDraftOutput = z.infer<typeof AIOutreachDraftSchema>;
 const _visionCapabilityCache = new Map<string, { result: boolean; timestamp: number }>();
 const VISION_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
+/**
+ * Cache for active provider config, keyed by Db instance.
+ * Avoids redundant DB queries when multiple AI functions are called in the same scope.
+ */
+const _providerConfigWeakCache = new WeakMap<object, { config: { provider: string; apiKey: string | null; modelName: string | null } | null; timestamp: number }>();
+const PROVIDER_CONFIG_CACHE_TTL_MS = 60_000; // 1 minute
+
 import { IntegrationsService } from '../services/integrations';
+
+/**
+ * Resolves the active provider config once, caching the result by Db instance.
+ * Subsequent calls within the same scope reuse the cached value.
+ */
+async function getActiveProviderConfig(db: Db) {
+  const cached = _providerConfigWeakCache.get(db);
+  if (cached && Date.now() - cached.timestamp < PROVIDER_CONFIG_CACHE_TTL_MS) {
+    return cached.config;
+  }
+
+  const integrationsService = new IntegrationsService(db);
+  let config: { provider: string; apiKey: string | null; modelName: string | null } | null = null;
+  for (const p of ['openrouter', 'nvidia', 'groq', 'aiml', 'gemini'] as const) {
+    const pConfig = await integrationsService.getProviderConfig(p);
+    if (pConfig && pConfig.isActive) {
+      config = { provider: pConfig.provider, apiKey: pConfig.apiKey, modelName: pConfig.modelName };
+      break;
+    }
+  }
+
+  _providerConfigWeakCache.set(db, { config, timestamp: Date.now() });
+  return config;
+}
 
 export async function generateResearch(
   db: Db,
@@ -61,18 +92,7 @@ export async function generateResearch(
   scrapedContent?: string | null,
   location?: string | null
 ): Promise<AIResearchOutput> {
-  const integrationsService = new IntegrationsService(db);
-  
-  // Get active provider config
-  let config = null;
-  for (const p of ['openrouter', 'nvidia', 'groq', 'aiml', 'gemini']) {
-    const pConfig = await integrationsService.getProviderConfig(p);
-    if (pConfig && pConfig.isActive) {
-      config = pConfig;
-      break;
-    }
-  }
-
+  const config = await getActiveProviderConfig(db);
   let provider = config?.provider || 'gemini';
   let apiKey = config?.apiKey || (process as any).env?.GEMINI_API_KEY;
   let modelName = config?.modelName || (
@@ -484,24 +504,13 @@ export async function runTriageAI(
   db: Db,
   scrapedContent: string
 ): Promise<AITriageOutput> {
-  const integrationsService = new IntegrationsService(db);
-  
-  // Get active provider config
-  let config = null;
-  for (const p of ['openrouter', 'nvidia', 'groq', 'aiml', 'gemini']) {
-    const pConfig = await integrationsService.getProviderConfig(p);
-    if (pConfig && pConfig.isActive) {
-      config = pConfig;
-      break;
-    }
-  }
-
+  const config = await getActiveProviderConfig(db);
   const provider = config?.provider || 'gemini';
   const apiKey = config?.apiKey || (process as any).env?.GEMINI_API_KEY;
   const modelName = config?.modelName || (
     provider === 'openrouter' ? 'google/gemini-2.5-flash' : 
     provider === 'nvidia' ? 'meta/llama-3.1-70b-instruct' : 
-    provider === 'groq' ? 'llama3-70b-8192' : 
+    provider === 'groq' ? 'llama3-70b-8192' :
     provider === 'aiml' ? 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning' :
     'gemini-2.5-flash'
   );
@@ -849,18 +858,7 @@ export async function generateAudit(
   industry: string | null,
   scrapedContent?: string | null
 ): Promise<AIAuditOutput> {
-  const integrationsService = new IntegrationsService(db);
-  
-  // Get active provider config
-  let config = null;
-  for (const p of ['openrouter', 'nvidia', 'groq', 'aiml', 'gemini']) {
-    const pConfig = await integrationsService.getProviderConfig(p);
-    if (pConfig && pConfig.isActive) {
-      config = pConfig;
-      break;
-    }
-  }
-
+  const config = await getActiveProviderConfig(db);
   let provider = config?.provider || 'gemini';
   let apiKey = config?.apiKey || (process as any).env?.GEMINI_API_KEY;
   let modelName = config?.modelName || (
@@ -1062,18 +1060,7 @@ export async function generateOutreachDraft(
   customPrompt?: string | null,
   attachments?: Array<{ name: string; type: string; base64: string }>
 ): Promise<AIOutreachDraftOutput> {
-  const integrationsService = new IntegrationsService(db);
-  
-  // Get active provider config
-  let config = null;
-  for (const p of ['openrouter', 'nvidia', 'groq', 'aiml', 'gemini']) {
-    const pConfig = await integrationsService.getProviderConfig(p);
-    if (pConfig && pConfig.isActive) {
-      config = pConfig;
-      break;
-    }
-  }
-
+  const config = await getActiveProviderConfig(db);
   let provider = config?.provider || 'gemini';
   let apiKey = config?.apiKey || (process as any).env?.GEMINI_API_KEY;
   let modelName = config?.modelName || (
@@ -1330,16 +1317,7 @@ export async function checkModelVisionCapability(provider: string, modelName: st
 }
 
 export async function getModelInfo(db: Db): Promise<{ provider: string; modelName: string; hasVision: boolean }> {
-  const integrationsService = new IntegrationsService(db);
-  let config = null;
-  for (const p of ['openrouter', 'nvidia', 'groq', 'aiml', 'gemini']) {
-    const pConfig = await integrationsService.getProviderConfig(p);
-    if (pConfig && pConfig.isActive) {
-      config = pConfig;
-      break;
-    }
-  }
-
+  const config = await getActiveProviderConfig(db);
   const provider = config?.provider || 'gemini';
   const apiKey = config?.apiKey || (process as any).env?.GEMINI_API_KEY;
   const modelName = config?.modelName || (

@@ -4,28 +4,18 @@ import { NextResponse } from 'next/server';
 import { startGoogleMapsSearch } from '@/lib/discovery/apify';
 import { getDb } from '@/db';
 import { jobRuns } from '@/db/schema/research';
-import { cookies } from 'next/headers';
-import { decrypt } from '@/lib/auth';
+import { getUserId } from '@/lib/auth';
 import { triggerDiscoverySearchWorkflow } from '@/lib/workflow-client';
-
-async function getUserId() {
-  if (process.env.NODE_ENV === 'test') {
-    return 'user_123';
-  }
-  try {
-    const cookieStore = await cookies();
-    const sessionToken = cookieStore.get('session')?.value;
-    const payload = await decrypt(sessionToken);
-    return payload?.userId || null;
-  } catch (e) {
-    return null;
-  }
-}
+import { discoverySearchLimiter } from '@/lib/rate-limit';
 
 export async function POST(request: Request) {
   const userId = await getUserId();
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  if (!discoverySearchLimiter.check(userId)) {
+    return NextResponse.json({ error: 'Too many requests. Please wait before starting another search.' }, { status: 429 });
   }
 
   try {
@@ -39,9 +29,16 @@ export async function POST(request: Request) {
     if (!niche || !location) {
       return NextResponse.json({ error: 'Niche and location are required' }, { status: 400 });
     }
+    if (typeof niche !== 'string' || niche.length > 500) {
+      return NextResponse.json({ error: 'Niche must be at most 500 characters' }, { status: 400 });
+    }
+    if (typeof location !== 'string' || location.length > 500) {
+      return NextResponse.json({ error: 'Location must be at most 500 characters' }, { status: 400 });
+    }
+    const leadLimit = Math.min(Math.max(limit || 20, 1), 200);
 
     // Start the Apify actor run — returns immediately without blocking
-    const { runId, datasetId } = await startGoogleMapsSearch(niche, location, limit || 20);
+    const { runId, datasetId } = await startGoogleMapsSearch(niche, location, leadLimit);
 
     // Save a job_run record so the frontend can poll for progress
     const db = getDb();
@@ -59,7 +56,14 @@ export async function POST(request: Request) {
       createdAt: now,
     });
 
-    const workflowBinding = (process.env as unknown as Record<string, unknown>)?.DISCOVERY_SEARCH_WORKFLOW as any;
+    let workflowBinding: any = undefined;
+    try {
+      const { getCloudflareContext } = require('@opennextjs/cloudflare');
+      workflowBinding = getCloudflareContext().env?.DISCOVERY_SEARCH_WORKFLOW;
+    } catch (e) {}
+    if (!workflowBinding) {
+      workflowBinding = (process.env as any)?.DISCOVERY_SEARCH_WORKFLOW;
+    }
     await triggerDiscoverySearchWorkflow(
       db,
       workflowBinding,
@@ -74,8 +78,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ jobId, runId }, { status: 202 });
   } catch (error: unknown) {
-    const errMsg = error instanceof Error ? error.message : 'Failed to execute discovery search';
     console.error('[Discovery Search API] Error:', error);
-    return NextResponse.json({ error: errMsg }, { status: 500 });
+    return NextResponse.json({ error: 'An internal error occurred' }, { status: 500 });
   }
 }

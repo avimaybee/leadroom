@@ -85,7 +85,14 @@ export async function POST(
       createdAt: now,
     });
 
-    const workflowBinding = (process.env as unknown as Record<string, unknown>)?.RESEARCH_SNAPSHOT_WORKFLOW as any;
+    let workflowBinding: any = undefined;
+    try {
+      const { getCloudflareContext } = require('@opennextjs/cloudflare');
+      workflowBinding = getCloudflareContext().env?.RESEARCH_SNAPSHOT_WORKFLOW;
+    } catch (e) {}
+    if (!workflowBinding) {
+      workflowBinding = (process.env as any)?.RESEARCH_SNAPSHOT_WORKFLOW;
+    }
     await triggerResearchWorkflow(db, workflowBinding, leadId, jobId, userId);
 
     return NextResponse.json({ jobId }, { status: 202 });

@@ -30,7 +30,10 @@ export class DiscoveryService {
     return results[0] || null;
   }
 
-  async listScopes() {
+  async listScopes(userId?: string) {
+    if (userId) {
+      return this.db.select().from(discoveryScopes).where(eq(discoveryScopes.createdByUserId, userId));
+    }
     return this.db.select().from(discoveryScopes);
   }
 

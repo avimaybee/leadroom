@@ -84,6 +84,13 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
   const [pollingJobId, setPollingJobId] = useState<string | null>(null);
   const [isRecentRunsExpanded, setIsRecentRunsExpanded] = useState(false);
 
+  // Enrichment progress (from discovery jobs)
+  const [enrichProgress, setEnrichProgress] = useState<{
+    totalItems: number;
+    itemsProcessed: number;
+    currentStage: string;
+  } | null>(null);
+
   // Current logged in user ID
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string } | null>(null);
   const [isSpecsExpanded, setIsSpecsExpanded] = useState(false);
@@ -165,15 +172,36 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
         const res = await fetch(`/api/jobs/${jobId}`);
         if (!res.ok) throw new Error('Failed to verify search progress');
 
-        const raw = await res.json() as { status: string; errorSummary?: string };
+        const raw = await res.json() as {
+          status: string;
+          errorSummary?: string;
+          totalItems?: number;
+          itemsProcessed?: number;
+          currentStage?: string;
+        };
+
+        // Always refetch candidates so triage badges appear as enrichment runs
+        const candidatesRes = await fetch(`/api/candidates?scopeId=${id}`);
+        if (candidatesRes.ok) {
+          const data = await candidatesRes.json() as { data: Candidate[] };
+          setCandidates(data.data);
+        }
+
+        // Update enrichment progress (even for 0 values while still queued)
+        if (raw.totalItems != null) {
+          setEnrichProgress({
+            totalItems: raw.totalItems,
+            itemsProcessed: raw.itemsProcessed ?? 0,
+            currentStage: raw.currentStage || 'Starting...',
+          });
+
+          if (raw.status === 'COMPLETED' || raw.status === 'FAILED') {
+            // Clear progress after a brief delay so user sees "Complete"
+            setTimeout(() => setEnrichProgress(null), 2000);
+          }
+        }
 
         if (raw.status === 'COMPLETED') {
-          // Re-fetch candidates and recent runs
-          const candidatesRes = await fetch(`/api/candidates?scopeId=${id}`);
-          if (candidatesRes.ok) {
-            const data = await candidatesRes.json() as { data: Candidate[] };
-            setCandidates(data.data);
-          }
           await fetchRecentRuns();
           return true; // done
         } else if (raw.status === 'FAILED') {
@@ -182,8 +210,8 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
         }
         return false; // still running
       } catch (err: unknown) {
-        console.error('Polling failed:', err);
-        return true; // stop polling
+        console.error('Polling failed, will retry:', err);
+        return false; // continue polling — don't let transient errors freeze the UI
       }
     },
     [id, fetchRecentRuns],
@@ -445,18 +473,44 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
         </div>
       </div>
 
-      {/* Active Job Progress Card */}
+      {/* Enrichment Progress Card */}
       {activeJobRun && (
-        <div className="bg-card p-6 rounded-2xl border border-primary/20 shadow-md flex items-center gap-4 animate-pulse">
-          <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary shrink-0">
-            <Loader2 className="w-5 h-5 animate-spin" />
+        <div className="bg-card p-6 rounded-2xl border border-primary/20 shadow-md space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center text-primary shrink-0">
+              <Loader2 className="w-4 h-4 animate-spin" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-bold text-card-foreground">
+                {enrichProgress?.totalItems
+                  ? `Enriching ${enrichProgress.itemsProcessed} of ${enrichProgress.totalItems} candidates`
+                  : `Scanning for "${activeJobRun.niche}" in "${activeJobRun.location}"`}
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5 truncate leading-relaxed">
+                {enrichProgress?.currentStage || `Discovering businesses from Google Maps...`}
+              </p>
+            </div>
+            {enrichProgress && enrichProgress.totalItems > 0 && (
+              <span className="text-xs font-bold text-muted-foreground shrink-0">
+                {Math.round((enrichProgress.itemsProcessed / enrichProgress.totalItems) * 100)}%
+              </span>
+            )}
           </div>
-          <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-bold text-card-foreground">Crawler is actively scanning...</h3>
-            <p className="text-xs text-muted-foreground mt-0.5 truncate leading-relaxed">
-              Searching Google Maps for <span className="font-semibold text-foreground">"{activeJobRun.niche}"</span> in <span className="font-semibold text-foreground">"{activeJobRun.location}"</span>. Discovered candidates will automatically populate this campaign. (typically takes 1-3 minutes)
-            </p>
-          </div>
+
+          {enrichProgress && enrichProgress.totalItems > 0 && (
+            <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
+                style={{
+                  width: `${(enrichProgress.itemsProcessed / enrichProgress.totalItems) * 100}%`,
+                }}
+              />
+            </div>
+          )}
+
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Candidates appear as they are discovered. Priority badges populate as enrichment completes.
+          </p>
         </div>
       )}
 

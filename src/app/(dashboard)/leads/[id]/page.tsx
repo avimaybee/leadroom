@@ -36,6 +36,7 @@ import ClientAuditView from './ClientAuditView';
 import ClientContactsList from './ClientContactsList';
 import ClientLeadProfile from './ClientLeadProfile';
 import OutreachAssistant from './OutreachAssistant';
+import { ClientScoreDrivers } from './ClientScoreDrivers';
 import { OutreachService } from '@/services/outreach';
 
 
@@ -229,6 +230,12 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         </div>
 
       </div>
+
+      <ClientScoreDrivers
+        factors={currentScore?.factors ?? null}
+        scoreValue={currentScore?.scoreValue ?? null}
+        scoreLabel={currentScore?.scoreLabel ?? null}
+      />
     </div>
   );
 }
