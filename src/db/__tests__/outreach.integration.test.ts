@@ -240,19 +240,33 @@ test('Outreach Service Integration', async (t) => {
     assert.ok(editActivity.summary.includes('Edited outreach draft for EMAIL'));
   });
 
-  await t.test('updateDraftContent should reject editing non-DRAFT status', async () => {
+  await t.test('updateDraftContent should allow editing APPROVED drafts', async () => {
     const tempDraft = await outreachService.createDraft({
       leadId: lead.id,
       channel: 'CALL',
-      body: 'Temp draft for rejection test',
+      body: 'Draft for approved edit test',
       createdByUserId: 'user-admin',
     });
     await outreachService.recordApproval(tempDraft.id, 'user-admin', 'APPROVED');
 
+    const updated = await outreachService.updateDraftContent(tempDraft.id, 'Updated Subject', 'Updated body');
+    assert.strictEqual(updated.body, 'Updated body');
+  });
+
+  await t.test('updateDraftContent should reject editing SENT drafts', async () => {
+    const tempDraft = await outreachService.createDraft({
+      leadId: lead.id,
+      channel: 'CALL',
+      body: 'Temp draft for sent-lock test',
+      createdByUserId: 'user-admin',
+    });
+    await outreachService.recordApproval(tempDraft.id, 'user-admin', 'APPROVED');
+    await outreachService.updateDraftStatus(tempDraft.id, 'SENT');
+
     await assert.rejects(
       () => outreachService.updateDraftContent(tempDraft.id, 'Should fail', 'body'),
       (err: Error) => {
-        assert.ok(err.message.includes('Only drafts in DRAFT status'));
+        assert.ok(err.message.includes('Only DRAFT or APPROVED drafts can be edited'));
         return true;
       }
     );

@@ -1,7 +1,8 @@
 import { WorkflowEntrypoint, WorkflowStep, WorkflowEvent } from 'cloudflare:workers';
 import { getDb } from '@/db';
 import { leads, activities } from '@/db/schema/core';
-import { eq } from 'drizzle-orm';
+import { researchSnapshots } from '@/db/schema/research';
+import { eq, desc } from 'drizzle-orm';
 import { fetchSiteContent } from '@/lib/scraper';
 import { runTriageAI } from '@/lib/ai';
 import { ScoringService } from '@/services/scoring';
@@ -80,7 +81,7 @@ export class TriageWorkflow extends WorkflowEntrypoint<Env, TriageParams> {
     }
 
     // 3. Fetch Site Content (if website exists)
-    const siteContent = await step.do(
+    let siteContent = await step.do(
       'fetch-site',
       {
         retries: {
@@ -100,6 +101,32 @@ export class TriageWorkflow extends WorkflowEntrypoint<Env, TriageParams> {
         }
       }
     );
+
+    let triageSource = 'scraped_website';
+
+    if (!siteContent) {
+      // Try to fall back to research snapshot
+      const researchSnapshotContent = await step.do(
+        'fetch-research-fallback-triage',
+        async () => {
+          const db = getDb();
+          const [snapshot] = await db.select()
+            .from(researchSnapshots)
+            .where(eq(researchSnapshots.leadId, leadId))
+            .orderBy(desc(researchSnapshots.createdAt))
+            .limit(1);
+          if (snapshot && (snapshot.websiteNotes || snapshot.brandingNotes)) {
+            return `Website Notes: ${snapshot.websiteNotes || ''}\nBranding Notes: ${snapshot.brandingNotes || ''}`;
+          }
+          return null;
+        }
+      );
+
+      if (researchSnapshotContent) {
+        siteContent = researchSnapshotContent;
+        triageSource = 'research_snapshot';
+      }
+    }
 
     if (!siteContent) {
       await step.do(
@@ -146,7 +173,7 @@ export class TriageWorkflow extends WorkflowEntrypoint<Env, TriageParams> {
       },
       async () => {
         const db = getDb();
-        return await runTriageAI(db, siteContent);
+        return await runTriageAI(db, siteContent!);
       }
     );
 
@@ -164,16 +191,17 @@ export class TriageWorkflow extends WorkflowEntrypoint<Env, TriageParams> {
       async () => {
         const db = getDb();
         const priority = triageResult.status === 'MODERN' ? 'SKIP' : 'MEDIUM';
+        const suffix = triageSource === 'research_snapshot' ? ' (Evaluated from research snapshot)' : '';
         
         await db.update(leads)
-          .set({ triagePriority: priority, triageReason: triageResult.reason })
+          .set({ triagePriority: priority, triageReason: triageResult.reason + suffix })
           .where(eq(leads.id, leadId));
           
         await db.insert(activities).values({
           id: crypto.randomUUID(),
           leadId,
           type: 'Triage complete',
-          summary: `Scored ${priority} priority. Reason: ${triageResult.reason}`,
+          summary: `Scored ${priority} priority. Reason: ${triageResult.reason}${suffix}`,
           timestamp: new Date(),
         });
 

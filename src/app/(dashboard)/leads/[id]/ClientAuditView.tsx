@@ -10,7 +10,7 @@ import { z } from 'zod';
 
 const JobStatusResponseSchema = z.object({
   status: z.string(),
-  errorSummary: z.string().optional(),
+  errorSummary: z.string().nullable().optional(),
 });
 
 interface ClientAuditViewProps {

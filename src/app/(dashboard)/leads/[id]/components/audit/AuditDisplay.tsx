@@ -226,7 +226,7 @@ export function AuditDisplay({
               'border-l-blue-400/50'
             }`}>
               <div className="flex justify-between items-center gap-2">
-                <span className="text-xs font-bold text-card-foreground">Initial Triage</span>
+                <span className="text-xs font-bold text-card-foreground">Website Access Check</span>
                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold border ${
                   triagePriority === 'HIGH' ? 'bg-destructive/10 text-destructive border-destructive/20' :
                   triagePriority === 'MEDIUM' ? 'bg-chart-3/15 text-chart-3 border-chart-3/30' :
@@ -236,12 +236,12 @@ export function AuditDisplay({
                   {triagePriority === 'HIGH' && <ShieldAlert className="w-3.5 h-3.5 shrink-0" />}
                   {triagePriority === 'MEDIUM' && <AlertTriangle className="w-3.5 h-3.5 shrink-0" />}
                   {triagePriority === 'UNASSESSED' && <Clock className="w-3.5 h-3.5 shrink-0 animate-pulse text-blue-500" />}
-                  {triagePriority === 'UNASSESSED' ? 'Pending Triage' : `${triagePriority} Priority`}
+                  {triagePriority === 'UNASSESSED' ? 'Pending Check' : `${triagePriority} Priority`}
                 </span>
               </div>
               <p className="text-xs text-muted-foreground font-semibold leading-relaxed">
                 {triagePriority === 'UNASSESSED' 
-                  ? "No automated triage scan has been performed on this lead. Click 'Run Triage Scan' to analyze." 
+                  ? "An automated check to see if the website is live, outdated, or missing. Click 'Run Triage Scan' to analyze." 
                   : (triageReason || 'No details provided.')
                 }
               </p>

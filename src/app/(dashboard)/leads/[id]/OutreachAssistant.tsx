@@ -47,7 +47,6 @@ import {
   Copy,
   Eye,
   EyeOff,
-  RefreshCw,
   Trash2,
   Send,
   CheckCircle2,
@@ -256,7 +255,7 @@ function OutreachAssistantInner({ leadId, initialDrafts, researchSnapshot, audit
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
-        if (activeDraftStatusRef.current === 'DRAFT') {
+        if (activeDraftStatusRef.current === 'DRAFT' || activeDraftStatusRef.current === 'APPROVED') {
           saveEditsRef.current();
         }
       }
@@ -699,25 +698,6 @@ function OutreachAssistantInner({ leadId, initialDrafts, researchSnapshot, audit
                   <Button
                     variant="outline"
                     size="xs"
-                    onClick={handleGenerate}
-                    disabled={isGenerating}
-                  >
-                    {isGenerating ? (
-                      <>
-                        <Loader2 className="animate-spin h-3.5 w-3.5" />
-                        Regenerating...
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw className="w-3.5 h-3.5" />
-                        Regenerate
-                      </>
-                    )}
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    size="xs"
                     onClick={copyToClipboard}
                   >
                     <Copy className="w-3.5 h-3.5" />
@@ -787,7 +767,7 @@ function OutreachAssistantInner({ leadId, initialDrafts, researchSnapshot, audit
                       type="text"
                       value={subjectInput}
                       onChange={(e) => setSubjectInput(e.target.value)}
-                      disabled={activeDraft.status !== 'DRAFT'}
+                      disabled={activeDraft.status !== 'DRAFT' && activeDraft.status !== 'APPROVED'}
                     />
                   </div>
                 )}
@@ -812,7 +792,7 @@ function OutreachAssistantInner({ leadId, initialDrafts, researchSnapshot, audit
                       ref={bodyTextareaRef}
                       value={bodyInput}
                       onChange={(e) => setBodyInput(e.target.value)}
-                      disabled={activeDraft.status !== 'DRAFT'}
+                      disabled={activeDraft.status !== 'DRAFT' && activeDraft.status !== 'APPROVED'}
                     />
                   )}
                   <div className="flex justify-between text-xs text-muted-foreground font-semibold mt-1 px-1">
@@ -847,7 +827,7 @@ function OutreachAssistantInner({ leadId, initialDrafts, researchSnapshot, audit
                   </div>
                 )}
 
-                {activeDraft.status === 'DRAFT' && (
+                {(activeDraft.status === 'DRAFT' || activeDraft.status === 'APPROVED') && (
                   <div className="flex justify-end">
                     <Button onClick={handleSaveEdits} disabled={isSaving}>
                       {isSaving ? (
@@ -915,6 +895,42 @@ function OutreachAssistantInner({ leadId, initialDrafts, researchSnapshot, audit
                   </div>
                 </div>
               )}
+
+              {/* Generate New Variation Form */}
+              <div className="bg-muted/20 p-5 rounded-2xl border border-border/60 space-y-4 mt-6">
+                <div className="space-y-1">
+                  <h4 className="text-xs font-bold text-foreground">Generate New Draft</h4>
+                  <p className="text-xs text-muted-foreground font-semibold">Generate an additional draft with different instructions. Existing drafts are kept in history.</p>
+                </div>
+                <div className="flex flex-col gap-3">
+                  <Textarea
+                    value={customPrompt}
+                    onChange={(e) => setCustomPrompt(e.target.value)}
+                    placeholder="Custom Instructions (e.g. make it shorter, mention local pricing...)"
+                    className="min-h-[60px]"
+                  />
+                  {renderAttachmentUploadUI()}
+                  <div className="flex justify-end">
+                    <Button
+                      onClick={handleGenerate}
+                      disabled={isGenerating}
+                      size="sm"
+                    >
+                      {isGenerating ? (
+                        <>
+                          <Loader2 className="animate-spin h-3.5 w-3.5 mr-2" />
+                          Generating Variation...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-3.5 h-3.5 mr-2" />
+                          Generate New Draft
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -963,23 +979,6 @@ function OutreachAssistantInner({ leadId, initialDrafts, researchSnapshot, audit
             )}
           </div>
 
-          <div className="border-t border-border pt-4 flex flex-col gap-3">
-            <Textarea
-              value={customPrompt}
-              onChange={(e) => setCustomPrompt(e.target.value)}
-              placeholder="Custom Instructions (Optional)"
-              className="min-h-[60px]"
-            />
-            {renderAttachmentUploadUI()}
-            <Button
-              variant="outline"
-              onClick={handleGenerate}
-              disabled={isGenerating}
-              className="w-full"
-            >
-              {isGenerating ? 'Generating...' : 'Generate AI Draft'}
-            </Button>
-          </div>
         </div>
 
       </div>

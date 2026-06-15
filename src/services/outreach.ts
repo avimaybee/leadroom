@@ -134,7 +134,8 @@ export class OutreachService {
   }
 
   /**
-   * Updates the subject and body of a draft. Only DRAFT-status drafts can be edited.
+   * Updates the subject and body of a draft. DRAFT and APPROVED drafts can be edited.
+   * REJECTED and SENT drafts are locked.
    */
   async updateDraftContent(draftId: string, subject: string | null, body: string) {
     const draft = await this.getDraftById(draftId);
@@ -142,8 +143,8 @@ export class OutreachService {
       throw new Error(`Outreach draft with ID ${draftId} not found`);
     }
 
-    if (draft.status !== 'DRAFT') {
-      throw new Error(`Only drafts in DRAFT status can be edited. Current status: ${draft.status}`);
+    if (draft.status !== 'DRAFT' && draft.status !== 'APPROVED') {
+      throw new Error(`Only DRAFT or APPROVED drafts can be edited. Current status: ${draft.status}`);
     }
 
     const now = new Date();

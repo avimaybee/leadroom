@@ -9,7 +9,7 @@ import { candidateLeads } from '@/db/schema/discovery';
 import { AuditService } from '@/services/audits';
 import { ScoringService } from '@/services/scoring';
 import { checkApifyRunStatus, fetchApifyResults } from '@/lib/discovery/apify';
-import { eq } from 'drizzle-orm';
+import { eq, desc as drizzleDesc } from 'drizzle-orm';
 
 export interface CloudflareWorkflow {
   create(options: { params: Record<string, unknown> }): Promise<unknown>;
@@ -218,40 +218,59 @@ export async function triggerTriageWorkflow(
 
       // 3. Fetch Site Content
       let siteContent = null;
+      let triageSource = 'scraped_website';
       try {
         siteContent = await fetchSiteContent(lead.website);
       } catch (err: unknown) {
-        // Unreachable website is high priority opportunity
-        await db.update(leads)
-          .set({ triagePriority: 'HIGH', triageReason: 'Website failed to load or is unreachable.' })
-          .where(eq(leads.id, leadId));
+        // Try to fall back to research snapshot
+        const [snapshot] = await db.select()
+          .from(researchSnapshots)
+          .where(eq(researchSnapshots.leadId, leadId))
+          .orderBy(drizzleDesc(researchSnapshots.createdAt))
+          .limit(1);
 
-        await db.insert(activities).values({
-          id: crypto.randomUUID(),
-          leadId,
-          type: 'Triage complete',
-          summary: 'Scored HIGH priority due to unreachable website (Simulation).',
-          timestamp: new Date(),
-        });
-        const scoringService = new ScoringService(db);
-        await scoringService.recalculateScore(leadId);
-        return;
+        if (snapshot && (snapshot.websiteNotes || snapshot.brandingNotes)) {
+          siteContent = {
+            title: '',
+            url: lead.website,
+            content: `Website Notes: ${snapshot.websiteNotes || ''}\nBranding Notes: ${snapshot.brandingNotes || ''}`,
+            description: '',
+          };
+          triageSource = 'research_snapshot';
+        } else {
+          // Unreachable website is high priority opportunity
+          await db.update(leads)
+            .set({ triagePriority: 'HIGH', triageReason: 'Website failed to load or is unreachable.' })
+            .where(eq(leads.id, leadId));
+
+          await db.insert(activities).values({
+            id: crypto.randomUUID(),
+            leadId,
+            type: 'Triage complete',
+            summary: 'Scored HIGH priority due to unreachable website (Simulation).',
+            timestamp: new Date(),
+          });
+          const scoringService = new ScoringService(db);
+          await scoringService.recalculateScore(leadId);
+          return;
+        }
       }
 
       // 4. AI Triage Analysis
       const triageResult = await runTriageAI(db, siteContent.content.substring(0, 5000));
       const priority = triageResult.status === 'MODERN' ? 'SKIP' : 'MEDIUM';
+      const suffix = triageSource === 'research_snapshot' ? ' (Evaluated from research snapshot)' : '';
 
       // 5. Save Triage Result
       await db.update(leads)
-        .set({ triagePriority: priority, triageReason: triageResult.reason })
+        .set({ triagePriority: priority, triageReason: triageResult.reason + suffix })
         .where(eq(leads.id, leadId));
         
       await db.insert(activities).values({
         id: crypto.randomUUID(),
         leadId,
         type: 'Triage complete',
-        summary: `Scored ${priority} priority. Reason: ${triageResult.reason} (Simulation)`,
+        summary: `Scored ${priority} priority. Reason: ${triageResult.reason}${suffix} (Simulation)`,
         timestamp: new Date(),
       });
 
@@ -523,14 +542,34 @@ export async function triggerAuditWorkflow(
         .set({ status: 'RUNNING', startedAt: new Date() })
         .where(eq(jobRuns.id, jobId));
 
-      // Step 2: Fetch and scrape website
+      // Step 2: Check research snapshot for website existence
+      let websiteConfirmed = true;
+      if (leadId) {
+        try {
+          const [snapshot] = await db.select()
+            .from(researchSnapshots)
+            .where(eq(researchSnapshots.leadId, leadId))
+            .orderBy(drizzleDesc(researchSnapshots.createdAt))
+            .limit(1);
+          if (snapshot) {
+            const notes = snapshot.websiteNotes || '';
+            const noWebsiteKeywords = ['no website', 'does not have a website', 'website not found', 'no web presence'];
+            const noWebsite = notes.length === 0 || noWebsiteKeywords.some(k => notes.toLowerCase().includes(k));
+            websiteConfirmed = !noWebsite;
+          }
+        } catch (e) {
+          // Snapshot query failed — proceed assuming website exists
+        }
+      }
+
+      // Step 3: Fetch and scrape website (skip if research confirmed no website)
       let scraped = null;
-      if (lead.website) {
+      if (lead.website && websiteConfirmed) {
         try {
           scraped = await fetchSiteContent(lead.website);
         } catch (error: unknown) {
           const errMsg = error instanceof Error ? error.message : String(error);
-          console.error(`[WorkflowClient Simulation] Website scraping failed for audit:`, error);
+          console.warn(`[WorkflowClient Simulation] Website scraping failed for audit on ${lead.website}, will rely on research snapshot context. Error: ${errMsg}`);
           scraped = {
             title: '',
             url: lead.website,
@@ -540,15 +579,32 @@ export async function triggerAuditWorkflow(
         }
       }
 
-      // Step 3: LLM Inference
-      const auditResult = await generateAudit(
-        db,
-        lead.name,
-        lead.company || null,
-        lead.website || null,
-        lead.industry || null,
-        scraped?.content || null
-      );
+      // Step 4: LLM Inference (skip AI call if research confirmed no website)
+      let auditResult;
+      if (!websiteConfirmed) {
+        const name = lead.company || lead.name;
+        auditResult = {
+          websiteQualityScore: 0,
+          designAestheticScore: 0,
+          messagingClarityScore: 0,
+          socialPresenceScore: 15,
+          overallBrandingScore: 0,
+          keyStrengths: '',
+          keyWeaknesses: '- No website exists for this business\n- No digital presence to evaluate',
+          recommendedImprovements: '- Build a professional website\n- Establish a basic digital footprint',
+          sources: [] as string[],
+        };
+      } else {
+        auditResult = await generateAudit(
+          db,
+          lead.name,
+          lead.company || null,
+          lead.website || null,
+          lead.industry || null,
+          scraped?.content || null,
+          leadId
+        );
+      }
 
       // Step 4: Save Audit snapshot & trigger scoring
       const auditService = new AuditService(db);

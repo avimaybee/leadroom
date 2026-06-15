@@ -856,7 +856,8 @@ export async function generateAudit(
   companyName: string | null,
   websiteUrl: string | null,
   industry: string | null,
-  scrapedContent?: string | null
+  scrapedContent?: string | null,
+  leadId?: string | null
 ): Promise<AIAuditOutput> {
   const config = await getActiveProviderConfig(db);
   let provider = config?.provider || 'gemini';
@@ -873,26 +874,90 @@ export async function generateAudit(
     return generateMockAudit(leadName, companyName, websiteUrl, industry);
   }
 
+  // Load research snapshot — used as PRIMARY context when scraping fails,
+  // and as supplemental context when scraped content is available.
+  let researchSnapshotContext = '';
+  let hasResearchSnapshot = false;
+  if (leadId) {
+    try {
+      const { researchSnapshots } = await import('../db/schema/research');
+      const { eq, desc } = await import('drizzle-orm');
+      
+      const [snapshot] = await db.select()
+        .from(researchSnapshots)
+        .where(eq(researchSnapshots.leadId, leadId))
+        .orderBy(desc(researchSnapshots.createdAt))
+        .limit(1);
+
+      if (snapshot) {
+        hasResearchSnapshot = true;
+        researchSnapshotContext = [
+          snapshot.companySummary   ? `Company Overview: ${snapshot.companySummary}` : '',
+          snapshot.websiteNotes     ? `Website Observations: ${snapshot.websiteNotes}` : '',
+          snapshot.brandingNotes    ? `Branding & Visual Identity: ${snapshot.brandingNotes}` : '',
+          snapshot.digitalPresenceNotes ? `Digital Presence & Social Footprint: ${snapshot.digitalPresenceNotes}` : '',
+          snapshot.painPointsHypotheses ? `Pain Points: ${snapshot.painPointsHypotheses}` : '',
+        ].filter(Boolean).join('\n');
+      }
+    } catch (e) {
+      console.error('Failed to fetch research snapshot in generateAudit:', e);
+    }
+  }
+
   const name = companyName || leadName;
   const ind = industry || 'General Business';
   const web = websiteUrl || 'No website provided';
 
+  // Defensively strip any accidental scrape-failure strings before sending to the LLM.
+  // These would cause the model to score the site as inaccessible even if research data is available.
+  const cleanedScrapedContent = (scrapedContent && !scrapedContent.startsWith('[Failed to scrape'))
+    ? scrapedContent
+    : null;
+
+  // Build the context block depending on what data is available.
+  // When scraping fails but a research snapshot exists, the snapshot becomes the PRIMARY source.
+  let contextBlock = '';
+  if (cleanedScrapedContent && hasResearchSnapshot) {
+    contextBlock = `
+The following is the raw scraped content from their website:
+--- START OF WEBSITE CONTENT ---
+${cleanedScrapedContent}
+--- END OF WEBSITE CONTENT ---
+
+The following is additional research gathered about this business (use this to enrich and validate the audit):
+--- RESEARCH OBSERVATIONS ---
+${researchSnapshotContext}
+--- END OF RESEARCH OBSERVATIONS ---`;
+  } else if (cleanedScrapedContent) {
+    contextBlock = `
+The following is the raw scraped content from their website:
+--- START OF WEBSITE CONTENT ---
+${cleanedScrapedContent}
+--- END OF WEBSITE CONTENT ---`;
+  } else if (hasResearchSnapshot) {
+    contextBlock = `
+Direct website scraping was not available. Use the following research observations as your PRIMARY source for scoring and analysis:
+--- PRIMARY RESEARCH OBSERVATIONS ---
+${researchSnapshotContext}
+--- END OF RESEARCH OBSERVATIONS ---`;
+  }
+
   const prompt = `Perform a comprehensive digital presence, website, and branding audit on the company "${name}".
 Industry: ${ind}
 Website: ${web}
-${scrapedContent ? `\nHere is the scraped content of their website to analyze:\n--- START OF WEBSITE CONTENT ---\n${scrapedContent}\n--- END OF WEBSITE CONTENT ---\n` : ''}
+${contextBlock}
 
 Evaluate the following categories and assign integer scores from 0 (terrible/broken) to 100 (excellent/premium):
 - websiteQualityScore: Technical usability, layout, loading indicators, ease of use.
 - designAestheticScore: Typography, layout design, spacing, colors, visual appeal.
 - messagingClarityScore: Messaging clarity, value proposition.
-- socialPresenceScore: Estimated presence (use 40-50 if no social URLs present in text).
+- socialPresenceScore: Estimated social media presence (use 40-50 if no specific social data is available).
 - overallBrandingScore: Branding consistency, professional look.
 
 Additionally, provide markdown-formatted bulleted lists for:
-- keyStrengths: Strengths of their current design/branding.
-- keyWeaknesses: Weaknesses and issues of their current design/branding.
-- recommendedImprovements: Actionable creative and digital improvements.
+- keyStrengths: Specific strengths of their current design/branding based on the evidence provided.
+- keyWeaknesses: Specific weaknesses based on the evidence provided.
+- recommendedImprovements: Actionable, specific creative and digital improvements.
 
 Provide your response strictly in JSON format. The response must match the following JSON schema:
 {
