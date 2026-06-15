@@ -4,7 +4,7 @@ import { leads, activities } from '@/db/schema/core';
 import { researchSnapshots } from '@/db/schema/research';
 import { eq, desc } from 'drizzle-orm';
 import { fetchSiteContent } from '@/lib/scraper';
-import { runTriageAI } from '@/lib/ai';
+import { heuristicSiteTriage } from '@/lib/ai';
 import { ScoringService } from '@/services/scoring';
 
 type TriageParams = {
@@ -160,22 +160,8 @@ export class TriageWorkflow extends WorkflowEntrypoint<Env, TriageParams> {
       return { status: 'COMPLETED', priority: 'HIGH' };
     }
 
-    // 4. AI Triage Analysis
-    const triageResult = await step.do(
-      'analyze-site',
-      {
-        retries: {
-          limit: 3,
-          delay: 3000,
-          backoff: 'exponential',
-        },
-        timeout: '3 minutes',
-      },
-      async () => {
-        const db = getDb();
-        return await runTriageAI(db, siteContent!);
-      }
-    );
+    // 4. Heuristic Triage Analysis (replaced AI-based triage — audit now handles deep evaluation)
+    const triageResult = heuristicSiteTriage(siteContent!);
 
     // 5. Save Triage Result
     await step.do(
@@ -190,7 +176,7 @@ export class TriageWorkflow extends WorkflowEntrypoint<Env, TriageParams> {
       },
       async () => {
         const db = getDb();
-        const priority = triageResult.status === 'MODERN' ? 'SKIP' : 'MEDIUM';
+        const priority = triageResult.isModern ? 'SKIP' : 'MEDIUM';
         const suffix = triageSource === 'research_snapshot' ? ' (Evaluated from research snapshot)' : '';
         
         await db.update(leads)
@@ -210,6 +196,6 @@ export class TriageWorkflow extends WorkflowEntrypoint<Env, TriageParams> {
       }
     );
 
-    return { status: 'COMPLETED', priority: triageResult.status === 'MODERN' ? 'SKIP' : 'MEDIUM' };
+    return { status: 'COMPLETED', priority: triageResult.isModern ? 'SKIP' : 'MEDIUM' };
   }
 }

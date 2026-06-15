@@ -1,6 +1,5 @@
 import { fetchSiteContentLight } from '../scraper';
-import { runTriageAI } from '../ai';
-import type { Db } from '@/db';
+import { heuristicSiteTriage } from '../ai';
 
 export interface EnrichResult {
   triagePriority: 'HIGH' | 'MEDIUM' | 'SKIP';
@@ -9,18 +8,17 @@ export interface EnrichResult {
 
 /**
  * Three-level enrichment for a single candidate website:
- *   1. Direct fetch (zero browser/AI cost)
- *   2. Browser Run /markdown (browser time only, no Workers AI)
+ *   1. Direct fetch (zero cost)
+ *   2. Browser Run /markdown (browser time only)
  *   3. Browser Run /json (browser time + Workers AI — single call replaces scrape+AI)
  *
  * Falls back to the next level if the previous one fails.
  * Returns null only if ALL levels fail (caller should keep heuristic badge).
  */
-const ENRICH_TIMEOUT_MS = 12_000; // overall timeout per candidate
+const ENRICH_TIMEOUT_MS = 12_000;
 
 export async function enrichCandidate(
   website: string,
-  db: Db,
   browserBinding?: unknown,
 ): Promise<EnrichResult | null> {
   if (!website) {
@@ -35,7 +33,7 @@ export async function enrichCandidate(
 
   try {
       return await Promise.race([
-        enrichCandidateInner(website, db, browserBinding, controller.signal),
+        enrichCandidateInner(website, browserBinding, controller.signal),
         new Promise<null>((resolve) => setTimeout(() => resolve(null), ENRICH_TIMEOUT_MS)),
       ]);
   } finally {
@@ -45,7 +43,6 @@ export async function enrichCandidate(
 
 async function enrichCandidateInner(
   website: string,
-  db: Db,
   browserBinding?: unknown,
   signal?: AbortSignal,
 ): Promise<EnrichResult | null> {
@@ -54,9 +51,9 @@ async function enrichCandidateInner(
     const directContent = await fetchSiteContentLight(website, 15000, signal);
     if (directContent) {
       try {
-        const triage = await runTriageAI(db, directContent);
+        const triage = heuristicSiteTriage(directContent);
         return {
-          triagePriority: triage.status === 'MODERN' ? 'SKIP' : 'MEDIUM',
+          triagePriority: triage.isModern ? 'SKIP' : 'MEDIUM',
           triageReason: triage.reason,
         };
       } catch {
@@ -70,9 +67,9 @@ async function enrichCandidateInner(
     const markdownContent = await fetchMarkdownViaBrowser(website, browserBinding);
     if (markdownContent) {
       try {
-        const triage = await runTriageAI(db, markdownContent);
+        const triage = heuristicSiteTriage(markdownContent);
         return {
-          triagePriority: triage.status === 'MODERN' ? 'SKIP' : 'MEDIUM',
+          triagePriority: triage.isModern ? 'SKIP' : 'MEDIUM',
           triageReason: triage.reason,
         };
       } catch {

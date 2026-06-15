@@ -175,7 +175,7 @@ export class DiscoverySearchWorkflow extends WorkflowEntrypoint<Env, DiscoveryPa
                 batch.map(async (r) => {
                   if (!r.website) return null;
                   try {
-                    return await enrichCandidate(r.website, db, browserBinding);
+                    return await enrichCandidate(r.website, browserBinding);
                   } catch {
                     return null;
                   }

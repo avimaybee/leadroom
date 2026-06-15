@@ -1,6 +1,6 @@
 import { getDb, type Db } from '@/db';
 import { fetchSiteContent } from '@/lib/scraper';
-import { generateResearch, runTriageAI, generateAudit } from '@/lib/ai';
+import { generateResearch, generateAudit, heuristicSiteTriage } from '@/lib/ai';
 import { heuristicTriage } from '@/lib/triage/heuristics';
 import { enrichCandidate } from '@/lib/triage/enricher';
 import { jobRuns, researchSnapshots } from '@/db/schema/research';
@@ -256,9 +256,9 @@ export async function triggerTriageWorkflow(
         }
       }
 
-      // 4. AI Triage Analysis
-      const triageResult = await runTriageAI(db, siteContent.content.substring(0, 5000));
-      const priority = triageResult.status === 'MODERN' ? 'SKIP' : 'MEDIUM';
+      // 4. Heuristic Triage (replaced AI-based triage — audit now handles deep evaluation)
+      const triageResult = heuristicSiteTriage(siteContent.content.substring(0, 5000));
+      const priority = triageResult.isModern ? 'SKIP' : 'MEDIUM';
       const suffix = triageSource === 'research_snapshot' ? ' (Evaluated from research snapshot)' : '';
 
       // 5. Save Triage Result
@@ -424,7 +424,7 @@ export async function triggerDiscoverySearchWorkflow(
             batch.map(async (r) => {
               if (!r.website) return null;
               try {
-                return await enrichCandidate(r.website, db);
+                return await enrichCandidate(r.website);
               } catch {
                 return null;
               }

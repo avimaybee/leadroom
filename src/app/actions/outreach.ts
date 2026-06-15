@@ -82,6 +82,8 @@ export async function generateOutreachDraftAction(
       lead.company || null,
       lead.website || null,
       lead.industry || null,
+      lead.city || null,
+      lead.region || null,
       channel,
       contactsList,
       researchSnapshot,

@@ -3,7 +3,7 @@ import { getDb } from '@/db';
 import { DiscoveryService } from '@/services/discovery';
 import { CreateCandidateLeadSchema } from '@/db/models/discovery';
 import { fetchSiteContent } from '@/lib/scraper';
-import { runTriageAI } from '@/lib/ai';
+import { heuristicSiteTriage } from '@/lib/ai';
 import { getUserId } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -58,8 +58,8 @@ export async function POST(request: NextRequest) {
         if (candidate.rawWebsiteUrl) {
           try {
             const siteContent = await fetchSiteContent(candidate.rawWebsiteUrl);
-            const triageResult = await runTriageAI(db, siteContent.content.substring(0, 5000));
-            triagePriority = triageResult.status === 'MODERN' ? 'SKIP' : 'MEDIUM';
+            const triageResult = heuristicSiteTriage(siteContent.content.substring(0, 5000));
+            triagePriority = triageResult.isModern ? 'SKIP' : 'MEDIUM';
             triageReason = triageResult.reason;
           } catch (err: unknown) {
             const errMsg = err instanceof Error ? err.message : String(err);
