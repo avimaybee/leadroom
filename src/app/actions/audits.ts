@@ -160,15 +160,49 @@ export async function triggerTriageAction(leadId: string) {
   }
 
   try {
+    const [existingJob] = await db
+      .select({ id: jobRuns.id, status: jobRuns.status })
+      .from(jobRuns)
+      .where(
+        and(
+          eq(jobRuns.targetLeadId, leadId),
+          eq(jobRuns.jobType, 'TRIAGE_SCAN'),
+          or(
+            eq(jobRuns.status, 'QUEUED'),
+            eq(jobRuns.status, 'RUNNING')
+          )
+        )
+      )
+      .limit(1);
+
+    if (existingJob) {
+      console.log(`[Triage Action] Job already active for lead ${leadId}: ${existingJob.id}. Returning existing jobId.`);
+      return { error: null, success: true, jobId: existingJob.id };
+    }
+
+    const jobId = crypto.randomUUID();
+    const now = new Date();
+
+    await db.insert(jobRuns).values({
+      id: jobId,
+      jobType: 'TRIAGE_SCAN',
+      status: 'QUEUED',
+      targetLeadId: leadId,
+      triggeredByUserId: userId,
+      startedAt: null,
+      finishedAt: null,
+      createdAt: now,
+    });
+
     const env = (process.env as unknown as Record<string, unknown>);
     const workflowBinding = env?.TRIAGE_WORKFLOW as CloudflareWorkflow | undefined;
 
     await triggerTriageWorkflow(db, workflowBinding, leadId);
 
     revalidatePath(`/leads/${leadId}`);
-    return { error: null, success: true };
+    return { error: null, success: true, jobId };
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'Failed to trigger triage';
-    return { error: msg, success: false };
+    return { error: msg, success: false, jobId: null };
   }
 }

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { LayoutDashboard, Users, Target, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Users, Target, Settings } from 'lucide-react';
 
 const SIDEBAR_WIDTH_KEY = 'leadroom:sidebar:width';
 const SIDEBAR_COLLAPSED_KEY = 'leadroom:sidebar:collapsed';
@@ -81,18 +81,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         style={{ width: collapsed ? '56px' : `${DEFAULT_SIDEBAR}px`, minWidth: collapsed ? '56px' : `${MIN_SIDEBAR}px` }}
         className="bg-sidebar text-sidebar-foreground border-r border-sidebar-border flex flex-col hidden md:flex shrink-0 transition-[width] duration-200 ease-in-out overflow-hidden relative"
       >
-        {/* Branding */}
-        <div className={`flex items-center border-b border-sidebar-border ${collapsed ? 'justify-center p-3' : 'p-6 gap-3'}`}>
+        {/* Branding / Collapse toggle */}
+        <button
+          type="button"
+          onClick={() => setCollapsed(!collapsed)}
+          className={`flex items-center border-b border-sidebar-border w-full text-left hover:bg-sidebar-accent transition-colors cursor-pointer ${collapsed ? 'justify-center p-3' : 'p-6 gap-3'}`}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-black shadow-md shrink-0">
             L
           </div>
           {!collapsed && (
-            <div className="truncate">
+            <div className="truncate flex-1">
               <h1 className="text-lg font-bold tracking-tight text-sidebar-foreground leading-tight">Leadroom</h1>
               <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Internal OS</span>
             </div>
           )}
-        </div>
+        </button>
 
         {/* Nav */}
         <nav className={`mt-8 space-y-1.5 flex-1 ${collapsed ? 'px-2' : 'px-4'}`}>
@@ -126,15 +131,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         )}
 
-        {/* Collapse button */}
-        <button
-          type="button"
-          onClick={() => setCollapsed(!collapsed)}
-          className="absolute top-4 -right-3 w-6 h-6 rounded-full border border-sidebar-border bg-sidebar text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent flex items-center justify-center z-10 transition-colors shadow-sm"
-          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          {collapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
-        </button>
       </aside>
 
       {/* Resize handle */}

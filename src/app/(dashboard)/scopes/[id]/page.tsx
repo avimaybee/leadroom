@@ -242,14 +242,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
 
   const handleUpdateStatus = async (candidateId: string, status: 'PROMOTED' | 'DISCARDED') => {
     try {
-      const payload: { id: string; status: string; ownerId?: string } = { id: candidateId, status };
-      if (status === 'PROMOTED') {
-        if (!currentUser) {
-          alert('User session not loaded. Please try logging in again.');
-          return;
-        }
-        payload.ownerId = currentUser.id;
-      }
+      const payload = { id: candidateId, status };
 
       const res = await fetch('/api/candidates', {
         method: 'PATCH',

@@ -5,7 +5,7 @@ import { Users } from 'lucide-react';
 import { archiveLeadAction } from '@/app/actions/leads';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { leads, leadScores, candidateLeads, discoveryScopes } from '@/db/schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, sql } from 'drizzle-orm';
 
 export default async function LeadsPage() {
   const db = getDb();
@@ -28,7 +28,7 @@ export default async function LeadsPage() {
     .leftJoin(candidateLeads, eq(leads.id, candidateLeads.promotedLeadId))
     .leftJoin(discoveryScopes, eq(candidateLeads.discoveryScopeId, discoveryScopes.id))
     .where(eq(leads.status, 'Active'))
-    .orderBy(desc(leadScores.scoreValue));
+    .orderBy(desc(leads.updatedAt));
 
   const getStageBadgeClass = (stage: string) => {
     switch (stage) {

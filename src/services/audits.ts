@@ -16,6 +16,8 @@ export interface CreateAuditInput {
   keyStrengths: string | null;
   keyWeaknesses: string | null;
   recommendedImprovements: string | null;
+  isModern?: boolean | null;
+  triageReason?: string | null;
   opportunityNotes?: string | null;
   sources?: string[] | null;
   jobRunId?: string | null;
@@ -61,6 +63,8 @@ export class AuditService {
       keyStrengths: input.keyStrengths,
       keyWeaknesses: input.keyWeaknesses,
       recommendedImprovements: input.recommendedImprovements,
+      isModern: input.isModern != null ? (input.isModern ? 1 : 0) : null,
+      triageReason: input.triageReason || null,
       opportunityNotes: input.opportunityNotes || null,
       sources: input.sources ? JSON.stringify(input.sources) : null,
       jobRunId: input.jobRunId || null,

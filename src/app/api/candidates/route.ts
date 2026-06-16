@@ -99,10 +99,9 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
     }
 
-    const { id, status, ownerId } = await request.json() as {
+    const { id, status } = await request.json() as {
       id: string;
       status: 'NEW' | 'REVIEWED' | 'PROMOTED' | 'DISCARDED';
-      ownerId?: string;
     };
 
     if (!id || !status) {
@@ -113,10 +112,7 @@ export async function PATCH(request: NextRequest) {
     const service = new DiscoveryService(db);
 
     if (status === 'PROMOTED') {
-      if (!ownerId) {
-        return NextResponse.json({ success: false, error: 'ownerId is required for promotion' }, { status: 400 });
-      }
-      const lead = await service.promoteCandidate(id, ownerId);
+      const lead = await service.promoteCandidate(id, userId);
       return NextResponse.json({ success: true, data: lead });
     } else {
       const candidate = await service.updateCandidateStatus(id, status);

@@ -299,6 +299,25 @@ const RESEARCH_JSON_SCHEMA = {
   additionalProperties: false,
 };
 
+const AUDIT_JSON_SCHEMA = {
+  type: 'object',
+  properties: {
+    websiteQualityScore: { type: 'integer' },
+    designAestheticScore: { type: 'integer' },
+    messagingClarityScore: { type: 'integer' },
+    socialPresenceScore: { type: 'integer' },
+    overallBrandingScore: { type: 'integer' },
+    keyStrengths: { type: 'string' },
+    keyWeaknesses: { type: 'string' },
+    recommendedImprovements: { type: 'string' },
+    sources: { type: 'array', items: { type: 'string' } },
+    isModern: { type: 'boolean' },
+    triageReason: { type: 'string' },
+  },
+  required: ['websiteQualityScore', 'designAestheticScore', 'messagingClarityScore', 'socialPresenceScore', 'overallBrandingScore', 'keyStrengths', 'keyWeaknesses', 'recommendedImprovements', 'sources', 'isModern', 'triageReason'],
+  additionalProperties: false,
+};
+
 const OPENAI_URLS: Record<string, string> = {
   openrouter: 'https://openrouter.ai/api/v1/chat/completions',
   nvidia: 'https://integrate.api.nvidia.com/v1/chat/completions',
@@ -728,43 +747,11 @@ Provide your response strictly in JSON format matching this schema:
         throw new Error(`Gemini API returned status ${response.status}`);
       }
     } else {
-      // OpenAI compatible endpoints (OpenRouter, Groq, Nvidia, AIML)
-      const url = 
-        provider === 'openrouter' ? 'https://openrouter.ai/api/v1/chat/completions' :
-        provider === 'groq' ? 'https://api.groq.com/openai/v1/chat/completions' :
-        provider === 'nvidia' ? 'https://integrate.api.nvidia.com/v1/chat/completions' :
-        'https://api.aimlapi.com/v1/chat/completions';
-
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: modelName,
-          messages: [
-            { role: 'system', content: 'You are a senior design and UX auditor. Output strictly in valid JSON matching the requested schema.' },
-            { role: 'user', content: prompt }
-          ],
-          temperature: 0.2,
-          response_format: { type: 'json_object' }
-        }),
-      });
-
-      if (response.ok) {
-        const data = (await response.json()) as any;
-        textResult = data.choices?.[0]?.message?.content || '';
-      } else {
-        throw new Error(`${provider} API returned status ${response.status}`);
-      }
-    }
-
-    textResult = textResult.trim();
-    if (textResult.startsWith('```json')) {
-      textResult = textResult.replace(/^```json\n/, '').replace(/\n```$/, '');
-    } else if (textResult.startsWith('```')) {
-      textResult = textResult.replace(/^```\n/, '').replace(/\n```$/, '');
+      textResult = await callOpenAICompatible(
+        provider, prompt, apiKey, modelName,
+        'You are a senior design and UX auditor. Output strictly in valid JSON matching the requested schema.',
+        AUDIT_JSON_SCHEMA,
+      );
     }
 
     const parsed = JSON.parse(textResult);

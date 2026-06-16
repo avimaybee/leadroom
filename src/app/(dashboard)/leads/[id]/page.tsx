@@ -65,6 +65,13 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
     outreachService.getDraftsForLead(id),
   ]);
 
+  const STAGE_MAP: Record<string, string> = {
+    'Researching': 'In Research',
+    'Qualified': 'Audited',
+    'Outreach in Progress': 'Outreach Sent',
+    'Meeting / Call': 'Meeting',
+  };
+  const displayStage = STAGE_MAP[lead.stage] || lead.stage || 'New';
   const stages = ['New', 'In Research', 'Auditing', 'Audited', 'Drafting', 'Ready to Send', 'Outreach Sent', 'Meeting', 'Won', 'Lost'];
 
   return (
@@ -91,7 +98,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                 {currentScore.scoreLabel} Priority ({currentScore.scoreValue})
               </span>
             )}            <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-muted/50 text-muted-foreground border border-border">
-              {lead.stage}
+              {displayStage}
             </span>
             {(lead as any).campaignName && (
               <Link 
@@ -108,7 +115,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             <select 
               name="stage" 
               aria-label="Change pipeline stage"
-              defaultValue={lead.stage}
+              defaultValue={displayStage}
               className="block rounded-xl border border-input py-1.5 px-3 text-xs font-bold focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 text-foreground bg-transparent"
             >
               {stages.map((st) => (

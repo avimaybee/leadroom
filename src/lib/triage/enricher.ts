@@ -8,9 +8,10 @@ export interface EnrichResult {
 
 /**
  * Three-level enrichment for a single candidate website:
- *   1. Direct fetch (zero cost)
- *   2. Browser Run /markdown (browser time only)
- *   3. Browser Run /json (browser time + Workers AI — single call replaces scrape+AI)
+ *   1. Direct fetch (zero cost) — runs HTML heuristics on raw content
+ *   2. Browser Run /markdown (browser time only) — skips HTML heuristics
+ *      since markdown lacks HTML patterns, falls through to Level 3
+ *   3. Browser Run /json (browser time + Workers AI) — AI assessment
  *
  * Falls back to the next level if the previous one fails.
  * Returns null only if ALL levels fail (caller should keep heuristic badge).
@@ -25,9 +26,6 @@ export async function enrichCandidate(
     return { triagePriority: 'HIGH', triageReason: 'No website detected.' };
   }
 
-  // AbortController propagates through fetch calls to cancel early.
-  // Promise.race provides the hard timeout boundary — browser.quickAction
-  // does not support AbortSignal, so the race ensures we return in time.
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), ENRICH_TIMEOUT_MS);
 
@@ -47,34 +45,25 @@ async function enrichCandidateInner(
   signal?: AbortSignal,
 ): Promise<EnrichResult | null> {
   // ---- Level 1: Direct fetch (zero cost) ----
+  // Runs HTML heuristics on raw content — reliable signal detection
   if (!signal?.aborted) {
     const directContent = await fetchSiteContentLight(website, 15000, signal);
     if (directContent) {
-      try {
-        const triage = heuristicSiteTriage(directContent);
-        return {
-          triagePriority: triage.isModern ? 'SKIP' : 'MEDIUM',
-          triageReason: triage.reason,
-        };
-      } catch {
-        // AI call failed — fall through to next level
-      }
+      const triage = heuristicSiteTriage(directContent);
+      return {
+        triagePriority: triage.isModern ? 'SKIP' : 'MEDIUM',
+        triageReason: triage.reason,
+      };
     }
   }
 
   // ---- Level 2: Browser Run /markdown (browser time only) ----
+  // Skips the HTML heuristic since markdown lacks HTML patterns (tables, fonts, etc.)
+  // Falls through to Level 3 AI assessment
   if (!signal?.aborted) {
     const markdownContent = await fetchMarkdownViaBrowser(website, browserBinding);
     if (markdownContent) {
-      try {
-        const triage = heuristicSiteTriage(markdownContent);
-        return {
-          triagePriority: triage.isModern ? 'SKIP' : 'MEDIUM',
-          triageReason: triage.reason,
-        };
-      } catch {
-        // AI call failed — fall through to next level
-      }
+      // Markdown lacks HTML structural signals — skip heuristic and go to AI level
     }
   }
 
@@ -86,7 +75,6 @@ async function enrichCandidateInner(
     }
   }
 
-  // All levels failed or aborted
   return null;
 }
 

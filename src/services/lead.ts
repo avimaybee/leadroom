@@ -66,9 +66,9 @@ export class LeadService {
     return lead;
   }
 
-  async listLeads() {
-    return this.db.select().from(leads).where(eq(leads.status, 'Active'));
-  }
+async listLeads() {
+  return this.db.select().from(leads).where(eq(leads.status, 'Active')).orderBy(desc(leads.updatedAt));
+}
 
   async getLead(id: string) {
     const [row] = await this.db

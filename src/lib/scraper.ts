@@ -118,6 +118,46 @@ export function normalizeUrl(url: string): string {
 }
 
 // Helpers for Fetch-First
+/**
+ * Safely follow a redirect chain, checking each hop against private IPs.
+ * Stops following if the redirect target is a private/internal address.
+ */
+async function fetchWithSafeRedirects(
+  url: string,
+  init: RequestInit,
+  maxHops: number = 5
+): Promise<Response | null> {
+  let currentUrl = url;
+  for (let hop = 0; hop <= maxHops; hop++) {
+    try {
+      const parsed = new URL(currentUrl);
+      if (isPrivateHostname(parsed.hostname)) return null;
+    } catch {
+      return null;
+    }
+
+    const res = await fetch(currentUrl, { ...init, redirect: 'manual' });
+    const status = res.status;
+
+    if (status >= 300 && status < 400) {
+      const location = res.headers.get('Location');
+      if (!location) return null;
+
+      // Resolve relative redirects
+      try {
+        currentUrl = new URL(location, currentUrl).toString();
+      } catch {
+        return null;
+      }
+      continue; // follow the redirect
+    }
+
+    return res; // non-redirect response
+  }
+
+  return null; // too many redirects
+}
+
 async function fetchDirectly(url: string, timeoutMs: number, signal?: AbortSignal): Promise<string | null> {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
@@ -127,9 +167,8 @@ async function fetchDirectly(url: string, timeoutMs: number, signal?: AbortSigna
   signal?.addEventListener('abort', onAbort, { once: true });
 
   try {
-    const res = await fetch(url, {
+    const res = await fetchWithSafeRedirects(url, {
       signal: controller.signal,
-      redirect: 'error',
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -138,7 +177,17 @@ async function fetchDirectly(url: string, timeoutMs: number, signal?: AbortSigna
     });
     clearTimeout(id);
     signal?.removeEventListener('abort', onAbort);
+    if (!res) return null;
     if (!res.ok) return null;
+
+    // Validate final URL after redirects against private/internal IPs
+    try {
+      const finalUrl = new URL(res.url);
+      if (isPrivateHostname(finalUrl.hostname)) return null;
+    } catch {
+      return null;
+    }
+
     const contentType = res.headers.get('content-type') || '';
     if (!contentType.includes('text/html') && !contentType.includes('text/plain')) {
       return null;

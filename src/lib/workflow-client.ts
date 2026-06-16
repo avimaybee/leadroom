@@ -622,6 +622,8 @@ export async function triggerAuditWorkflow(
         keyStrengths: auditResult.keyStrengths,
         keyWeaknesses: auditResult.keyWeaknesses,
         recommendedImprovements: auditResult.recommendedImprovements,
+        isModern: auditResult.isModern,
+        triageReason: auditResult.triageReason,
         sources: auditResult.sources || [lead.website || ''].filter(Boolean),
         jobRunId: jobId,
       });

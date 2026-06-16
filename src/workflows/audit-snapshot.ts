@@ -135,9 +135,11 @@ export class AuditSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
               overallBrandingScore: 0,
               keyStrengths: '',
               keyWeaknesses: '- No website exists for this business\n- No digital presence to evaluate',
-              recommendedImprovements: '- Build a professional website\n- Establish a basic digital footprint',
-              sources: [] as string[],
-            };
+        recommendedImprovements: '- Build a professional website\n- Establish a basic digital footprint',
+        sources: [] as string[],
+        isModern: false,
+        triageReason: 'No website exists for this business.',
+      };
           }
           return await generateAudit(
             db,
@@ -175,6 +177,8 @@ export class AuditSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
             keyStrengths: auditResult.keyStrengths,
             keyWeaknesses: auditResult.keyWeaknesses,
             recommendedImprovements: auditResult.recommendedImprovements,
+            isModern: auditResult.isModern,
+            triageReason: auditResult.triageReason,
             sources: auditResult.sources || [lead.website || ""].filter(Boolean),
             jobRunId: jobId,
           });
