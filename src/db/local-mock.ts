@@ -98,10 +98,18 @@ export function setupLocalDatabaseMock() {
   let dbPath = '';
 
   if (fs.existsSync(baseDir)) {
-    const files = fs.readdirSync(baseDir);
-    const sqliteFile = files.find((f: string) => f.endsWith('.sqlite'));
-    if (sqliteFile) {
-      dbPath = path.join(baseDir, sqliteFile);
+    const files = fs.readdirSync(baseDir)
+      .filter((f: string) => f.endsWith('.sqlite') && f !== 'metadata.sqlite')
+      .map((f: string) => ({
+        name: f,
+        path: path.join(baseDir, f),
+        mtime: fs.statSync(path.join(baseDir, f)).mtimeMs,
+      }))
+      .sort((a: { mtime: number }, b: { mtime: number }) => b.mtime - a.mtime);
+
+    // Pick the newest .sqlite file (wrangler creates new files on each run)
+    if (files.length > 0) {
+      dbPath = files[0].path;
     }
   }
 
@@ -115,6 +123,16 @@ export function setupLocalDatabaseMock() {
   }
 
   const sqlite = new Database(dbPath);
+
+  // Apply pending column migrations idempotently (safe even if columns exist)
+  const migrationStmts = [
+    `ALTER TABLE audits ADD COLUMN is_modern integer`,
+    `ALTER TABLE audits ADD COLUMN triage_reason text`,
+  ];
+  for (const stmt of migrationStmts) {
+    try { sqlite.exec(stmt); } catch { /* column already exists — safe to ignore */ }
+  }
+
   const mockD1 = new MockD1Database(sqlite);
 
   // Inject the mock into the process env
