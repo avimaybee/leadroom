@@ -31,7 +31,7 @@ export default async function DashboardPage() {
     return acc;
   }, {} as Record<string, number>);
 
-  const stages = ['New', 'Researching', 'Qualified', 'Outreach in Progress', 'Meeting / Call'];
+  const stages = ['New', 'In Research', 'Auditing', 'Audited', 'Drafting', 'Ready to Send', 'Outreach Sent', 'Meeting', 'Won', 'Lost'];
 
   return (
     <div className="space-y-10 animate-fade-in">

@@ -229,11 +229,26 @@ export default function ClientContactsList({
                   <div className="min-w-0 space-y-1 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-bold text-foreground block leading-tight">
-                        {contact.fullName}
+                        {contact.fullName || contact.email || 'Unknown Contact'}
                       </span>
                       {contact.isPrimary === 1 && (
                         <Badge variant="secondary" className="text-xs px-1 py-0 uppercase bg-chart-2/10 text-chart-2">
                           Primary
+                        </Badge>
+                      )}
+                      {contact.sourceType === 'ENRICHMENT' && (
+                        <Badge variant="outline" className="text-xs px-1 py-0 uppercase text-amber-600 border-amber-300 bg-amber-50 dark:text-amber-400 dark:border-amber-700 dark:bg-amber-950">
+                          Auto
+                        </Badge>
+                      )}
+                      {contact.sourceType === 'IMPORT' && (
+                        <Badge variant="outline" className="text-xs px-1 py-0 uppercase text-blue-600 border-blue-300 bg-blue-50 dark:text-blue-400 dark:border-blue-700 dark:bg-blue-950">
+                          Imported
+                        </Badge>
+                      )}
+                      {contact.confidenceLevel === 'LOW' && (
+                        <Badge variant="outline" className="text-xs px-1 py-0 uppercase text-muted-foreground border-border">
+                          Low confidence
                         </Badge>
                       )}
                     </div>
@@ -257,6 +272,12 @@ export default function ClientContactsList({
                         <a href={contact.linkedinUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-primary hover:underline flex items-center gap-1">
                           <Globe className="w-3.5 h-3.5 text-muted-foreground" />
                           LinkedIn
+                        </a>
+                      )}
+                      {contact.otherProfileUrl && (
+                        <a href={contact.otherProfileUrl} target="_blank" rel="noreferrer" className="text-xs font-semibold text-muted-foreground hover:text-primary hover:underline flex items-center gap-1">
+                          <Globe className="w-3.5 h-3.5" />
+                          {new URL(contact.otherProfileUrl).hostname.replace('www.', '')}
                         </a>
                       )}
                     </div>

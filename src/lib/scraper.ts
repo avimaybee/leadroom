@@ -7,12 +7,15 @@
  *   fetchSiteContentLight — direct fetch only, no fallbacks (for discovery enrichment)
  */
 
+import { extractAll, type ContactExtract } from './contacts/extract';
+
 export interface ScrapedContent {
   title: string;
   url: string;
   content: string;
   description: string;
   screenshot?: string;
+  extractedContacts?: ContactExtract;
 }
 
 /**
@@ -232,6 +235,7 @@ export async function scrapeWithBrowserRun(url: string, browserBinding: any, tim
       content: truncateContent(content),
       description,
       screenshot,
+      extractedContacts: html ? extractAll(html) : undefined,
     };
   } catch (error: any) {
     const errMsg = error instanceof Error ? error.message : String(error);
@@ -339,6 +343,7 @@ export async function fetchSiteContent(url: string, timeoutMs: number = 20000): 
           url: normalized,
           content: truncateContent(cleaned),
           description,
+          extractedContacts: extractAll(html),
         };
       } else {
         console.log(`Fetch-First returned sparse content or SPA indicator. Falling back to browser/Jina.`);

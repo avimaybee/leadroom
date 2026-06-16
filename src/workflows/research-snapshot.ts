@@ -2,6 +2,7 @@ import { WorkflowEntrypoint, WorkflowEvent, WorkflowStep } from "cloudflare:work
 import { getDb } from "../db";
 import { fetchSiteContent } from "../lib/scraper";
 import { generateResearch } from "../lib/ai";
+import { saveExtractedContacts, logContactDiscoveryActivity } from "../lib/contacts";
 import { jobRuns, researchSnapshots } from "../db/schema/research";
 import { leads, activities } from "../db/schema/core";
 import { eq } from "drizzle-orm";
@@ -94,7 +95,33 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
         }
       );
 
-      // Step 4: LLM Inference
+      // Step 4: Save any contacts extracted from the website scrape
+      if (scraped?.extractedContacts) {
+        await step.do(
+          "save-contacts",
+          {
+            retries: {
+              limit: 2,
+              delay: 1000,
+              backoff: "linear",
+            },
+            timeout: "1 minute",
+          },
+          async () => {
+            const saved = await saveExtractedContacts(
+              db,
+              leadId,
+              scraped.extractedContacts!,
+              userId
+            );
+            if (saved > 0) {
+              await logContactDiscoveryActivity(db, leadId, scraped.extractedContacts!, saved);
+            }
+          }
+        );
+      }
+
+      // Step 5: LLM Inference
       const research = await step.do(
         "call-llm",
         {
@@ -120,7 +147,7 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
         }
       );
 
-      // Step 5: Save Snapshot & Activity
+      // Step 6: Save Snapshot & Activity
       const snapshotId = crypto.randomUUID();
       await step.do(
         "save-snapshot",
@@ -164,7 +191,7 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
         }
       );
 
-      // Step 6: Mark Job Complete
+      // Step 7: Mark Job Complete
       await step.do(
         "mark-job-complete",
         {

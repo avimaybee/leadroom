@@ -2,6 +2,7 @@ import { Db } from '../db';
 import { eq, desc } from 'drizzle-orm';
 import { audits, activities } from '../db/schema';
 import { ScoringService } from './scoring';
+import { LeadService } from './lead';
 
 export interface CreateAuditInput {
   leadId: string;
@@ -80,6 +81,10 @@ export class AuditService {
 
     // Re-score the lead
     await this.scoringService.recalculateScore(input.leadId, input.jobRunId, input.createdByUserId);
+
+    // Advance pipeline if audit is now the latest milestone
+    const leadService = new LeadService(this.db);
+    await leadService.advanceStageIfEarlier(input.leadId, 'Audited');
 
     return newAudit;
   }

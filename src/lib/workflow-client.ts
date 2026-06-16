@@ -1,6 +1,7 @@
 import { getDb, type Db } from '@/db';
 import { fetchSiteContent } from '@/lib/scraper';
 import { generateResearch, generateAudit, heuristicSiteTriage } from '@/lib/ai';
+import { saveExtractedContacts, logContactDiscoveryActivity } from '@/lib/contacts';
 import { metadataTriage } from '@/lib/triage/heuristics';
 import { enrichCandidate } from '@/lib/triage/enricher';
 import { jobRuns, researchSnapshots } from '@/db/schema/research';
@@ -70,6 +71,14 @@ export async function triggerResearchWorkflow(
             content: `[Failed to scrape website: ${errMsg}]`,
             description: '',
           };
+        }
+      }
+
+      // Save any contacts extracted from the website scrape
+      if (scraped?.extractedContacts) {
+        const saved = await saveExtractedContacts(db, leadId, scraped.extractedContacts, userId);
+        if (saved > 0) {
+          await logContactDiscoveryActivity(db, leadId, scraped.extractedContacts, saved);
         }
       }
 

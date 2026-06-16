@@ -32,14 +32,24 @@ export default async function LeadsPage() {
 
   const getStageBadgeClass = (stage: string) => {
     switch (stage) {
-      case 'Qualified':
-        return 'bg-chart-2/10 text-chart-2 border border-chart-2/20';
-      case 'Researching':
+      case 'In Research':
         return 'bg-chart-5/10 text-chart-5 border border-chart-5/20';
-      case 'Outreach in Progress':
+      case 'Auditing':
+        return 'bg-chart-3/10 text-chart-3 border border-chart-3/20';
+      case 'Audited':
+        return 'bg-chart-2/10 text-chart-2 border border-chart-2/20';
+      case 'Drafting':
         return 'bg-primary/10 text-primary border border-primary/20';
-      case 'Meeting / Call':
+      case 'Ready to Send':
+        return 'bg-chart-4/10 text-chart-4 border border-chart-4/20';
+      case 'Outreach Sent':
+        return 'bg-primary/20 text-primary border border-primary/30';
+      case 'Meeting':
         return 'bg-destructive/10 text-destructive border border-destructive/20';
+      case 'Won':
+        return 'bg-chart-2/20 text-chart-2 border border-chart-2/30';
+      case 'Lost':
+        return 'bg-destructive/20 text-destructive border border-destructive/30';
       default:
         return 'bg-muted text-muted-foreground border border-border';
     }

@@ -2,62 +2,150 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { LayoutDashboard, Users, Target, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
+
+const SIDEBAR_WIDTH_KEY = 'leadroom:sidebar:width';
+const SIDEBAR_COLLAPSED_KEY = 'leadroom:sidebar:collapsed';
+const MIN_SIDEBAR = 200;
+const MAX_SIDEBAR = 400;
+const DEFAULT_SIDEBAR = 272;
+
+const navItems = [
+  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Leads', href: '/leads', icon: Users },
+  { name: 'Campaigns', href: '/scopes', icon: Target },
+  { name: 'Integrations', href: '/settings/integrations', icon: Settings },
+];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const [collapsed, setCollapsed] = useState(false);
+  const sidebarRef = useRef<HTMLElement>(null);
+  const dragRef = useRef(false);
+
+  useEffect(() => {
+    const savedWidth = localStorage.getItem(SIDEBAR_WIDTH_KEY);
+    const savedCollapsed = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
+    if (savedCollapsed === 'true') setCollapsed(true);
+    if (savedWidth && sidebarRef.current) {
+      sidebarRef.current.style.width = `${Math.min(MAX_SIDEBAR, Math.max(MIN_SIDEBAR, parseInt(savedWidth, 10)))}px`;
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed));
+  }, [collapsed]);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!dragRef.current || !sidebarRef.current) return;
+      const newWidth = Math.min(MAX_SIDEBAR, Math.max(MIN_SIDEBAR, e.clientX));
+      sidebarRef.current.style.width = `${newWidth}px`;
+    };
+    const handleMouseUp = () => {
+      if (!dragRef.current) return;
+      dragRef.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      if (sidebarRef.current) {
+        localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarRef.current.offsetWidth));
+      }
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, []);
 
   const isTabActive = (href: string) => {
-    if (href === '/') {
-      return pathname === '/';
-    }
+    if (href === '/') return pathname === '/';
     return pathname.startsWith(href);
   };
 
-  const navItems = [
-    { name: 'Dashboard', href: '/' },
-    { name: 'Leads', href: '/leads' },
-    { name: 'Campaigns', href: '/scopes' },
-    { name: 'Integrations', href: '/settings/integrations' },
-  ];
+  const handleResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    dragRef.current = true;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
 
   return (
     <div className="min-h-screen bg-background flex">
       {/* Sidebar */}
-      <aside className="w-68 bg-sidebar text-sidebar-foreground border-r border-sidebar-border flex flex-col hidden md:flex shrink-0">
-        <div className="p-6 border-b border-sidebar-border flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-black shadow-md">
+      <aside
+        ref={sidebarRef}
+        style={{ width: collapsed ? '56px' : `${DEFAULT_SIDEBAR}px`, minWidth: collapsed ? '56px' : `${MIN_SIDEBAR}px` }}
+        className="bg-sidebar text-sidebar-foreground border-r border-sidebar-border flex flex-col hidden md:flex shrink-0 transition-[width] duration-200 ease-in-out overflow-hidden relative"
+      >
+        {/* Branding */}
+        <div className={`flex items-center border-b border-sidebar-border ${collapsed ? 'justify-center p-3' : 'p-6 gap-3'}`}>
+          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-black shadow-md shrink-0">
             L
           </div>
-          <div>
-            <h1 className="text-lg font-bold tracking-tight text-sidebar-foreground leading-tight">Leadroom</h1>
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Internal OS</span>
-          </div>
+          {!collapsed && (
+            <div className="truncate">
+              <h1 className="text-lg font-bold tracking-tight text-sidebar-foreground leading-tight">Leadroom</h1>
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Internal OS</span>
+            </div>
+          )}
         </div>
-        
-        <nav className="mt-8 px-4 space-y-1.5 flex-1">
+
+        {/* Nav */}
+        <nav className={`mt-8 space-y-1.5 flex-1 ${collapsed ? 'px-2' : 'px-4'}`}>
           {navItems.map((item) => {
             const active = isTabActive(item.href);
+            const Icon = item.icon;
             return (
-              <Link 
+              <Link
                 key={item.href}
-                href={item.href} 
-                className={`flex items-center px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 ${
-                  active 
-                    ? 'text-sidebar-primary-foreground bg-sidebar-primary shadow-lg font-semibold' 
+                href={item.href}
+                className={`flex items-center rounded-xl font-medium text-sm transition-all duration-200 ${
+                  collapsed ? 'justify-center p-3' : 'px-4 py-3 gap-3'
+                } ${
+                  active
+                    ? 'text-sidebar-primary-foreground bg-sidebar-primary shadow-lg font-semibold'
                     : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent'
                 }`}
+                title={collapsed ? item.name : undefined}
               >
-                {item.name}
+                <Icon className="w-5 h-5 shrink-0" />
+                {!collapsed && <span className="truncate">{item.name}</span>}
               </Link>
             );
           })}
         </nav>
 
-        <div className="p-6 border-t border-sidebar-border text-xs font-medium text-muted-foreground">
-          Logged in as Agency Admin
-        </div>
+        {/* Footer */}
+        {!collapsed && (
+          <div className="p-6 border-t border-sidebar-border text-xs font-medium text-muted-foreground">
+            Logged in as Agency Admin
+          </div>
+        )}
+
+        {/* Collapse button */}
+        <button
+          type="button"
+          onClick={() => setCollapsed(!collapsed)}
+          className="absolute top-4 -right-3 w-6 h-6 rounded-full border border-sidebar-border bg-sidebar text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent flex items-center justify-center z-10 transition-colors shadow-sm"
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          {collapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
+        </button>
       </aside>
+
+      {/* Resize handle */}
+      <div
+        onMouseDown={handleResizeStart}
+        className="hidden md:block cursor-col-resize relative shrink-0 -ml-px"
+      >
+        <div className="absolute inset-y-0 -left-1 w-3 group">
+          <div className="h-full mx-auto w-0.5 rounded-full bg-transparent group-hover:bg-border group-active:bg-border transition-colors" />
+        </div>
+      </div>
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0">

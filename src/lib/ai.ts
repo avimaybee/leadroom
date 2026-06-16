@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Db } from '../db';
+import { getChannelPrompt } from './outreach/prompts';
 
 export const AIResearchSchema = z.object({
   companySummary: z.string(),
@@ -30,6 +31,28 @@ export const AIAuditSchema = z.object({
 });
 
 export type AIAuditOutput = z.infer<typeof AIAuditSchema>;
+
+export const AIContactExtractionSchema = z.object({
+  people: z.array(z.object({
+    fullName: z.string().nullable().optional(),
+    roleTitle: z.string().nullable().optional(),
+    email: z.string().nullable().optional(),
+    phone: z.string().nullable().optional(),
+    linkedinUrl: z.string().nullable().optional(),
+  })).nullable().optional(),
+  socialLinks: z.object({
+    facebook: z.string().nullable().optional(),
+    instagram: z.string().nullable().optional(),
+    linkedin: z.string().nullable().optional(),
+    twitter: z.string().nullable().optional(),
+    youtube: z.string().nullable().optional(),
+    tiktok: z.string().nullable().optional(),
+  }).nullable().optional(),
+  emails: z.array(z.string()).nullable().optional(),
+  phones: z.array(z.string()).nullable().optional(),
+});
+
+export type AIContactExtractionOutput = z.infer<typeof AIContactExtractionSchema>;
 
 export const AIOutreachDraftSchema = z.object({
   drafts: z.array(z.object({
@@ -831,165 +854,7 @@ ${researchSnapshot ? `Research Context:\n- Company Summary: ${researchSnapshot.c
 ${auditSnapshot ? `Website & Branding Audit Context:\n- Website Quality Score: ${auditSnapshot.websiteQualityScore}/100\n- Design Aesthetic Score: ${auditSnapshot.designAestheticScore}/100\n- Messaging Clarity: ${auditSnapshot.messagingClarityScore}/100\n- Social Presence: ${auditSnapshot.socialPresenceScore}/100\n- Overall Branding Score: ${auditSnapshot.overallBrandingScore}/100\n- Key Strengths: ${auditSnapshot.keyStrengths || 'N/A'}\n- Key Weaknesses: ${auditSnapshot.keyWeaknesses || ''}\n- Recommended Improvements: ${auditSnapshot.recommendedImprovements || ''}\n` : ''}
 ${customPrompt ? `\nSPECIAL INSTRUCTIONS FROM THE OPERATOR:\n${customPrompt}\n` : ''}
 ${attachments && attachments.length > 0 ? `\nNote: The operator has attached ${attachments.length} files (images or PDFs) showing mockup/branding/website context. Please reference or adapt your feedback specifically incorporating visual details or document findings if vision support is active.\n` : ''}
-You are a senior growth strategist at a creative/digital agency. Your function is to produce outreach that feels like a peer-level consultant offering a specific, valuable observation — not a vendor fishing for a meeting.
-
----
-
-## 1. MINDSET & PERSONA
-
-You are not a salesperson. You are someone who noticed something specific about their business and took the time to articulate it. The lead should think: "They actually looked at our site. They get what we're doing. This is worth 5 minutes."
-
-Tone rules:
-- Assume the reader is intelligent, busy, and has been pitched 50+ times this month
-- Your email is competing for attention against their actual work
-- The goal is not to close a deal — the goal is to get a reply that says "interesting, tell me more"
-- Every sentence must either: demonstrate understanding, provoke curiosity, or offer a specific observation
-
----
-
-## 2. PSYCHOLOGICAL PRINCIPLES (use naturally, never mechanically)
-
-**Reciprocity** — Give genuine value before asking for anything. Your specific observation about their website/brand IS the gift. It shows you invested time.
-
-**Specificity = Credibility** — Vague praise is noise. Specific critique is proof of work. "Your hero section has a 47-word value proposition" lands harder than "your messaging could be clearer."
-
-**Pattern Interrupt** — Open with something that breaks the "another sales email" pattern. Examples:
-- A one-word observation about their site
-- A question about a specific design choice
-- A reference to a recent change or news about their company
-
-**Loss Aversion** — Frame improvements around what they're leaving on the table (lost leads, competitor advantage), not what's broken. "Your site is doing X well, but Y is likely costing you Z conversions" is stronger than "your site needs fixing."
-
-**Social Proof (implied)** — Never name clients. Instead: "We've helped similar [industry] companies improve [metric] by [approach]." The specific industry match does the proof work.
-
-**Commitment & Consistency** — Ask for small, easy agreements first. "Would it be useful if I sent you a 3-point UX audit?" is easier to say yes to than "can we schedule a call?" The small yes leads to the larger one.
-
-**Curiosity Gap** — Leave something unexplained that they have to reply to resolve. "I noticed something unusual about your mobile menu behavior" creates a gap they want closed.
-
----
-
-## 3. CHANNEL-SPECIFIC ARCHITECTURE
-
-### EMAIL
-
-Subject line:
-- Must be specific to them: "[Company name] · [observation]" or "[Observation] on your [industry] site"
-- Never: "Let's connect", "Partnership opportunity", "Quick question"
-- Use sentence case, not Title Case
-- 4-7 words max
-- If the contact has a LinkedIn, reference something from their profile in subject
-
-Body structure (3-4 paragraphs, never more):
-1. **Credibility opener** (1 sentence) — Reference something specific you observed. Not their name. Not "hope you're well." Start with substance.
-2. **Observation + implication** (2-3 sentences) — What you noticed + why it matters to their business. Connect the observation to a business outcome (leads, conversions, trust, engagement).
-3. **Value hypothesis** (1-2 sentences) — A concrete way you'd approach fixing or improving it. This is your proof of expertise.
-4. **Soft CTA** (1 sentence) — Specific and low-friction. Examples:
-   - "If that resonates, I can send a few thoughts."
-   - "Would a 5-minute walkthrough of how [competitor in same space] handles this be useful?"
-   - "Happy to share a quick audit if you're curious."
-
-Never end with:
-- "Let me know if you're interested"
-- "Looking forward to hearing from you"
-- "Hope to connect soon"
-- Any form of "let's hop on a call"
-
-Signature: First name only. No title, no company name, no phone number.
-
-### LINKEDIN
-
-- No subject
-- First line must reference something from their profile (a post, a job change, a company milestone) — prove you looked at their profile
-- Second line: your observation about their site/brand (1 sentence max)
-- Third line: a specific, low-friction offer (1 sentence)
-- Never include links in the first message
-- Never pitch in the connection request note — save it for after they accept
-- Character count: under 300
-
-### CALL (prep script)
-
-Structure:
-
-**Opening (memorized, not read):**
-"Hi [name], I'm [your name]. I was looking at [company]'s website earlier and noticed [specific observation]. I've got about 90 seconds — if that's a bad time I can send a quick email instead."
-
-This does three things: proves homework, respects their time, gives an escape route (disarms pressure).
-
-**Discovery questions (3-5, escalating from general to specific):**
-- Round 1: "How are you currently handling [area related to observation]?"
-- Round 2: "What's the biggest bottleneck you're seeing with [specific weakness]?"
-- Round 3: "If you could wave a wand and change one thing about [area], what would it be?"
-- Round 4: "Have you looked at [competitor or industry reference]'s approach?"
-- Round 5: "What would need to be true for you to consider making a change here?"
-
-**Value anchors (drop these naturally into the conversation):**
-- "We've typically seen [specific improvement] for companies with similar [pain point]"
-- "One approach that's worked in your space is [specific tactic]"
-- "The data usually shows that [metric] improves by [rough range] when [approach] is done"
-
-**Objection handling (pre-written):**
-- "We're happy with our current setup" → "That's fair. Out of curiosity, what was the last thing you tested or changed on the site?"
-- "We don't have budget right now" → "Understood. What would the trigger be for that to change — a specific growth target or something else?"
-- "Send me some information" → Send a specific, short, personalized document — not a brochure.
-
-**Close:**
-Summarize what you heard + propose one specific next step. "Based on what you've said, the highest-impact move would be [specific action]. I can put together a rough proposal by [day] if that's useful."
-
-### MEETING / VISIT PREP
-
-**Agenda items (4-6, each with):**
-- Topic
-- 2-3 discovery questions specific to this topic
-- What to bring or reference (screenshots, competitor examples, audit findings)
-- Desired outcome (what you want to learn or confirm by the end of this agenda item)
-
-Example agenda item (in your output, use plain markdown):
-Topic: Current customer acquisition funnel
-Questions: What are the top 2 channels driving leads today? Where in the funnel do you see the most drop-off? How are you currently tracking conversion rates?
-Bring: Screenshots of current analytics + their primary landing page
-Outcome: Identify the weakest stage in their funnel for the proposal focus
-
----
-
-## 4. LANGUAGE PATTERNS
-
-**Instead of "I think..."** → Use "Our experience with similar [industry] companies shows..."
-(Authority framing — you've done this before)
-
-**Instead of "You should..."** → Use "One approach that's been effective in similar situations is..."
-(Implication of possibility, not prescription)
-
-**Instead of "We can help you..."** → Use "Companies in your space typically see X when they address Y"
-(Third-party evidence, removes sales pressure)
-
-**Instead of "I wanted to reach out..."** → Delete this phrase entirely. It's filler. Start with your observation.
-
-**Instead of "Does this sound interesting?"** → Use "Does this match what you're seeing?"
-(Assumptive — you're validating, not pitching)
-
-**Instead of "I'd love to..."** → Use what you'd actually do. "I can send a..." not "I'd love to send a..."
-
-**Opening hook templates:**
-- "Noticed your site does X well, but Y is probably costing you Z leads/month."
-- "Your [specific page] has an interesting approach to [topic]. Have you tested [alternative]?"
-- "Looked at [company]'s site. The [specific element] caught my attention — here's why."
-- "Quick observation on your [industry] site: [specific finding]. Relevant?"
-
----
-
-## 5. ANTI-PATTERNS (never do these)
-
-- Never use the word "synergy," "leverage," "circle back," "touch base," "solution," "ecosystem," "holistic," "paradigm," "game-changer," or "best-in-class"
-- Never open with "I hope this email finds you well" or any variant
-- Never apologize for reaching out ("sorry to bother you", "I know you're busy")
-- Never use exclamation marks in EMAIL or LINKEDIN
-- Never make claims you can't support with the data you have
-- Never reference "our agency" more than once
-- Never use the lead's name more than once (greeting only)
-- Never mention pricing, discounts, packages, or "bundles"
-- Never attach files to cold email
-- Never write more than 4 paragraphs in EMAIL or 3 sentences in LINKEDIN first message
-- Never end with a question that can be answered "no" — end with a low-friction offer or an observation that invites a reply
+${getChannelPrompt(channel)}
 
 Provide your response strictly in JSON format. The response must match the following JSON schema:
 {
@@ -1226,6 +1091,152 @@ export async function getModelInfo(db: Db): Promise<{ provider: string; modelNam
     modelName,
     hasVision,
   };
+}
+
+/**
+ * AI-powered contact extraction from scraped website text.
+ * Used as a fallback when regex extraction finds too few contacts.
+ * Follows the same Gemini + OpenAI-compatible provider pattern as generateResearch.
+ */
+export async function generateContactExtraction(
+  db: Db,
+  leadName: string,
+  companyName: string | null,
+  scrapedContent?: string | null,
+): Promise<AIContactExtractionOutput> {
+  const config = await getActiveProviderConfig(db);
+  let provider = config?.provider || 'gemini';
+  let apiKey = config?.apiKey || (process as any).env?.GEMINI_API_KEY;
+  let modelName = config?.modelName || (
+    provider === 'openrouter' ? 'google/gemini-2.5-flash' : 
+    provider === 'nvidia' ? 'meta/llama-3.1-70b-instruct' : 
+    provider === 'groq' ? 'llama3-70b-8192' :
+    provider === 'aiml' ? 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning' :
+    'gemini-2.5-flash'
+  );
+
+  if (!apiKey || apiKey === 'placeholder' || apiKey === '') {
+    return { people: null, socialLinks: null, emails: null, phones: null };
+  }
+
+  const name = companyName || leadName;
+
+  const prompt = `Extract contact information from the website of "${name}".
+
+Here is the scraped content of their website:
+--- START OF WEBSITE CONTENT ---
+${scrapedContent || 'No website content available.'}
+--- END OF WEBSITE CONTENT ---
+
+You are a research assistant extracting contact details from a business website. Extract any contact information you can find.
+
+Respond with a JSON object containing:
+- "people": Array of people mentioned with their full name, role/title, email, phone, and LinkedIn URL (all nullable). Only include people clearly mentioned on the site.
+- "socialLinks": Object with social media profile URLs for facebook, instagram, linkedin, twitter, youtube, tiktok. Only include links you actually see.
+- "emails": Array of email addresses found on the site.
+- "phones": Array of phone numbers found on the site.
+
+Rules:
+- Only extract information that is explicitly visible in the content
+- Do not invent emails, phones, or social profiles
+- If you find nothing useful, return null for that field
+- Be thorough — check headers, footers, team sections, contact info blocks`;
+
+  if (provider === 'gemini') {
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              responseMimeType: 'application/json',
+              responseSchema: {
+                type: 'OBJECT',
+                properties: {
+                  people: {
+                    type: 'ARRAY',
+                    items: {
+                      type: 'OBJECT',
+                      properties: {
+                        fullName: { type: 'STRING' },
+                        roleTitle: { type: 'STRING' },
+                        email: { type: 'STRING' },
+                        phone: { type: 'STRING' },
+                        linkedinUrl: { type: 'STRING' },
+                      },
+                    },
+                  },
+                  socialLinks: {
+                    type: 'OBJECT',
+                    properties: {
+                      facebook: { type: 'STRING' },
+                      instagram: { type: 'STRING' },
+                      linkedin: { type: 'STRING' },
+                      twitter: { type: 'STRING' },
+                      youtube: { type: 'STRING' },
+                      tiktok: { type: 'STRING' },
+                    },
+                  },
+                  emails: { type: 'ARRAY', items: { type: 'STRING' } },
+                  phones: { type: 'ARRAY', items: { type: 'STRING' } },
+                },
+              },
+            },
+          }),
+        }
+      );
+      if (!response.ok) throw new Error(`Gemini API returned status ${response.status}`);
+      const data = (await response.json()) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
+      const textResult = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!textResult) throw new Error('Invalid response structure from Gemini API');
+      const parsed = JSON.parse(textResult);
+      return AIContactExtractionSchema.parse(parsed);
+    } catch (error: unknown) {
+      console.error('Gemini contact extraction failed:', error);
+      return { people: null, socialLinks: null, emails: null, phones: null };
+    }
+  }
+
+  // OpenAI-compatible providers
+  try {
+    const url = 
+      provider === 'openrouter' ? 'https://openrouter.ai/api/v1/chat/completions' :
+      provider === 'groq' ? 'https://api.groq.com/openai/v1/chat/completions' :
+      provider === 'nvidia' ? 'https://integrate.api.nvidia.com/v1/chat/completions' :
+      'https://api.aimlapi.com/v1/chat/completions';
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: modelName,
+        messages: [
+          { role: 'system', content: 'Extract contact information from business website content. Output strictly in valid JSON.' },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.2,
+        response_format: { type: 'json_object' },
+      }),
+    });
+
+    if (!response.ok) throw new Error(`${provider} API returned status ${response.status}`);
+    const result = (await response.json()) as any;
+    let textResult = result.choices?.[0]?.message?.content;
+    if (!textResult) throw new Error('Invalid response structure');
+
+    textResult = textResult.trim().replace(/^```json?\n?/, '').replace(/\n```$/, '');
+    const parsed = JSON.parse(textResult);
+    return AIContactExtractionSchema.parse(parsed);
+  } catch (error: unknown) {
+    console.error(`${provider} contact extraction failed:`, error);
+    return { people: null, socialLinks: null, emails: null, phones: null };
+  }
 }
 
 export function generateMockOutreachDraft(

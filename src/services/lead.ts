@@ -5,8 +5,37 @@ import { candidateLeads, discoveryScopes } from '../db/schema/discovery';
 import { CreateLeadInput } from '../db/models/lead';
 import { ScoringService } from './scoring';
 
+export const PIPELINE_STAGES = [
+  'New',
+  'In Research',
+  'Auditing',
+  'Audited',
+  'Drafting',
+  'Ready to Send',
+  'Outreach Sent',
+  'Meeting',
+  'Won',
+  'Lost',
+] as const;
+
+export type PipelineStage = typeof PIPELINE_STAGES[number];
+
 export class LeadService {
   constructor(private db: Db) {}
+
+  /**
+   * Advance the lead to the given stage only if it's further along than the current stage.
+   * No-op if already at or past the target stage.
+   */
+  async advanceStageIfEarlier(leadId: string, targetStage: PipelineStage) {
+    const lead = await this.getLead(leadId);
+    if (!lead) return;
+    const currentIdx = PIPELINE_STAGES.indexOf(lead.stage as PipelineStage);
+    const targetIdx = PIPELINE_STAGES.indexOf(targetStage);
+    if (targetIdx < 0) return;
+    if (currentIdx >= targetIdx) return; // already at or past target
+    await this.updateStage(leadId, targetStage);
+  }
 
   async createLead(input: CreateLeadInput) {
     const id = crypto.randomUUID();

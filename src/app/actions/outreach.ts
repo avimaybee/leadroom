@@ -107,6 +107,9 @@ export async function generateOutreachDraftAction(
       newDrafts.push(newDraft);
     }
 
+    // Advance pipeline
+    await leadService.advanceStageIfEarlier(leadId, 'Drafting');
+
     try {
       revalidatePath(`/leads/${lead.id}`);
     } catch (e) {}
@@ -194,6 +197,11 @@ export async function recordApprovalAction(draftId: string, decision: 'APPROVED'
 
     await outreachService.recordApproval(draftId, userId, decision, feedback);
 
+    if (decision === 'APPROVED') {
+      const leadService = new LeadService(db);
+      await leadService.advanceStageIfEarlier(draft.leadId, 'Ready to Send');
+    }
+
     try {
       revalidatePath(`/leads/${draft.leadId}`);
     } catch (e) {}
@@ -254,11 +262,11 @@ export async function markAsSentAction(draftId: string) {
 
     const leadService = new LeadService(db);
     const lead = await leadService.getLead(draft.leadId);
-    if (lead && ['New', 'Researching', 'Qualified'].includes(lead.stage)) {
+    if (lead) {
       const newStage = (draft.channel === 'EMAIL' || draft.channel === 'LINKEDIN') 
-        ? 'Outreach in Progress' 
-        : 'Meeting / Call';
-      await leadService.updateStage(lead.id, newStage);
+        ? 'Outreach Sent' 
+        : 'Meeting';
+      await leadService.advanceStageIfEarlier(lead.id, newStage);
     }
 
     try {

@@ -1,6 +1,7 @@
 'use server';
 
 import { ResearchService } from '@/services/research';
+import { LeadService } from '@/services/lead';
 import { getDb } from '@/db';
 import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
@@ -66,6 +67,9 @@ export async function saveResearchSnapshotAction(prevState: ActionState, formDat
       },
       userId
     );
+    const db = getDb();
+    const leadService = new LeadService(db);
+    await leadService.advanceStageIfEarlier(leadId, 'In Research');
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'Failed to save research';
     return { error: msg };

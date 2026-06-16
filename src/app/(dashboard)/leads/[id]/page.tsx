@@ -35,7 +35,6 @@ import ClientAuditView from './ClientAuditView';
 import ClientContactsList from './ClientContactsList';
 import ClientLeadProfile from './ClientLeadProfile';
 import OutreachAssistant from './OutreachAssistant';
-import SidePanel from './SidePanel';
 import { ClientScoreDrivers } from './ClientScoreDrivers';
 import { OutreachService } from '@/services/outreach';
 
@@ -66,7 +65,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
     outreachService.getDraftsForLead(id),
   ]);
 
-  const stages = ['New', 'Researching', 'Qualified', 'Outreach in Progress', 'Meeting / Call'];
+  const stages = ['New', 'In Research', 'Auditing', 'Audited', 'Drafting', 'Ready to Send', 'Outreach Sent', 'Meeting', 'Won', 'Lost'];
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -121,9 +120,9 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         </div>
       </div>
 
-      <div className="flex gap-8 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        <div className="flex-1 min-w-0 space-y-8">
+        <div className="lg:col-span-2 space-y-8">
           
           <ClientLeadProfile lead={lead} updateLeadAction={updateLeadAction} />
 
@@ -154,66 +153,80 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             auditSnapshot={latestAudit}
           />
 
-          <div className="space-y-6">
+          <ClientScoreDrivers
+            factors={currentScore?.factors ?? null}
+            scoreValue={currentScore?.scoreValue ?? null}
+            scoreLabel={currentScore?.scoreLabel ?? null}
+          />
+
+          <div className="space-y-4">
             <h3 className="text-lg font-bold text-foreground">Notes & Activity History</h3>
             
             <ClientNotesForm leadId={lead.id} addNoteAction={addNoteAction} />
 
-            <div className="space-y-4">
-              {activities.length === 0 ? (
-                <div className="bg-card border border-border rounded-2xl p-6 text-center text-muted-foreground font-medium">
-                  No activity log found.
-                </div>
-              ) : (
-                activities.map((act: any) => {
-                  const isNote = act.type === 'Note added';
-                  
-                  return isNote ? (
-                    <div 
-                      key={act.id} 
-                      className="p-5 rounded-2xl border transition duration-150 bg-card border-border/80 ring-1 ring-border/50 shadow-sm"
-                    >
-                      <div className="flex justify-between items-start gap-4">
-                        <div>
-                          <span className="inline-block px-2.5 py-0.5 rounded-lg text-xs font-bold uppercase bg-chart-5/10 text-chart-5 border border-chart-5/20">
-                            {act.type}
-                          </span>
-                          <p className="text-sm font-semibold text-foreground mt-2 leading-relaxed">
-                            {act.summary}
-                          </p>
-                        </div>
-                        <span className="text-xs text-muted-foreground font-semibold shrink-0">
-                          {formatDateTimeUTC(act.timestamp)}
-                        </span>
+            {activities.length === 0 ? (
+              <div className="bg-card border border-border rounded-2xl p-6 text-center text-muted-foreground font-medium">
+                No activity log found.
+              </div>
+            ) : (
+              <div className="max-h-[420px] overflow-y-auto border border-border/60 rounded-xl bg-card">
+                <div className="divide-y divide-border/40">
+                  {activities.map((act: any) => {
+                    const isNote = act.type === 'Note added';
+                    return (
+                      <div key={act.id} className={`${isNote ? 'bg-chart-5/[0.02]' : ''}`}>
+                        {isNote ? (
+                          <div className="px-4 py-3">
+                            <div className="flex justify-between items-start gap-3">
+                              <div className="min-w-0">
+                                <span className="inline-block px-2 py-0.5 rounded text-[11px] font-bold uppercase bg-chart-5/10 text-chart-5">
+                                  {act.type}
+                                </span>
+                                <p className="text-sm font-semibold text-foreground mt-1.5 leading-relaxed">
+                                  {act.summary}
+                                </p>
+                              </div>
+                              <span className="text-[11px] text-muted-foreground font-semibold shrink-0 mt-0.5">
+                                {formatDateTimeUTC(act.timestamp)}
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <details className="group">
+                            <summary className="flex justify-between items-center gap-3 px-4 py-2.5 list-none marker:content-none cursor-pointer hover:bg-muted/30 transition-colors">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <svg className="w-3 h-3 text-muted-foreground shrink-0 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                                </svg>
+                                <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-muted text-muted-foreground leading-tight shrink-0">
+                                  {act.type}
+                                </span>
+                                <span className="text-xs text-muted-foreground font-medium truncate">
+                                  {act.summary}
+                                </span>
+                              </div>
+                              <span className="text-[11px] text-muted-foreground font-semibold shrink-0">
+                                {formatDateTimeUTC(act.timestamp)}
+                              </span>
+                            </summary>
+                            <div className="px-4 pb-3 pl-[37px]">
+                              <p className="text-xs text-muted-foreground font-medium leading-relaxed">
+                                {act.summary}
+                              </p>
+                            </div>
+                          </details>
+                        )}
                       </div>
-                    </div>
-                  ) : (
-                    <details key={act.id} className="group p-5 rounded-2xl border transition duration-150 bg-card border-border/80 cursor-pointer">
-                      <summary className="flex justify-between items-start gap-4 list-none marker:content-none">
-                        <div className="flex items-center gap-3">
-                          <svg className="w-4 h-4 text-muted-foreground transition-transform group-open:rotate-90 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                          </svg>
-                          <span className="inline-block px-2.5 py-0.5 rounded-lg text-xs font-bold uppercase bg-muted text-muted-foreground border border-border">
-                            {act.type}
-                          </span>
-                          <span className="text-xs text-muted-foreground font-semibold">
-                            {formatDateTimeUTC(act.timestamp)}
-                          </span>
-                        </div>
-                      </summary>
-                      <p className="text-sm font-semibold text-foreground mt-3 leading-relaxed pl-7">
-                        {act.summary}
-                      </p>
-                    </details>
-                  );
-                })
-              )}
-            </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        <SidePanel>
+        <div className="space-y-8">
+          
           <div className="bg-card p-6 rounded-2xl border border-border/80 shadow-sm space-y-6">
             <div className="flex justify-between items-center border-b border-border pb-3">
               <h3 className="text-base font-bold text-foreground">
@@ -244,15 +257,10 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             updateContactAction={updateContactAction}
             deleteContactAction={deleteContactAction}
           />
-        </SidePanel>
+
+        </div>
 
       </div>
-
-      <ClientScoreDrivers
-        factors={currentScore?.factors ?? null}
-        scoreValue={currentScore?.scoreValue ?? null}
-        scoreLabel={currentScore?.scoreLabel ?? null}
-      />
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { decrypt } from '@/lib/auth';
 import { jobRuns } from '@/db/schema/research';
 import { triggerAuditWorkflow, triggerTriageWorkflow, CloudflareWorkflow } from '@/lib/workflow-client';
 import { ScoringService } from '@/services/scoring';
+import { LeadService } from '@/services/lead';
 import { AuditService } from '@/services/audits';
 import { and, eq, or } from 'drizzle-orm';
 
@@ -76,6 +77,9 @@ export async function triggerAuditAction(leadId: string) {
     const workflowBinding = env?.AUDIT_SNAPSHOT_WORKFLOW as CloudflareWorkflow | undefined;
 
     await triggerAuditWorkflow(db, workflowBinding, leadId, jobId, userId);
+
+    const leadService = new LeadService(db);
+    await leadService.advanceStageIfEarlier(leadId, 'Auditing');
 
     revalidatePath(`/leads/${leadId}`);
     return { error: null, success: true, jobId };
