@@ -168,6 +168,24 @@ function setupTestDb() {
       created_at INTEGER DEFAULT (strftime('%s', 'now')),
       updated_at INTEGER DEFAULT (strftime('%s', 'now'))
     );
+
+    CREATE TABLE contacts (
+      id TEXT PRIMARY KEY,
+      lead_id TEXT NOT NULL REFERENCES leads(id),
+      full_name TEXT,
+      role_title TEXT,
+      email TEXT,
+      phone TEXT,
+      linkedin_url TEXT,
+      other_profile_url TEXT,
+      is_primary INTEGER NOT NULL DEFAULT 0,
+      confidence_level TEXT NOT NULL DEFAULT 'UNKNOWN',
+      source_type TEXT NOT NULL DEFAULT 'MANUAL',
+      created_by_user_id TEXT REFERENCES users(id),
+      created_at INTEGER DEFAULT (strftime('%s', 'now')),
+      updated_at INTEGER DEFAULT (strftime('%s', 'now')),
+      deleted_at INTEGER
+    );
   `);
 
   const mockD1 = new MockD1Database(sqlite);

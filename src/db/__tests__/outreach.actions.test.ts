@@ -158,6 +158,8 @@ sqlite.exec(`
     key_strengths TEXT,
     key_weaknesses TEXT,
     recommended_improvements TEXT,
+    is_modern INTEGER,
+    triage_reason TEXT,
     opportunity_notes TEXT,
     sources TEXT,
     job_run_id TEXT,

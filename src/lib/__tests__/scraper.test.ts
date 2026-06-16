@@ -133,6 +133,8 @@ test('Web Scraper Utility', async (t) => {
       // Mock direct fetch response
       return {
         ok: true,
+        status: 200,
+        url: 'https://example.com',
         headers: {
           get: (name: string) => name.toLowerCase() === 'content-type' ? 'text/html' : null
         },
