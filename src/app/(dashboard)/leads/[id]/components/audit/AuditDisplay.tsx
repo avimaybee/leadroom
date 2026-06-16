@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useActionState, useEffect } from 'react';
+import { useState, useActionState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Loader2, FileText, Clock, ShieldAlert, AlertTriangle } from 'lucide-react';
+import { Loader2, FileText } from 'lucide-react';
 import { AuditSnapshot, LeadScore } from './types';
 import { ActionState } from '@/app/actions/audits';
 import { Button } from '@/components/ui/button';
@@ -13,8 +13,6 @@ interface AuditDisplayProps {
   leadId: string;
   audit: AuditSnapshot | null;
   score: LeadScore | null;
-  triagePriority: string;
-  triageReason: string | null;
   onRunAudit: () => void;
   isAuditing: boolean;
   auditError: string | null;
@@ -25,8 +23,6 @@ export function AuditDisplay({
   leadId,
   audit,
   score,
-  triagePriority,
-  triageReason,
   onRunAudit,
   isAuditing,
   auditError,
@@ -34,17 +30,6 @@ export function AuditDisplay({
 }: AuditDisplayProps) {
   const [showOverrideForm, setShowOverrideForm] = useState(false);
   const [state, formAction] = useActionState(manualOverrideScoreAction, undefined);
-  const getScoreColor = (val: number) => {
-    if (val >= 75) return 'bg-chart-2';
-    if (val >= 50) return 'bg-chart-5';
-    return 'bg-primary';
-  };
-
-  const getScoreTextColor = (val: number) => {
-    if (val >= 75) return 'text-chart-2';
-    if (val >= 50) return 'text-chart-5';
-    return 'text-primary';
-  };
 
   const getPriorityLabelColor = (label: string | null) => {
     switch (label?.toUpperCase()) {
@@ -82,7 +67,7 @@ export function AuditDisplay({
               size="sm"
             >
               {isAuditing ? (
-                <><Loader2 className="h-3 w-3 animate-spin" /> Auditing...</>
+                <><Loader2 className="h-3 w-3 animate-spin mr-2" /> Auditing...</>
               ) : (
                 'Run Design Audit'
               )}
@@ -134,11 +119,11 @@ export function AuditDisplay({
         )}
       </div>
 
-      {/* 3-Column Grid for Score & Details */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {/* 2-Column Grid for Score & Details */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         
         {/* Left Column (2/3 width): Observations & Recommendations */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="xl:col-span-2 space-y-6">
           {audit ? (
             <div className="space-y-6">
               <h4 className="text-xs font-bold text-card-foreground">Observations & Opportunities</h4>
@@ -184,7 +169,7 @@ export function AuditDisplay({
               <div className="space-y-1">
                 <h4 className="text-sm font-bold text-card-foreground">No Web Presence Audit Found</h4>
                 <p className="text-xs text-muted-foreground max-w-sm mx-auto font-medium">
-                  Run a design and branding audit to scrape this lead's website, generate visual subscores, and compute their priority scores.
+                  Run a design and branding audit to scrape this lead's website and compute their priority scores.
                 </p>
               </div>
               <Button onClick={onRunAudit} disabled={isAuditing} size="sm">
@@ -194,51 +179,20 @@ export function AuditDisplay({
           )}
         </div>
 
-        {/* Right Column (1/3 width): Stack Priority Score, Digital Sub-categories & Drivers */}
-        <div className="lg:col-span-1 space-y-6">
-          {/* Initial Triage Card */}
-          {triagePriority && (
-            <div className={`bg-card p-6 rounded-2xl border border-border shadow-sm space-y-3 text-left border-l-4 ${
-              triagePriority === 'HIGH' ? 'border-l-destructive shadow-sm' :
-              triagePriority === 'MEDIUM' ? 'border-l-chart-3' :
-              triagePriority === 'SKIP' ? 'opacity-65 border-l-muted' :
-              'border-l-blue-400/50'
-            }`}>
-              <div className="flex justify-between items-center gap-2">
-                <span className="text-xs font-bold text-card-foreground">Website Access Check</span>
-                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold border ${
-                  triagePriority === 'HIGH' ? 'bg-destructive/10 text-destructive border-destructive/20' :
-                  triagePriority === 'MEDIUM' ? 'bg-chart-3/15 text-chart-3 border-chart-3/30' :
-                  triagePriority === 'SKIP' ? 'bg-muted text-muted-foreground border-border' :
-                  'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
-                }`}>
-                  {triagePriority === 'HIGH' && <ShieldAlert className="w-3.5 h-3.5 shrink-0" />}
-                  {triagePriority === 'MEDIUM' && <AlertTriangle className="w-3.5 h-3.5 shrink-0" />}
-                  {triagePriority === 'UNASSESSED' && <Clock className="w-3.5 h-3.5 shrink-0 animate-pulse text-blue-500" />}
-                  {triagePriority === 'UNASSESSED' ? 'Pending Check' : `${triagePriority} Priority`}
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground font-semibold leading-relaxed">
-                {triagePriority === 'UNASSESSED' 
-                  ? "An automated check to see if the website is live, outdated, or missing. Click 'Run Triage Scan' to analyze." 
-                  : (triageReason || 'No details provided.')
-                }
-              </p>
-            </div>
-          )}
-
+        {/* Right Column (1/3 width): Stack Priority Score */}
+        <div className="xl:col-span-1 space-y-6">
           {/* Priority Score Card */}
-          <div className="bg-card p-6 rounded-2xl border border-border shadow-sm flex flex-col justify-between space-y-4">
+          <div className="bg-card p-6 rounded-2xl border border-border shadow-sm flex flex-col space-y-4">
             <div>
               <span className="text-xs font-bold text-card-foreground block">Lead Priority Score</span>
               <div className="flex items-baseline mt-2">
-                <span className="text-4xl font-black text-card-foreground">{score?.scoreValue ?? 0}</span>
-                <span className="text-sm font-semibold text-muted-foreground">/100</span>
+                <span className="text-5xl font-black text-card-foreground">{score?.scoreValue ?? 0}</span>
+                <span className="text-base font-semibold text-muted-foreground ml-1">/100</span>
               </div>
               {score && (
                 <span 
                   aria-label={`${score.scoreLabel} Priority`}
-                  className={`inline-flex items-center px-2.5 py-0.5 mt-2 rounded-lg text-xs font-bold ${getPriorityLabelColor(score.scoreLabel)}`}
+                  className={`inline-flex items-center px-2.5 py-0.5 mt-3 rounded-lg text-xs font-bold ${getPriorityLabelColor(score.scoreLabel)}`}
                 >
                   <span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${
                     score.scoreLabel?.toUpperCase() === 'HIGH' ? 'bg-destructive animate-pulse' :
@@ -248,39 +202,38 @@ export function AuditDisplay({
                 </span>
               )}
             </div>
-            <p className="text-xs text-muted-foreground font-medium leading-relaxed">
-              {score?.rationaleSummary || 'No score calculated yet. Run an audit to generate priority scores.'}
-            </p>
-          </div>
-
-          {/* Digital Sub-categories progress bars (if audit exists) */}
-          {audit && (
-            <div className="space-y-4">
-              <h4 className="text-xs font-bold text-card-foreground">Digital Sub-categories</h4>
-              <div className="space-y-4 bg-card p-6 rounded-2xl border border-border shadow-sm">
-                {[
-                  { name: 'Website Quality', val: audit.websiteQualityScore },
-                  { name: 'Design Aesthetic', val: audit.designAestheticScore },
-                  { name: 'Messaging Clarity', val: audit.messagingClarityScore },
-                  { name: 'Social Presence', val: audit.socialPresenceScore },
-                  { name: 'Overall Branding', val: audit.overallBrandingScore },
-                ].map((sub, i) => (
-                  <div key={i} className="space-y-2">
-                    <div className="flex justify-between text-xs font-semibold">
-                      <span className="text-muted-foreground">{sub.name}</span>
-                      <span className={getScoreTextColor(sub.val ?? 0)}>{sub.val ?? 0}/100</span>
-                    </div>
-                    <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-500 ${getScoreColor(sub.val ?? 0)}`}
-                        style={{ width: `${sub.val ?? 0}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
+            
+            <div className="pt-4 border-t border-border mt-2">
+              <h5 className="text-xs font-bold text-card-foreground mb-2">AI Rationale</h5>
+              <p className="text-xs text-muted-foreground font-medium leading-relaxed">
+                {score?.rationaleSummary || 'No score calculated yet. Run an audit to generate priority scores.'}
+              </p>
+              
+              {score?.factors && (
+                <div className="mt-4 space-y-2">
+                  <h6 className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Key Scoring Factors</h6>
+                  <ul className="space-y-1.5">
+                    {(() => {
+                      try {
+                        const factors = JSON.parse(score.factors);
+                        if (Array.isArray(factors)) {
+                          return factors.map((factor, i) => (
+                            <li key={i} className="text-xs text-card-foreground font-medium flex items-start">
+                              <span className="mr-2 text-primary mt-0.5">•</span>
+                              <span className="leading-relaxed">{factor}</span>
+                            </li>
+                          ));
+                        }
+                      } catch (e) {
+                        return null;
+                      }
+                      return null;
+                    })()}
+                  </ul>
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
 
       </div>

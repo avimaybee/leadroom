@@ -1,6 +1,7 @@
 import { Db } from '../db';
 import { eq, and, desc } from 'drizzle-orm';
-import { leads, leadScores, audits, activities } from '../db/schema';
+import { leads, leadScores, audits, activities, researchSnapshots } from '../db/schema';
+import { generateLeadScore, getActiveProviderConfig } from '../lib/ai';
 
 export interface ScoringFactor {
   name: string;
@@ -12,14 +13,23 @@ export class ScoringService {
   constructor(private db: Db) {}
 
   /**
-   * Recalculates and saves the priority score for a lead based on profile completeness,
-   * triage priority, and website audit opportunity.
+   * Recalculates and saves the priority score for a lead.
+   * If research and audit snapshots are available, calls the AI lead scoring generator.
+   * Otherwise, calculates a baseline score based on profile completeness.
    */
   async recalculateScore(leadId: string, jobRunId: string | null = null, userId: string | null = null) {
     const [lead] = await this.db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
     if (!lead) {
       throw new Error(`Lead not found for scoring: ${leadId}`);
     }
+
+    // Fetch the latest research snapshot for this lead
+    const [latestResearch] = await this.db
+      .select()
+      .from(researchSnapshots)
+      .where(eq(researchSnapshots.leadId, leadId))
+      .orderBy(desc(researchSnapshots.createdAt))
+      .limit(1);
 
     // Fetch the latest audit for this lead
     const [latestAudit] = await this.db
@@ -29,97 +39,55 @@ export class ScoringService {
       .orderBy(desc(audits.createdAt))
       .limit(1);
 
-    const factors: ScoringFactor[] = [];
-    let scoreValue = 10; // Base baseline priority points
-    factors.push({ name: 'Base Priority', value: 10, description: 'Baseline priority weight' });
+    let scoreValue = 10;
+    let scoreLabel: 'High' | 'Medium' | 'Low' = 'Low';
+    let rationaleSummary = '';
+    let factors: string[] = [];
+    let origin: 'RULE_BASED' | 'AI_SUGGESTED' | 'MANUAL_OVERRIDE' = 'RULE_BASED';
 
-    // 1. Profile Completeness Factors
-    if (lead.website) {
-      scoreValue += 15;
-      factors.push({ name: 'Profile: Has Website', value: 15, description: 'Website is present, allowing digital audit' });
-    }
-    if (lead.email) {
-      scoreValue += 10;
-      factors.push({ name: 'Profile: Has Email', value: 10, description: 'Direct email contact is available' });
-    }
-    if (lead.phone) {
-      scoreValue += 10;
-      factors.push({ name: 'Profile: Has Phone', value: 10, description: 'Direct phone contact is available' });
-    }
-    if (lead.city || lead.region) {
-      scoreValue += 5;
-      factors.push({ name: 'Profile: Has Location', value: 5, description: 'Geographic region context is present' });
-    }
+    let hasActiveConfig = false;
+    try {
+      const config = await getActiveProviderConfig(this.db);
+      // If we are in tests, we can fall back to environment variable if configured,
+      // but otherwise verify api_key is present.
+      const apiKey = config?.apiKey || (typeof process !== 'undefined' ? process.env?.GEMINI_API_KEY : undefined);
+      if (apiKey && apiKey !== 'placeholder' && apiKey !== '') {
+        hasActiveConfig = true;
+      }
+    } catch (e) {}
 
-    // 2. Initial Triage Modifier
-    if (lead.triagePriority === 'HIGH') {
-      scoreValue += 15;
-      factors.push({ name: 'Triage: High Priority', value: 15, description: 'Initial triage flagged as high relevance' });
-    } else if (lead.triagePriority === 'MEDIUM') {
-      scoreValue += 5;
-      factors.push({ name: 'Triage: Medium Priority', value: 5, description: 'Initial triage flagged as medium relevance' });
-    } else if (lead.triagePriority === 'SKIP') {
-      scoreValue -= 20;
-      factors.push({ name: 'Triage: Skip Flag', value: -20, description: 'Initial triage recommended skip' });
-    }
-
-    // 3. Digital Audit Opportunity Factors (Agency-fit: weak sites are HIGH opportunity)
-    if (latestAudit) {
-      const wQuality = latestAudit.websiteQualityScore ?? 100;
-      const dAesthetic = latestAudit.designAestheticScore ?? 100;
-      const mClarity = latestAudit.messagingClarityScore ?? 100;
-      const sPresence = latestAudit.socialPresenceScore ?? 100;
-      const oBranding = latestAudit.overallBrandingScore ?? 100;
-
-      if (wQuality < 50) {
-        scoreValue += 15;
-        factors.push({ name: 'Audit: Weak Site Performance', value: 15, description: `Website quality score is low (${wQuality}/100) — high redesign/technical opportunity` });
+    if ((latestResearch || latestAudit) && hasActiveConfig) {
+      try {
+        const aiScore = await generateLeadScore(this.db, lead.name, latestResearch, latestAudit);
+        scoreValue = aiScore.score;
+        rationaleSummary = aiScore.rationaleSummary;
+        factors = aiScore.factors;
+        origin = 'AI_SUGGESTED';
+      } catch (err) {
+        console.error('[ScoringService] AI scoring failed, using baseline:', err);
+        // Fallback to completeness
+        const fallback = this.calculateCompletenessScore(lead, latestAudit);
+        scoreValue = fallback.scoreValue;
+        rationaleSummary = 'Fallback baseline score (AI generation failed).';
+        factors = fallback.factors.map(f => `${f.name}: ${f.description}`);
       }
-      if (dAesthetic < 60) {
-        scoreValue += 15;
-        factors.push({ name: 'Audit: Weak Aesthetic Appeal', value: 15, description: `Design aesthetic score is low (${dAesthetic}/100) — high branding/visual refresh opportunity` });
-      }
-      if (mClarity < 60) {
-        scoreValue += 10;
-        factors.push({ name: 'Audit: Vague Messaging', value: 10, description: `Messaging clarity score is low (${mClarity}/100) — high copy/marketing layout opportunity` });
-      }
-      if (sPresence < 50) {
-        scoreValue += 10;
-        factors.push({ name: 'Audit: Weak Social Footprint', value: 10, description: `Social presence score is low (${sPresence}/100) — social media collateral opportunity` });
-      }
-      if (oBranding < 60) {
-        scoreValue += 10;
-        factors.push({ name: 'Audit: Inconsistent Branding', value: 10, description: `Overall branding consistency score is low (${oBranding}/100) — rebranding bundle opportunity` });
-      }
+    } else {
+      const fallback = this.calculateCompletenessScore(lead, latestAudit);
+      scoreValue = fallback.scoreValue;
+      rationaleSummary = `Calculated baseline priority based on profile completeness.`;
+      factors = fallback.factors.map(f => `${f.name}: ${f.description}`);
     }
 
     // Clamp score value between 0 and 100
     scoreValue = Math.max(0, Math.min(100, scoreValue));
 
     // Determine priority label
-    let scoreLabel: 'High' | 'Medium' | 'Low' = 'Low';
-    if (scoreValue >= 75) {
+    if (scoreValue >= 80) {
       scoreLabel = 'High';
-    } else if (scoreValue >= 45) {
+    } else if (scoreValue >= 50) {
       scoreLabel = 'Medium';
-    }
-
-    // Construct a written rationale summary
-    const positiveFactors = factors.filter(f => f.value > 0);
-    const negativeFactors = factors.filter(f => f.value < 0);
-    
-    let rationaleSummary = `Calculated Priority: ${scoreLabel} (${scoreValue}/100). `;
-    if (latestAudit) {
-      rationaleSummary += `Enriched by website audit. `;
     } else {
-      rationaleSummary += `Based on basic profile data; run audit for deeper prioritization. `;
-    }
-    
-    if (positiveFactors.length > 1) {
-      rationaleSummary += `Key drivers: ${positiveFactors.slice(1, 4).map(f => f.name.replace('Profile: ', '').replace('Audit: ', '')).join(', ')}.`;
-    }
-    if (negativeFactors.length > 0) {
-      rationaleSummary += ` Negatives: ${negativeFactors.map(f => f.name).join(', ')}.`;
+      scoreLabel = 'Low';
     }
 
     const scoreId = crypto.randomUUID();
@@ -139,7 +107,7 @@ export class ScoringService {
       scoreLabel,
       rationaleSummary,
       factors: JSON.stringify(factors),
-      origin: userId ? 'MANUAL_OVERRIDE' : (jobRunId ? 'AI_SUGGESTED' : 'RULE_BASED'),
+      origin: userId ? ('MANUAL_OVERRIDE' as const) : (jobRunId ? ('AI_SUGGESTED' as const) : origin),
       isCurrent: 1,
       createdByUserId: userId,
       jobRunId,
@@ -154,11 +122,47 @@ export class ScoringService {
       id: crypto.randomUUID(),
       leadId,
       type: 'Score updated',
-      summary: `Lead score calculated as ${scoreValue} (${scoreLabel})`,
+      summary: `Lead score updated to ${scoreValue} (${scoreLabel})`,
       timestamp: now,
     });
 
     return newScore;
+  }
+
+  private calculateCompletenessScore(lead: any, latestAudit: any) {
+    const factors: ScoringFactor[] = [];
+    let scoreValue = 10; // Base baseline priority points
+    factors.push({ name: 'Base Priority', value: 10, description: 'Baseline priority weight' });
+
+    // 1. Profile Completeness Factors
+    if (lead.website) {
+      scoreValue += 15;
+      factors.push({ name: 'Profile: Has Website', value: 15, description: 'Website is present' });
+    }
+    if (lead.email) {
+      scoreValue += 10;
+      factors.push({ name: 'Profile: Has Email', value: 10, description: 'Direct email contact is available' });
+    }
+    if (lead.phone) {
+      scoreValue += 10;
+      factors.push({ name: 'Profile: Has Phone', value: 10, description: 'Direct phone contact is available' });
+    }
+    if (lead.city || lead.region) {
+      scoreValue += 5;
+      factors.push({ name: 'Profile: Has Location', value: 5, description: 'Geographic region context is present' });
+    }
+    if (lead.industry) {
+      scoreValue += 10;
+      factors.push({ name: 'Profile: Has Industry', value: 10, description: 'Industry classification is identified' });
+    }
+
+    // 2. Audit Presence Factor
+    if (latestAudit) {
+      scoreValue += 30;
+      factors.push({ name: 'Audit: Completed', value: 30, description: 'Digital presence audit has been performed' });
+    }
+
+    return { scoreValue, factors };
   }
 
   /**

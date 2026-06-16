@@ -3,11 +3,6 @@ export interface AuditSnapshot {
   leadId: string;
   createdByUserId: string | null;
   origin: string;
-  websiteQualityScore: number | null;
-  designAestheticScore: number | null;
-  messagingClarityScore: number | null;
-  socialPresenceScore: number | null;
-  overallBrandingScore: number | null;
   keyStrengths: string | null;
   keyWeaknesses: string | null;
   recommendedImprovements: string | null;

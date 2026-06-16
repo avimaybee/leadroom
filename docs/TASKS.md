@@ -88,6 +88,37 @@
 
 ---
 
+## Stage 4: Audits & Scoring (Completed)
+
+### 1. Database Schema
+- [x] Create `audits` and `lead_scores` tables via Drizzle in `src/db/schema/audits.ts`.
+- [x] Decouple quantitative gamified scores; audits are strictly qualitative (key strengths, key weaknesses, recommended improvements, opportunity notes).
+
+### 2. Lead scoring logic
+- [x] Implement the `recalculateScore` service method inside `src/services/scoring.ts` to fetch the latest research and audit snapshots.
+- [x] Integrate AI-based priority score calculations (`generateLeadScore`) routing to the active LLM config.
+- [x] Implement a profile-completeness scoring fallback (+15 for website, +10 for email, +10 for phone, +5 for city, +10 for industry, +30 for audit completed) if LLM call is unavailable.
+- [x] Implement the manual override method (`manualOverride`) with justification context, marking overridden scores as inactive (`isCurrent = 0`).
+
+---
+
+## Stage 5: Outreach Assistant & Approvals (Completed)
+
+### 1. Database Schema
+- [x] Define `outreach_drafts` and `approvals` tables in the database schema.
+
+### 2. Unified Background Pipeline & Token Uncapping
+- [x] Bundle qualitative website design audits, research snapshots, and lead priority scoring into a single unified sequential workflow in `src/workflows/research-snapshot.ts`.
+- [x] Uncap maximum output tokens to `24000` for all AI agent prompts in `src/lib/ai.ts` to allow rich outreach template generation.
+- [x] Wire automatic research workflow trigger when promoting candidate leads in `src/services/discovery.ts`.
+
+### 3. Outreach Assistant Actions & UI
+- [x] Implement server actions (`generateOutreachDraftAction`, `recordApprovalAction`, `markAsSentAction`, `updateDraftAction`, `duplicateDraftAction`) in `src/app/actions/outreach.ts`.
+- [x] Render tailorable outreach cards with visual channel picker (Email, WhatsApp, Call Prep, In-person visit) and status flows (DRAFT -> APPROVED -> SENT).
+- [x] Ensure approval transitions are gated and create timeline logs in the chronological activities feed.
+
+---
+
 ## Stage 8: Future Conversational Pilot & Vector RAG (Roadmapped)
 
 ### 1. Cloudflare Vectorize Integration

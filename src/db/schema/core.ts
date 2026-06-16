@@ -22,8 +22,6 @@ export const leads = sqliteTable('leads', {
   industry: text('industry'),
   stage: text('stage').notNull().default('New'),
   status: text('status').notNull().default('Active'),
-  triagePriority: text('triage_priority').default('UNASSESSED'),
-  triageReason: text('triage_reason'),
   ownerId: text('owner_id').references(() => users.id),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),

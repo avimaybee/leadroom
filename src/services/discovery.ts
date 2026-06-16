@@ -48,8 +48,6 @@ export class DiscoveryService {
       rawLocation: input.rawLocation ?? null,
       notes: input.notes ?? null,
       status: input.status || 'NEW',
-      triagePriority: input.triagePriority ?? 'UNASSESSED',
-      triageReason: input.triageReason ?? null,
       promotedLeadId: input.promotedLeadId ?? null,
       createdAt: now,
       updatedAt: now,
@@ -83,28 +81,6 @@ export class DiscoveryService {
     return results[0] || null;
   }
 
-  async updateCandidateTriage(candidateId: string, triagePriority: 'HIGH' | 'MEDIUM' | 'SKIP', triageReason: string | null) {
-    const now = new Date();
-    await this.db
-      .update(candidateLeads)
-      .set({ triagePriority, triageReason, updatedAt: now })
-      .where(eq(candidateLeads.id, candidateId));
-
-    const [candidate] = await this.db.select().from(candidateLeads).where(eq(candidateLeads.id, candidateId)).limit(1);
-
-    if (candidate && candidate.promotedLeadId) {
-      await this.db
-        .update(leads)
-        .set({ triagePriority, triageReason, updatedAt: now })
-        .where(eq(leads.id, candidate.promotedLeadId));
-
-      const scoringService = new ScoringService(this.db);
-      await scoringService.recalculateScore(candidate.promotedLeadId);
-    }
-
-    return candidate || null;
-  }
-
   async promoteCandidate(candidateId: string, ownerId: string) {
     const now = new Date();
 
@@ -136,8 +112,6 @@ export class DiscoveryService {
       city: candidate.rawLocation || null,
       stage: 'New',
       status: 'Active',
-      triagePriority: candidate.triagePriority,
-      triageReason: candidate.triageReason,
       ownerId: ownerId,
       createdAt: now,
       updatedAt: now,
@@ -166,6 +140,26 @@ export class DiscoveryService {
     // 6. Recalculate baseline priority score
     const scoringService = new ScoringService(this.db);
     await scoringService.recalculateScore(leadId);
+
+    // 7. Auto-trigger research for the promoted lead
+    const jobId = crypto.randomUUID();
+    const { jobRuns } = await import('../db/schema/research');
+    await this.db.insert(jobRuns).values({
+      id: jobId,
+      jobType: 'RESEARCH_GENERATION',
+      status: 'QUEUED',
+      targetLeadId: leadId,
+      triggeredByUserId: ownerId,
+      externalRunId: 'AUTO_TRIGGERED',
+      startedAt: null,
+      finishedAt: null,
+      createdAt: now,
+    });
+
+    const { triggerResearchWorkflow } = await import('../lib/workflow-client');
+    const env = (process.env as unknown as Record<string, unknown>);
+    const workflowBinding = env?.RESEARCH_SNAPSHOT_WORKFLOW as any;
+    await triggerResearchWorkflow(this.db, workflowBinding, leadId, jobId, ownerId);
 
     const [promotedLead] = await this.db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
     return promotedLead;

@@ -1,6 +1,5 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
-import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { eq } from 'drizzle-orm';
 import { providerConfigs } from '../schema/core';
@@ -78,21 +77,10 @@ class MockD1Database {
   }
 }
 
-function setupTestDb() {
-  const sqlite = new Database(':memory:');
-  
-  sqlite.exec(`
-    CREATE TABLE provider_configs (
-      id TEXT PRIMARY KEY,
-      provider TEXT NOT NULL UNIQUE,
-      api_key TEXT NOT NULL,
-      model_name TEXT NOT NULL,
-      is_active INTEGER DEFAULT 1,
-      created_at INTEGER DEFAULT (strftime('%s', 'now')),
-      updated_at INTEGER DEFAULT (strftime('%s', 'now'))
-    );
-  `);
+import { setupTestDb as initTestDb } from './test-helpers';
 
+function setupTestDb() {
+  const { sqlite } = initTestDb();
   const mockD1 = new MockD1Database(sqlite);
   return { mockD1, sqlite };
 }

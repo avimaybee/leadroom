@@ -1,6 +1,6 @@
 import { Db } from '../db';
 import { eq, desc } from 'drizzle-orm';
-import { audits, activities } from '../db/schema';
+import { audits, activities, leads } from '../db/schema';
 import { ScoringService } from './scoring';
 import { LeadService } from './lead';
 
@@ -8,16 +8,9 @@ export interface CreateAuditInput {
   leadId: string;
   createdByUserId?: string | null;
   origin?: 'MANUAL' | 'AI_GENERATED';
-  websiteQualityScore: number | null;
-  designAestheticScore: number | null;
-  messagingClarityScore: number | null;
-  socialPresenceScore: number | null;
-  overallBrandingScore: number | null;
   keyStrengths: string | null;
   keyWeaknesses: string | null;
   recommendedImprovements: string | null;
-  isModern?: boolean | null;
-  triageReason?: string | null;
   opportunityNotes?: string | null;
   sources?: string[] | null;
   jobRunId?: string | null;
@@ -55,16 +48,9 @@ export class AuditService {
       leadId: input.leadId,
       createdByUserId: input.createdByUserId || null,
       origin: input.origin || 'AI_GENERATED',
-      websiteQualityScore: input.websiteQualityScore,
-      designAestheticScore: input.designAestheticScore,
-      messagingClarityScore: input.messagingClarityScore,
-      socialPresenceScore: input.socialPresenceScore,
-      overallBrandingScore: input.overallBrandingScore,
       keyStrengths: input.keyStrengths,
       keyWeaknesses: input.keyWeaknesses,
       recommendedImprovements: input.recommendedImprovements,
-      isModern: input.isModern != null ? (input.isModern ? 1 : 0) : null,
-      triageReason: input.triageReason || null,
       opportunityNotes: input.opportunityNotes || null,
       sources: input.sources ? JSON.stringify(input.sources) : null,
       jobRunId: input.jobRunId || null,
@@ -79,7 +65,7 @@ export class AuditService {
       id: crypto.randomUUID(),
       leadId: input.leadId,
       type: 'Audit generated',
-      summary: `Website audit completed with overall branding score of ${input.overallBrandingScore}/100`,
+      summary: `Website audit completed.`,
       timestamp: now,
     });
 

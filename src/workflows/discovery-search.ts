@@ -4,8 +4,6 @@ import { checkApifyRunStatus, fetchApifyResults } from '../lib/discovery/apify';
 import { candidateLeads } from '../db/schema/discovery';
 import { jobRuns } from '../db/schema/research';
 import { eq } from 'drizzle-orm';
-import { metadataTriage } from '../lib/triage/heuristics';
-import { enrichCandidate } from '../lib/triage/enricher';
 
 type DiscoveryParams = {
   jobId: string;
@@ -32,7 +30,6 @@ export class DiscoverySearchWorkflow extends WorkflowEntrypoint<Env, DiscoveryPa
     };
 
     const db = getDb();
-    const browserBinding = this.env.BROWSER;
 
     try {
       // Mark RUNNING immediately so the UI shows progress
@@ -103,7 +100,7 @@ export class DiscoverySearchWorkflow extends WorkflowEntrypoint<Env, DiscoveryPa
         async () => await fetchApifyResults(datasetId, niche, location),
       );
 
-      // Step 3: Save all candidates immediately with heuristic triage (zero cost)
+      // Step 3: Save all candidates immediately
       await step.do(
         'save-candidates-raw',
         {
@@ -114,7 +111,6 @@ export class DiscoverySearchWorkflow extends WorkflowEntrypoint<Env, DiscoveryPa
           const now = new Date();
           if (results.length > 0) {
             const candidates = results.map((r) => {
-              const heuristic = metadataTriage({ website: r.website || null, phone: r.phone || null });
               return {
                 id: crypto.randomUUID(),
                 discoveryScopeId: scopeId || null,
@@ -124,8 +120,6 @@ export class DiscoverySearchWorkflow extends WorkflowEntrypoint<Env, DiscoveryPa
                 rawLocation: [r.city, r.region].filter(Boolean).join(', ') || null,
                 notes: r.industry ? `Industry: ${r.industry}` : null,
                 status: 'NEW' as const,
-                triagePriority: heuristic.triagePriority,
-                triageReason: heuristic.triageReason,
                 createdAt: now,
                 updatedAt: now,
               };
@@ -136,112 +130,17 @@ export class DiscoverySearchWorkflow extends WorkflowEntrypoint<Env, DiscoveryPa
 
           await db.update(jobRuns)
             .set({
+              status: 'COMPLETED',
               totalItems: results.length,
-              itemsProcessed: 0,
-              currentStage: 'Enriching candidates',
+              itemsProcessed: results.length,
+              currentStage: 'Complete',
               startedAt: now,
+              finishedAt: now,
             })
             .where(eq(jobRuns.id, jobId));
         },
       );
 
-      // Step 4: Enrich candidates (three-level, only for UNASSESSED)
-      if (results.length > 0) {
-        await step.do(
-          'enrich-candidates',
-          {
-            retries: { limit: 3, delay: 2000, backoff: 'exponential' },
-            timeout: '15 minutes',
-          },
-          async () => {
-            const BATCH_SIZE = 10;
-            let processed = 0;
-
-            // Only enrich candidates that heuristics flagged as UNASSESSED
-            const toEnrich = results.filter((r) => {
-              const heuristic = metadataTriage({ website: r.website, phone: r.phone });
-              return heuristic.triagePriority === 'UNASSESSED';
-            });
-
-            for (let i = 0; i < toEnrich.length; i += BATCH_SIZE) {
-              const [j] = await db.select().from(jobRuns).where(eq(jobRuns.id, jobId)).limit(1);
-              if (j && (j.status === 'FAILED' || j.errorSummary === 'Cancelled by user')) {
-                throw new Error('Cancelled by user');
-              }
-
-              const batch = toEnrich.slice(i, i + BATCH_SIZE);
-
-              const batchResults = await Promise.allSettled(
-                batch.map(async (r) => {
-                  if (!r.website) return null;
-                  try {
-                    return await enrichCandidate(r.website, browserBinding);
-                  } catch {
-                    return null;
-                  }
-                }),
-              );
-              for (let j = 0; j < batch.length; j++) {
-                const r = batch[j];
-                const batchResult = batchResults[j];
-                let triagePriority: 'HIGH' | 'MEDIUM' | 'SKIP' = 'MEDIUM';
-                let triageReason = 'Enrichment failed (unreachable or blocked). Needs manual triage.';
-
-                if (batchResult.status === 'fulfilled' && batchResult.value) {
-                  triagePriority = batchResult.value.triagePriority;
-                  triageReason = batchResult.value.triageReason;
-                }
-
-                if (r.website) {
-                  await db
-                    .update(candidateLeads)
-                    .set({ triagePriority, triageReason, updatedAt: new Date() })
-                    .where(eq(candidateLeads.rawWebsiteUrl, r.website));
-                }
-              }
-
-              processed += batch.length;
-              const sample = (() => {
-                for (const r of batchResults) {
-                  if (r.status === 'fulfilled' && r.value?.triageReason) return r.value.triageReason;
-                }
-                return undefined;
-              })();
-
-              await db.update(jobRuns)
-                .set({
-                  itemsProcessed: processed,
-                  currentStage: `Enriching ${processed} of ${toEnrich.length}${sample ? ` — ${sample.substring(0, 60)}` : ''}`,
-                })
-                .where(eq(jobRuns.id, jobId));
-            }
-
-            await db.update(jobRuns)
-              .set({
-                status: 'COMPLETED',
-                itemsProcessed: results.length,
-                currentStage: 'Complete',
-                finishedAt: new Date(),
-              })
-              .where(eq(jobRuns.id, jobId));
-          },
-        );
-      } else {
-        await step.do(
-          'mark-complete',
-          { retries: { limit: 2, delay: 500 }, timeout: '30 seconds' },
-          async () => {
-            await db.update(jobRuns)
-              .set({
-                status: 'COMPLETED',
-                itemsProcessed: 0,
-                currentStage: 'Complete — no candidates found',
-                finishedAt: new Date(),
-              })
-              .where(eq(jobRuns.id, jobId));
-          },
-        );
-      }
     } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : 'Unknown error during discovery search';
       console.error(`DiscoverySearchWorkflow failed for job ${jobId}:`, error);

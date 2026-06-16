@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { decrypt } from '@/lib/auth';
 import { jobRuns } from '@/db/schema/research';
-import { triggerAuditWorkflow, triggerTriageWorkflow, CloudflareWorkflow } from '@/lib/workflow-client';
+import { triggerResearchWorkflow, CloudflareWorkflow } from '@/lib/workflow-client';
 import { ScoringService } from '@/services/scoring';
 import { LeadService } from '@/services/lead';
 import { AuditService } from '@/services/audits';
@@ -38,14 +38,14 @@ export async function triggerAuditAction(leadId: string) {
   }
 
   try {
-    // IDEMPOTENCY GUARD: Check for an already-active audit job for this lead
+    // IDEMPOTENCY GUARD: Check for an already-active research job for this lead
     const [existingJob] = await db
       .select({ id: jobRuns.id, status: jobRuns.status })
       .from(jobRuns)
       .where(
         and(
           eq(jobRuns.targetLeadId, leadId),
-          eq(jobRuns.jobType, 'AUDIT_GENERATION'),
+          eq(jobRuns.jobType, 'RESEARCH_GENERATION'),
           or(
             eq(jobRuns.status, 'QUEUED'),
             eq(jobRuns.status, 'RUNNING')
@@ -64,7 +64,7 @@ export async function triggerAuditAction(leadId: string) {
 
     await db.insert(jobRuns).values({
       id: jobId,
-      jobType: 'AUDIT_GENERATION',
+      jobType: 'RESEARCH_GENERATION',
       status: 'QUEUED',
       targetLeadId: leadId,
       triggeredByUserId: userId,
@@ -74,9 +74,9 @@ export async function triggerAuditAction(leadId: string) {
     });
 
     const env = (process.env as unknown as Record<string, unknown>);
-    const workflowBinding = env?.AUDIT_SNAPSHOT_WORKFLOW as CloudflareWorkflow | undefined;
+    const workflowBinding = env?.RESEARCH_SNAPSHOT_WORKFLOW as CloudflareWorkflow | undefined;
 
-    await triggerAuditWorkflow(db, workflowBinding, leadId, jobId, userId);
+    await triggerResearchWorkflow(db, workflowBinding, leadId, jobId, userId);
 
     const leadService = new LeadService(db);
     await leadService.advanceStageIfEarlier(leadId, 'Auditing');
@@ -148,61 +148,4 @@ export async function getAuditAndScoreDetails(leadId: string) {
   }
 }
 
-/**
- * Next.js Server Action to manually trigger a background triage scan for a lead.
- */
-export async function triggerTriageAction(leadId: string) {
-  const db = getDb();
-  const userId = await getUserId();
 
-  if (!userId) {
-    return { error: 'Unauthorized' };
-  }
-
-  try {
-    const [existingJob] = await db
-      .select({ id: jobRuns.id, status: jobRuns.status })
-      .from(jobRuns)
-      .where(
-        and(
-          eq(jobRuns.targetLeadId, leadId),
-          eq(jobRuns.jobType, 'TRIAGE_SCAN'),
-          or(
-            eq(jobRuns.status, 'QUEUED'),
-            eq(jobRuns.status, 'RUNNING')
-          )
-        )
-      )
-      .limit(1);
-
-    if (existingJob) {
-      console.log(`[Triage Action] Job already active for lead ${leadId}: ${existingJob.id}. Returning existing jobId.`);
-      return { error: null, success: true, jobId: existingJob.id };
-    }
-
-    const jobId = crypto.randomUUID();
-    const now = new Date();
-
-    await db.insert(jobRuns).values({
-      id: jobId,
-      jobType: 'TRIAGE_SCAN',
-      status: 'QUEUED',
-      targetLeadId: leadId,
-      triggeredByUserId: userId,
-      startedAt: null,
-      finishedAt: null,
-      createdAt: now,
-    });
-
-    const env = (process.env as unknown as Record<string, unknown>);
-    const workflowBinding = env?.TRIAGE_WORKFLOW as CloudflareWorkflow | undefined;
-
-    await triggerTriageWorkflow(db, workflowBinding, leadId);
-
-    revalidatePath(`/leads/${leadId}`);
-    return { error: null, success: true, jobId };
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'Failed to trigger triage';
-    return { error: msg, success: false, jobId: null };
-  }
-}

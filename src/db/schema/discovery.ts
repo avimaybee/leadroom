@@ -24,8 +24,6 @@ export const candidateLeads = sqliteTable('candidate_leads', {
   rawLocation: text('raw_location'),
   notes: text('notes'),
   status: text('status').$type<'NEW' | 'REVIEWED' | 'PROMOTED' | 'DISCARDED'>().default('NEW').notNull(),
-  triagePriority: text('triage_priority').$type<'UNASSESSED' | 'HIGH' | 'MEDIUM' | 'SKIP'>().default('UNASSESSED').notNull(),
-  triageReason: text('triage_reason'),
   promotedLeadId: text('promoted_lead_id'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),

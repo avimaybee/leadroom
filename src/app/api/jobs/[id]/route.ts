@@ -41,6 +41,10 @@ export async function GET(
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });
     }
 
+    if (job.triggeredByUserId && job.triggeredByUserId !== userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     return NextResponse.json({
       id: job.id,
       jobType: job.jobType,

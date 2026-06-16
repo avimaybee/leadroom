@@ -17,17 +17,10 @@ export const AIResearchSchema = z.object({
 export type AIResearchOutput = z.infer<typeof AIResearchSchema>;
 
 export const AIAuditSchema = z.object({
-  websiteQualityScore: z.number().int().min(0).max(100),
-  designAestheticScore: z.number().int().min(0).max(100),
-  messagingClarityScore: z.number().int().min(0).max(100),
-  socialPresenceScore: z.number().int().min(0).max(100),
-  overallBrandingScore: z.number().int().min(0).max(100),
   keyStrengths: z.string(),
   keyWeaknesses: z.string(),
   recommendedImprovements: z.string(),
   sources: z.array(z.string()),
-  isModern: z.boolean(),
-  triageReason: z.string(),
 });
 
 export type AIAuditOutput = z.infer<typeof AIAuditSchema>;
@@ -81,7 +74,7 @@ import { IntegrationsService } from '../services/integrations';
  * Resolves the active provider config once, caching the result by Db instance.
  * Subsequent calls within the same scope reuse the cached value.
  */
-async function getActiveProviderConfig(db: Db) {
+export async function getActiveProviderConfig(db: Db) {
   const cached = _providerConfigWeakCache.get(db);
   if (cached && Date.now() - cached.timestamp < PROVIDER_CONFIG_CACHE_TTL_MS) {
     return cached.config;
@@ -213,6 +206,7 @@ Provide your response strictly in JSON format matching this schema:
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: {
+              maxOutputTokens: 24000,
               responseMimeType: 'application/json',
               responseSchema: {
                 type: 'OBJECT',
@@ -302,19 +296,12 @@ const RESEARCH_JSON_SCHEMA = {
 const AUDIT_JSON_SCHEMA = {
   type: 'object',
   properties: {
-    websiteQualityScore: { type: 'integer' },
-    designAestheticScore: { type: 'integer' },
-    messagingClarityScore: { type: 'integer' },
-    socialPresenceScore: { type: 'integer' },
-    overallBrandingScore: { type: 'integer' },
     keyStrengths: { type: 'string' },
     keyWeaknesses: { type: 'string' },
     recommendedImprovements: { type: 'string' },
     sources: { type: 'array', items: { type: 'string' } },
-    isModern: { type: 'boolean' },
-    triageReason: { type: 'string' },
   },
-  required: ['websiteQualityScore', 'designAestheticScore', 'messagingClarityScore', 'socialPresenceScore', 'overallBrandingScore', 'keyStrengths', 'keyWeaknesses', 'recommendedImprovements', 'sources', 'isModern', 'triageReason'],
+  required: ['keyStrengths', 'keyWeaknesses', 'recommendedImprovements', 'sources'],
   additionalProperties: false,
 };
 
@@ -363,7 +350,7 @@ async function callOpenAICompatible(
           { role: 'user', content: prompt },
         ],
         temperature: 0.2,
-        max_tokens: 1024,
+        max_tokens: 24000,
         response_format: format,
       }),
     });
@@ -425,75 +412,7 @@ function generateMockResearch(
   };
 }
 
-/**
- * Lightweight heuristic triage — replaces the removed AI-based runTriageAI.
- * Analyzes raw HTML/text content for telltale signals of modernity.
- * Returns { isModern, reason } that maps to the old MODERN/OUTDATED scheme.
- */
-export type HeuristicTriageResult = { isModern: boolean; reason: string };
 
-export function heuristicSiteTriage(scrapedContent: string): HeuristicTriageResult {
-  const lower = scrapedContent.toLowerCase();
-
-  // Positive signals (modern)
-  const hasViewport = /viewport|meta\s*name\s*=\s*["']viewport["']/i.test(lower);
-  const hasModernFramework = /next\.js|tailwind|react\.js|vue\.js|nuxt|gatsby|remix|vite|chakra|shadcn|bootstrap\s*5/i.test(lower);
-  const hasWebFont = /@font-face|googleapis\.com\/css|fonts\.googleapis|font\.awesome|typekit|netdna\.bootstrapcdn/i.test(lower);
-  const hasRecentCopyright = /copyright\s*(?:©|\(c\))?\s*(202[3-9]|202[0-9]|20[2-9]\d)/i.test(lower);
-  const hasDynamicYear = /\$currentYear|new\s*Date\(\)\.getFullYear|date\.now\s*\(\s*\)|{\s*year\s*}/i.test(lower);
-
-  // Negative signals (outdated)
-  const hasOldCopyright = /copyright\s*(?:©|\(c\))?\s*(19\d{2}|200\d|201[0-7])/i.test(lower);
-  const hasTableLayout = /<table\s*(?:border|width|cellpadding|cells?pacing)/i.test(lower) && /<tr>|<\/tr>/i.test(lower);
-  const hasFlashOrObject = /<object\s|classid\s*=|flash|\.swf|embed\s*src/i.test(lower);
-  const hasFontTag = /<font\s+(?:size|face|color)/i.test(lower);
-  const hasSpacerGif = /spacer\.gif|pixel\.gif|1x1\.gif|blank\.gif/i.test(lower);
-  const hasAncientCMS = /powered\s+by\s+(?:oscommerce|zen\s*cart|mambo|joomla\s*1|drupal\s*[45]|phpbb|vbulletin)/i.test(lower);
-  const hasUnderConstruction = /under\s*construction|coming\s*soon|site\s*unavailable/i.test(lower);
-  const noViewport = !hasViewport;
-  const verySparse = scrapedContent.length < 300 && !hasModernFramework;
-
-  // Scoring: count signals
-  let modernScore = 0;
-  let outdatedScore = 0;
-
-  if (hasViewport) modernScore += 2;
-  if (hasModernFramework) modernScore += 3;
-  if (hasWebFont) modernScore += 2;
-  if (hasRecentCopyright || hasDynamicYear) modernScore += 2;
-
-  if (hasOldCopyright) outdatedScore += 3;
-  if (hasTableLayout) outdatedScore += 3;
-  if (hasFlashOrObject) outdatedScore += 4;
-  if (hasFontTag) outdatedScore += 2;
-  if (hasSpacerGif) outdatedScore += 3;
-  if (hasAncientCMS) outdatedScore += 3;
-  if (hasUnderConstruction) outdatedScore += 4;
-  if (noViewport) outdatedScore += 2;
-  if (verySparse) outdatedScore += 2;
-
-  // Evidence list for the reason
-  const evidence: string[] = [];
-  if (hasViewport) evidence.push('viewport meta present');
-  if (hasModernFramework) evidence.push('modern framework detected');
-  if (hasOldCopyright) evidence.push('older copyright detected');
-  if (hasTableLayout) evidence.push('table-based layout detected');
-  if (hasFlashOrObject) evidence.push('Flash/object tags present');
-  if (hasUnderConstruction) evidence.push('page is under construction');
-  if (noViewport) evidence.push('missing viewport meta (not mobile-responsive)');
-  if (verySparse) evidence.push('very sparse content');
-
-  const isModern = modernScore >= outdatedScore && modernScore >= 2;
-  const fallbackReason = scrapedContent.length < 100
-    ? 'Content too sparse to assess.'
-    : 'No strong signals either way — defaulting to modern (treat as viable prospect).';
-
-  const reason = evidence.length > 0
-    ? `Site appears ${isModern ? 'modern' : 'outdated'}: ${evidence.join(', ')}.`
-    : fallbackReason;
-
-  return { isModern, reason };
-}
 
 export async function generateAudit(
   db: Db,
@@ -592,58 +511,24 @@ Industry: ${ind}
 Website: ${web}
 ${contextBlock}
 
-You are a senior design and UX auditor at a creative/digital agency. Your job is to produce a structured, evidence-based evaluation of a lead's digital presence — scoring their website, design, messaging, and social footprint — so the account team knows exactly where to focus and what to pitch.
+You are a senior design and UX auditor at a creative/digital agency. Your job is to produce a structured, evidence-based evaluation of a lead's digital presence — critiquing their website, design, messaging, and social footprint — so the account team knows exactly where to focus and what to pitch.
 
 ---
 
 ## 1. MINDSET
 
-You are the agency's expert witness. Your scores and commentary will be used to:
+You are the agency's expert witness. Your commentary will be used to:
 - Decide whether a lead is worth pursuing at all
 - Frame the first conversation around specific, undeniable weaknesses
 - Support the proposal with credible, third-party-feeling evidence
 
-Be generous where deserved and ruthless where needed. A lead who gets a 90 across the board probably doesn't need the agency's help — flag that honestly. A lead who gets a 30 everywhere is neglected but may be a high-conversion opportunity.
+Be generous where deserved and ruthless where needed. A lead who gets high praise across the board probably doesn't need the agency's help — flag that honestly. A lead with terrible design is neglected but may be a high-conversion opportunity.
 
 You do not exist to flatter or to sell. You exist to tell the truth clearly enough that the account team can sell against it.
 
 ---
 
-## 2. SCORING METHODOLOGY
-
-Each score is 0-100. The scale is calibrated to real-world competitive standards within the lead's industry, not absolute perfection.
-
-**websiteQualityScore:**
-- 80-100: Fast, responsive, well-structured, logical IA, clear CTAs, professional polish
-- 60-79: Functional but has friction — slow load indicators, unclear navigation, weak CTA placement
-- 40-59: Dated layout, poor mobile behavior, cluttered UI, missing key pages
-- 0-39: Broken, inaccessible, table-based, no viewport config, placeholder content
-
-**designAestheticScore:**
-- 80-100: Intentional typography system, custom palette, generous whitespace, cohesive visual language
-- 60-79: Decent baseline but uses templates or default components visibly
-- 40-59: Inconsistent spacing, mismatched fonts, default browser styling, no design system
-- 0-39: Looks untouched or assembled from conflicting sources
-
-**messagingClarityScore:**
-- 80-100: Value proposition is clear within 3 seconds of landing. Headline + subheadline + supporting evidence
-- 60-79: Messaging exists but buried in paragraphs or jargon
-- 40-59: Generic or vague ("we provide solutions"), no differentiation from competitors
-- 0-39: No clear messaging, just lists of services or product names
-
-**socialPresenceScore:**
-- Base this ONLY on evidence you have. If contextBlock contains research with social links, evaluate them.
-- If the context says "No detectable social presence", score 15-25
-- If no social data is available at all, score 40-50 as a neutral default
-- Do not fabricate a score based on assumptions about their industry
-
-**overallBrandingScore:**
-- A weighted composite feel of all the above plus brand consistency across what you can see
-- Key question: Does this brand look like someone invested in how they're perceived?
-
----
-
-## 3. TEXT FIELD INSTRUCTIONS
+## 2. TEXT FIELD INSTRUCTIONS
 
 **keyStrengths** — Format as a markdown bullet list. Each bullet must reference a specific, observable element. "Clean navigation with 4 clear categories" not "good layout."
 
@@ -653,26 +538,18 @@ Each score is 0-100. The scale is calibrated to real-world competitive standards
 
 **sources** — URL array of what you actually examined. Always include the website URL.
 
-**isModern** — Set to true if websiteQualityScore >= 60 (the site looks credible and maintained). Set to false if below 60 (the site needs significant work and is a viable prospect for agency services).
+---
 
-**triageReason** — A 1-sentence summary that explains the isModern classification, referencing the most decisive score or specific observation.
+## 3. CONTEXT HANDLING RULES
+
+- If the contextBlock includes scraped website content, use it as your primary source
+- If the contextBlock includes research observations but no scraped content, base your critique on those observations and note uncertainty
+- If the contextBlock is empty, state that the audit is speculative due to no available data
 
 ---
 
-## 4. CONTEXT HANDLING RULES
+## 4. ANTI-PATTERNS
 
-- If the contextBlock includes scraped website content, use it as your primary scoring source
-- If the contextBlock includes research observations but no scraped content, base scores on those observations and note uncertainty in your text fields
-- If the contextBlock is empty, state that scoring is speculative due to no available data
-- Never penalize for things you cannot see. If you have no social data, the socialPresenceScore should be neutral (40-50), not 0
-
----
-
-## 5. ANTI-PATTERNS
-
-- Do not give every lead the same scores — differentiate based on evidence
-- Do not assign a 0 to any category unless the site is genuinely broken or missing entirely
-- Do not assign a 100 to any category — nothing is perfect
 - Do not write strengths that sound like faint praise ("the logo exists")
 - Do not write weaknesses that are unsupported by evidence in the context block
 - Do not use the word "good", "nice", "decent", "solid" without a specific reason
@@ -681,17 +558,10 @@ Each score is 0-100. The scale is calibrated to real-world competitive standards
 
 Provide your response strictly in JSON format matching this schema:
 {
-  "websiteQualityScore": 75,
-  "designAestheticScore": 60,
-  "messagingClarityScore": 55,
-  "socialPresenceScore": 40,
-  "overallBrandingScore": 60,
   "keyStrengths": "- Specific strength 1\\n- Specific strength 2",
   "keyWeaknesses": "- Specific weakness 1\\n- Specific weakness 2",
   "recommendedImprovements": "- Improvement 1\\n- Improvement 2",
-  "sources": ["URLs checked"],
-  "isModern": true,
-  "triageReason": "The site has a modern responsive layout with clear messaging but weak social presence."
+  "sources": ["URLs checked"]
 }`;
 
   try {
@@ -706,34 +576,21 @@ Provide your response strictly in JSON format matching this schema:
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: {
+              maxOutputTokens: 24000,
               responseMimeType: 'application/json',
               responseSchema: {
                 type: 'OBJECT',
                 properties: {
-                  websiteQualityScore: { type: 'INTEGER' },
-                  designAestheticScore: { type: 'INTEGER' },
-                  messagingClarityScore: { type: 'INTEGER' },
-                  socialPresenceScore: { type: 'INTEGER' },
-                  overallBrandingScore: { type: 'INTEGER' },
                   keyStrengths: { type: 'STRING' },
                   keyWeaknesses: { type: 'STRING' },
                   recommendedImprovements: { type: 'STRING' },
                   sources: { type: 'ARRAY', items: { type: 'STRING' } },
-                  isModern: { type: 'BOOLEAN' },
-                  triageReason: { type: 'STRING' },
                 },
                 required: [
-                  'websiteQualityScore',
-                  'designAestheticScore',
-                  'messagingClarityScore',
-                  'socialPresenceScore',
-                  'overallBrandingScore',
                   'keyStrengths',
                   'keyWeaknesses',
                   'recommendedImprovements',
                   'sources',
-                  'isModern',
-                  'triageReason',
                 ],
               },
             },
@@ -769,16 +626,11 @@ function generateMockAudit(
   industry: string | null
 ): AIAuditOutput {
   const name = companyName || leadName;
-  const scores = { websiteQualityScore: 60, designAestheticScore: 55, messagingClarityScore: 55, socialPresenceScore: 40, overallBrandingScore: 55 };
-
   return {
-    ...scores,
     keyStrengths: `- Clean baseline layout with core sections\n- Contact information is visible on the page`,
     keyWeaknesses: `- Lacks modern mobile-responsive grid layout\n- Outdated typography and default browser styling`,
     recommendedImprovements: `- Redesign with responsive grid system\n- Apply cohesive visual style guide\n- Simplify contact/booking flow`,
     sources: websiteUrl ? [websiteUrl] : [`https://${name.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`],
-    isModern: scores.websiteQualityScore >= 60,
-    triageReason: `Website quality score of ${scores.websiteQualityScore} indicates a functional but improvable site.`,
   };
 }
 
@@ -838,7 +690,7 @@ Stakeholders:
 ${contactText}
 
 ${researchSnapshot ? `Research Context:\n- Company Summary: ${researchSnapshot.companySummary || ''}\n- Products/Services: ${researchSnapshot.productsServicesSummary || 'N/A'}\n- Digital Presence: ${researchSnapshot.digitalPresenceNotes || 'N/A'}\n- Website Observations: ${researchSnapshot.websiteNotes || 'N/A'}\n- Branding Notes: ${researchSnapshot.brandingNotes || 'N/A'}\n- Pain Points: ${researchSnapshot.painPointsHypotheses || ''}\n- Opportunity Hypotheses: ${researchSnapshot.opportunityHypotheses || ''}\n` : ''}
-${auditSnapshot ? `Website & Branding Audit Context:\n- Website Quality Score: ${auditSnapshot.websiteQualityScore}/100\n- Design Aesthetic Score: ${auditSnapshot.designAestheticScore}/100\n- Messaging Clarity: ${auditSnapshot.messagingClarityScore}/100\n- Social Presence: ${auditSnapshot.socialPresenceScore}/100\n- Overall Branding Score: ${auditSnapshot.overallBrandingScore}/100\n- Key Strengths: ${auditSnapshot.keyStrengths || 'N/A'}\n- Key Weaknesses: ${auditSnapshot.keyWeaknesses || ''}\n- Recommended Improvements: ${auditSnapshot.recommendedImprovements || ''}\n` : ''}
+${auditSnapshot ? `Website & Branding Audit Context:\n- Key Strengths: ${auditSnapshot.keyStrengths || 'N/A'}\n- Key Weaknesses: ${auditSnapshot.keyWeaknesses || 'N/A'}\n- Recommended Improvements: ${auditSnapshot.recommendedImprovements || 'N/A'}\n` : ''}
 ${customPrompt ? `\nSPECIAL INSTRUCTIONS FROM THE OPERATOR:\n${customPrompt}\n` : ''}
 ${attachments && attachments.length > 0 ? `\nNote: The operator has attached ${attachments.length} files (images or PDFs) showing mockup/branding/website context. Please reference or adapt your feedback specifically incorporating visual details or document findings if vision support is active.\n` : ''}
 ${getChannelPrompt(channel)}
@@ -878,6 +730,7 @@ Provide your response strictly in JSON format. The response must match the follo
           body: JSON.stringify({
             contents: [{ parts }],
             generationConfig: {
+              maxOutputTokens: 24000,
               responseMimeType: 'application/json',
               responseSchema: {
                 type: 'OBJECT',
@@ -1139,6 +992,7 @@ Rules:
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: {
+              maxOutputTokens: 24000,
               responseMimeType: 'application/json',
               responseSchema: {
                 type: 'OBJECT',
@@ -1239,7 +1093,6 @@ export function generateMockOutreachDraft(
   const name = companyName || leadName;
   const primaryContact = contactsList.find(c => c.isPrimary) || contactsList[0];
   const contactName = primaryContact ? primaryContact.name : 'there';
-  const score = auditSnapshot ? auditSnapshot.overallBrandingScore : 50;
 
   if (channel === 'EMAIL') {
     return { drafts: [{
@@ -1256,17 +1109,122 @@ export function generateMockOutreachDraft(
   } else if (channel === 'CALL') {
     return { drafts: [{
       subject: null,
-      body: `CALL PREP FOR ${name.toUpperCase()}\n\nContact: ${contactName} (${primaryContact?.role || 'Stakeholder'})\nScore: ${score}/100\n\nOpening:\n"Hi ${contactName}, I was reviewing ${name}'s digital presence and noticed a few opportunities I'd like to share."\n\nQuestions:\n- How are you currently handling website updates?\n- What's the biggest challenge with your current site?\n- What would success look like for a redesign?\n\nGoal: Schedule a discovery call.`,
+      body: `CALL PREP FOR ${name.toUpperCase()}\n\nContact: ${contactName} (${primaryContact?.role || 'Stakeholder'})\n\nOpening:\n"Hi ${contactName}, I was reviewing ${name}'s digital presence and noticed a few opportunities I'd like to share."\n\nQuestions:\n- How are you currently handling website updates?\n- What's the biggest challenge with your current site?\n- What would success look like for a redesign?\n\nGoal: Schedule a discovery call.`,
       variationTone: 'Direct',
     }]};
   } else {
     return { drafts: [{
       subject: null,
-      body: `MEETING PREP GUIDE FOR ${name.toUpperCase()}\n\nAttendee: ${contactName} (${primaryContact?.role || 'Decision Maker'})\nAudit Score: ${score}/100\n\nAgenda:\n1. Introductions and context\n2. ${name}'s current digital presence review\n3. Key opportunities identified\n4. Next steps\n\nQuestions:\n- What are your main conversion challenges?\n- How does your brand identity align with future goals?\n- What digital improvements would have the biggest impact?`,
+      body: `MEETING PREP GUIDE FOR ${name.toUpperCase()}\n\nAttendee: ${contactName} (${primaryContact?.role || 'Decision Maker'})\n\nAgenda:\n1. Introductions and context\n2. ${name}'s current digital presence review\n3. Key opportunities identified\n4. Next steps\n\nQuestions:\n- What are your main conversion challenges?\n- How does your brand identity align with future goals?\n- What digital improvements would have the biggest impact?`,
       variationTone: 'Direct',
     }]};
   }
 }
 
+export const AILeadScoreSchema = z.object({
+  score: z.number().int().min(0).max(100),
+  rationaleSummary: z.string(),
+  factors: z.array(z.string()),
+});
 
+export type AILeadScoreOutput = z.infer<typeof AILeadScoreSchema>;
 
+export async function generateLeadScore(
+  db: Db,
+  leadName: string,
+  researchSnapshot: any | null,
+  auditSnapshot: any | null
+): Promise<AILeadScoreOutput> {
+  const config = await getActiveProviderConfig(db);
+  let provider = config?.provider || 'gemini';
+  let apiKey = config?.apiKey || (process as any).env?.GEMINI_API_KEY;
+  let modelName = config?.modelName || 'gemini-2.5-flash';
+
+  if (!apiKey || apiKey === 'placeholder' || apiKey === '') {
+    return { score: 50, rationaleSummary: 'Default score due to missing AI config.', factors: ['Missing AI configuration'] };
+  }
+
+  const prompt = `Evaluate the following lead and assign a priority score from 0 to 100.
+Lead Name: ${leadName}
+
+--- RESEARCH SNAPSHOT ---
+${JSON.stringify(researchSnapshot || {}, null, 2)}
+
+--- DESIGN AUDIT ---
+${JSON.stringify(auditSnapshot || {}, null, 2)}
+
+You are evaluating how good of an opportunity this lead is for a creative/digital agency.
+Score Criteria:
+0-30: Terrible opportunity (e.g., no website, no budget, completely broken business, completely un-contactable).
+31-60: Weak opportunity (e.g., okay website but hard to improve, small local business with no obvious growth vector).
+61-80: Solid opportunity (e.g., outdated website, clear messaging gaps, active business that needs professionalization).
+81-100: Prime opportunity (e.g., high-ticket services, terrible current digital presence, obvious ways an agency can add massive ROI).
+
+Provide a single JSON response with:
+- score (0-100)
+- rationaleSummary (1-2 sentences explaining why this score was given)
+- factors (an array of 3-5 specific bullet points justifying the score)
+
+Provide your response strictly in JSON format matching this schema:
+{
+  "score": 75,
+  "rationaleSummary": "Strong opportunity because...",
+  "factors": ["Factor 1", "Factor 2"]
+}`;
+
+  const SCORE_JSON_SCHEMA = {
+    type: 'object',
+    properties: {
+      score: { type: 'integer' },
+      rationaleSummary: { type: 'string' },
+      factors: { type: 'array', items: { type: 'string' } }
+    },
+    required: ['score', 'rationaleSummary', 'factors'],
+    additionalProperties: false,
+  };
+
+  try {
+    let textResult = '';
+    if (provider === 'gemini') {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              maxOutputTokens: 24000,
+              responseMimeType: 'application/json',
+              responseSchema: {
+                type: 'OBJECT',
+                properties: {
+                  score: { type: 'INTEGER' },
+                  rationaleSummary: { type: 'STRING' },
+                  factors: { type: 'ARRAY', items: { type: 'STRING' } }
+                },
+                required: ['score', 'rationaleSummary', 'factors']
+              }
+            }
+          })
+        }
+      );
+      if (response.ok) {
+        const data = await response.json() as any;
+        textResult = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      } else {
+        throw new Error(`Gemini API returned status ${response.status}`);
+      }
+    } else {
+      textResult = await callOpenAICompatible(
+        provider, prompt, apiKey, modelName,
+        'You are a lead scoring evaluator. Output strictly valid JSON.',
+        SCORE_JSON_SCHEMA
+      );
+    }
+    return AILeadScoreSchema.parse(JSON.parse(textResult));
+  } catch (error) {
+    console.error('Lead scoring failed:', error);
+    return { score: 50, rationaleSummary: 'Scoring failed.', factors: ['Error during generation'] };
+  }
+}

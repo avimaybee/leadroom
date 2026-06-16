@@ -188,8 +188,6 @@ Essential fields:
 - source_id (nullable; reference id, e.g. DiscoveryScope or import batch)
 - status (enum: ACTIVE, ARCHIVED)
 - stage (enum representing pipeline stage; see pipeline docs later)
-- triage_priority (enum: HIGH, MEDIUM, SKIP, UNASSESSED)
-- triage_reason (nullable, text)
 - owner_user_id (FK -> User.id, nullable for now)
 - created_by_user_id (FK -> User.id)
 - created_at
@@ -199,7 +197,6 @@ Essential fields:
 Notes:
 
 - Stage values should align with the pipeline design (new, researching, qualified, etc.).
-- `triage_priority` and `triage_reason` store the results of the automated first-pass triage AI.
 - Keep Lead focused on stable profile fields and high-level lifecycle flags.
 
 ### 5.3 Contact
@@ -305,11 +302,6 @@ Essential fields:
 - lead_id (FK -> Lead.id)
 - created_by_user_id (FK -> User.id, nullable)
 - origin (enum: MANUAL, AI_GENERATED)
-- website_quality_score (nullable, small int 0–100)
-- design_aesthetic_score (nullable, small int 0–100)
-- messaging_clarity_score (nullable, small int 0–100)
-- social_presence_score (nullable, small int 0–100)
-- overall_branding_score (nullable, small int 0–100)
 - key_strengths (nullable, text)
 - key_weaknesses (nullable, text)
 - recommended_improvements (nullable, text)
@@ -321,7 +313,7 @@ Essential fields:
 
 Notes:
 
-- Scores are optional; they can be added gradually.
+- Audits are strictly qualitative analysis (strengths, weaknesses, improvements, and opportunities), designed to help human-in-the-loop operators inspect digital presence without arbitrary/gamified scoring. Scoring is decoupled into a single lead prioritization score.
 
 ### 5.8 LeadScore
 

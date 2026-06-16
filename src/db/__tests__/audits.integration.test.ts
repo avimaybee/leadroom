@@ -1,7 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
-import Database from 'better-sqlite3';
-import { drizzle } from 'drizzle-orm/better-sqlite3';
+import { setupTestDb as initTestDb } from './test-helpers';
 import { AuditService } from '../../services/audits';
 import { ScoringService } from '../../services/scoring';
 import { LeadService } from '../../services/lead';
@@ -10,127 +9,7 @@ import { leads, activities, users } from '../schema/core';
 import { eq } from 'drizzle-orm';
 
 function setupTestDb() {
-  const sqlite = new Database(':memory:');
-
-  sqlite.exec(`
-    CREATE TABLE users (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      email TEXT NOT NULL UNIQUE,
-      password TEXT NOT NULL,
-      created_at INTEGER DEFAULT (strftime('%s', 'now')),
-      updated_at INTEGER DEFAULT (strftime('%s', 'now'))
-    );
-
-    CREATE TABLE leads (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      company TEXT,
-      email TEXT,
-      phone TEXT,
-      website TEXT,
-      city TEXT,
-      region TEXT,
-      industry TEXT,
-      stage TEXT NOT NULL DEFAULT 'New',
-      status TEXT NOT NULL DEFAULT 'Active',
-      triage_priority TEXT DEFAULT 'UNASSESSED',
-      triage_reason TEXT,
-      owner_id TEXT REFERENCES users(id),
-      created_at INTEGER DEFAULT (strftime('%s', 'now')),
-      updated_at INTEGER DEFAULT (strftime('%s', 'now'))
-    );
-
-    CREATE TABLE job_runs (
-      id TEXT PRIMARY KEY,
-      job_type TEXT NOT NULL,
-      status TEXT NOT NULL,
-      target_lead_id TEXT REFERENCES leads(id),
-      triggered_by_user_id TEXT REFERENCES users(id),
-      error_summary TEXT,
-      started_at INTEGER,
-      finished_at INTEGER,
-      created_at INTEGER DEFAULT (strftime('%s', 'now'))
-    );
-
-    CREATE TABLE audits (
-      id TEXT PRIMARY KEY,
-      lead_id TEXT NOT NULL REFERENCES leads(id),
-      created_by_user_id TEXT REFERENCES users(id),
-      origin TEXT NOT NULL DEFAULT 'AI_GENERATED',
-      website_quality_score INTEGER,
-      design_aesthetic_score INTEGER,
-      messaging_clarity_score INTEGER,
-      social_presence_score INTEGER,
-      overall_branding_score INTEGER,
-      key_strengths TEXT,
-      key_weaknesses TEXT,
-      recommended_improvements TEXT,
-      is_modern INTEGER,
-      triage_reason TEXT,
-      opportunity_notes TEXT,
-      sources TEXT,
-      job_run_id TEXT REFERENCES job_runs(id),
-      created_at INTEGER DEFAULT (strftime('%s', 'now')),
-      updated_at INTEGER DEFAULT (strftime('%s', 'now'))
-    );
-
-    CREATE TABLE lead_scores (
-      id TEXT PRIMARY KEY,
-      lead_id TEXT NOT NULL REFERENCES leads(id),
-      score_value INTEGER NOT NULL,
-      score_label TEXT,
-      rationale_summary TEXT,
-      factors TEXT,
-      origin TEXT NOT NULL DEFAULT 'RULE_BASED',
-      is_current INTEGER NOT NULL DEFAULT 1,
-      created_by_user_id TEXT REFERENCES users(id),
-      job_run_id TEXT REFERENCES job_runs(id),
-      created_at INTEGER DEFAULT (strftime('%s', 'now')),
-      updated_at INTEGER DEFAULT (strftime('%s', 'now'))
-    );
-
-    CREATE TABLE activities (
-      id TEXT PRIMARY KEY,
-      lead_id TEXT NOT NULL REFERENCES leads(id),
-      type TEXT NOT NULL,
-      summary TEXT NOT NULL,
-      timestamp INTEGER DEFAULT (strftime('%s', 'now'))
-    );
-
-    CREATE TABLE discovery_scopes (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      description TEXT,
-      industry_filter TEXT,
-      geography_filter TEXT,
-      company_size_filter TEXT,
-      business_type_filter TEXT,
-      digital_presence_filter TEXT,
-      notes TEXT,
-      created_by_user_id TEXT NOT NULL,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-
-    CREATE TABLE candidate_leads (
-      id TEXT PRIMARY KEY,
-      discovery_scope_id TEXT REFERENCES discovery_scopes(id),
-      raw_name TEXT NOT NULL,
-      raw_website_url TEXT,
-      raw_contact_info TEXT,
-      raw_location TEXT,
-      notes TEXT,
-      status TEXT NOT NULL DEFAULT 'NEW',
-      triage_priority TEXT DEFAULT 'UNASSESSED' NOT NULL,
-      triage_reason TEXT,
-      promoted_lead_id TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-  `);
-
-  const db = drizzle(sqlite);
+  const { db } = initTestDb();
   return {
     db,
     leadService: new LeadService(db as any),
@@ -147,22 +26,21 @@ test('Audits & Scoring Integration', async (t) => {
     const lead = await leadService.createLead({
       name: 'John Creative Parlour',
       email: 'john@creativeparlour.com',
-      triagePriority: 'MEDIUM',
     });
 
     const score = await scoringService.recalculateScore(lead.id);
     assert.ok(score);
     assert.strictEqual(score.leadId, lead.id);
-    // Base 10 + Email 10 + Triage Medium 5 = 25 points
-    assert.strictEqual(score.scoreValue, 25);
+    // Base 10 + Email 10 = 20 points
+    assert.strictEqual(score.scoreValue, 20);
     assert.strictEqual(score.scoreLabel, 'Low');
-    assert.ok(score.rationaleSummary.includes('Calculated Priority: Low'));
+    assert.ok(score.rationaleSummary.includes('Calculated baseline priority'));
 
     // Check activity log
     const activitiesList = await db.select().from(activities).where(eq(activities.leadId, lead.id));
     const scoreActivity = activitiesList.find(a => a.type === 'Score updated');
     assert.ok(scoreActivity);
-    assert.ok(scoreActivity.summary.includes('score calculated as 25'));
+    assert.ok(scoreActivity.summary.includes('score updated to 20'));
   });
 
   await t.test('createAudit should save audit, recalculate score, and log activities', async () => {
@@ -174,17 +52,11 @@ test('Audits & Scoring Integration', async (t) => {
       phone: '817-555-0199',
       city: 'Burleson',
       region: 'Texas',
-      triagePriority: 'HIGH',
     });
 
     // Run audit representing a very weak digital presence (high opportunity)
     const audit = await auditService.createAudit({
       leadId: lead.id,
-      websiteQualityScore: 30, // < 50 -> +15 opportunity
-      designAestheticScore: 40, // < 60 -> +15 opportunity
-      messagingClarityScore: 45, // < 60 -> +10 opportunity
-      socialPresenceScore: 80, // > 50 -> +0 opportunity
-      overallBrandingScore: 50, // < 60 -> +10 opportunity
       keyStrengths: 'Decent portfolio images.',
       keyWeaknesses: 'No mobile responsiveness, slow load time, weak CTA.',
       recommendedImprovements: 'Build clean React static page with direct booking form.',
@@ -197,23 +69,17 @@ test('Audits & Scoring Integration', async (t) => {
     // Verify lead score:
     // Base: 10
     // Profile: website (15) + email (10) + phone (10) + location (5) = +40
-    // Triage: HIGH = +15
-    // Audit Opportunity:
-    //   websiteQuality < 50 -> +15
-    //   designAesthetic < 60 -> +15
-    //   messagingClarity < 60 -> +10
-    //   overallBranding < 60 -> +10
-    // Total potential opportunity: +50
-    // Total expected score: 10 + 40 + 15 + 50 = 115 (clamped to 100)
+    // Audit completed: +30
+    // Total expected score: 10 + 40 + 30 = 80 (High)
     const currentScore = await scoringService.getCurrentScore(lead.id);
     assert.ok(currentScore);
-    assert.strictEqual(currentScore.scoreValue, 100);
+    assert.strictEqual(currentScore.scoreValue, 80);
     assert.strictEqual(currentScore.scoreLabel, 'High');
 
     // Verify activity logs
     const activitiesList = await db.select().from(activities).where(eq(activities.leadId, lead.id));
     const auditActivity = activitiesList.find(a => a.type === 'Audit generated');
-    const scoreActivity = activitiesList.find(a => a.type === 'Score updated' && a.summary.includes('100'));
+    const scoreActivity = activitiesList.find(a => a.type === 'Score updated' && a.summary.includes('80'));
     
     assert.ok(auditActivity);
     assert.ok(scoreActivity);
@@ -222,7 +88,6 @@ test('Audits & Scoring Integration', async (t) => {
   await t.test('manualOverride should enforce user score and update isCurrent flags', async () => {
     const lead = await leadService.createLead({
       name: 'Custom Studio Corp',
-      triagePriority: 'MEDIUM',
     });
 
     // Insert mock user to satisfy foreign key constraint on createdByUserId
@@ -233,7 +98,7 @@ test('Audits & Scoring Integration', async (t) => {
       password: 'hashedpassword',
     });
 
-    // Run first score calculation (should be 15: Base 10 + Triage 5)
+    // Run first score calculation (should be 10: Base 10)
     await scoringService.recalculateScore(lead.id);
 
     // Apply manual override

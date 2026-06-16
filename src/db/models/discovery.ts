@@ -20,8 +20,6 @@ export const CreateCandidateLeadSchema = z.object({
   rawLocation: z.string().max(500, 'Location must be at most 500 characters').optional().nullable(),
   notes: z.string().max(5000, 'Notes must be at most 5000 characters').optional().nullable(),
   status: z.enum(['NEW', 'REVIEWED', 'PROMOTED', 'DISCARDED']).default('NEW'),
-  triagePriority: z.enum(['UNASSESSED', 'HIGH', 'MEDIUM', 'SKIP']).default('UNASSESSED'),
-  triageReason: z.string().max(1000, 'Triage reason must be at most 1000 characters').optional().nullable(),
   promotedLeadId: z.string().uuid('Invalid lead ID format').optional().nullable(),
 });
 

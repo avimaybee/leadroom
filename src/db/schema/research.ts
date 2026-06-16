@@ -12,7 +12,7 @@ export const jobRuns = sqliteTable('job_runs', {
   /** External provider job ID (e.g. Apify actor run ID) for async status polling */
   externalRunId: text('external_run_id'),
   /** JSON-serialised partial data used between polling steps (e.g. Apify datasetId) */
-  jobMeta: text('job_meta'),
+  jobMeta: text('job_meta').$type<string>(),
   totalItems: integer('total_items'),
   itemsProcessed: integer('items_processed'),
   currentStage: text('current_stage'),

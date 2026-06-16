@@ -2,7 +2,7 @@
 
 ## Document status
 
-- Status: Active v1 (Stages 1-4 Completed).
+- Status: Active v1 (Stages 1-5 Completed).
 - Scope: Technical implementation plan for the internal-first build of AI Agency Growth OS.
 - Companion docs: `AGENTS.md`, `PRD.md`.
 - Audience: founder, coding agents, future engineering contributors.

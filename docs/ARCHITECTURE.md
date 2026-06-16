@@ -676,7 +676,7 @@ To support natural language operations while retaining consistency:
 
 To remain highly cost-efficient and limit token rate limit (RPM/TPM) bottlenecks on free/low-cost tiers:
 - **Hierarchical Routing:** A central, highly intelligent Supervisor model (e.g. Gemini Pro or DeepSeek Chat) handles user intent classification and plans workflow steps.
-- **Task Farm Execution:** Specific jobs (such as triage checks, website audits, or copy generation) are farmed out to dedicated sub-agents running on fast, free, or hyper-cheap endpoints (Groq, Nvidia NIM, OpenRouter free models).
+- **Task Farm Execution:** Specific jobs (such as research snapshots, website audits, or copy generation) are farmed out to dedicated sub-agents running on fast, free, or hyper-cheap endpoints (Groq, Nvidia NIM, OpenRouter free models).
 - **Sub-Agent Context Discarding:** To prevent massive token accumulation in the Supervisor's chat history, sub-agents run in isolated, single-turn sessions. Once a sub-agent completes a task and returns its structured output to the Supervisor, its entire raw context (scraped content, intermediate thinking logs) is discarded. Only the final structured data is appended to the main Supervisor history.
 - **Provider Redundancy/Failover:** If an active provider (e.g. Gemini API) hits its free-tier rate limits, the orchestrator service automatically routes subsequent task requests to backup providers (e.g. Groq or DeepSeek) using configured API failover priorities.
 

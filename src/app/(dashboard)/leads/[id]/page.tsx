@@ -143,8 +143,6 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             leadId={lead.id}
             initialAudit={latestAudit}
             initialScore={currentScore}
-            triagePriority={lead.triagePriority || 'UNASSESSED'}
-            triageReason={lead.triageReason || null}
             triggerAuditAction={triggerAuditAction}
             manualOverrideScoreAction={manualOverrideScoreAction}
           />

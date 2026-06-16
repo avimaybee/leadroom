@@ -2,28 +2,15 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 
 process.env.AUTH_SECRET = 'test-only-secret-key-minimum-32-chars-long';
-import Database from 'better-sqlite3';
-import { drizzle } from 'drizzle-orm/better-sqlite3';
+import { setupTestDb as initTestDb } from './test-helpers';
 import { AuthService } from '../../services/auth';
 import { users } from '../schema';
 
 function setupTestDb() {
-  const sqlite = new Database(':memory:');
-  
-  sqlite.exec(`
-    CREATE TABLE users (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      email TEXT NOT NULL UNIQUE,
-      password TEXT NOT NULL,
-      created_at INTEGER DEFAULT (strftime('%s', 'now')),
-      updated_at INTEGER DEFAULT (strftime('%s', 'now'))
-    );
-  `);
-
-  const db = drizzle(sqlite);
+  const { db } = initTestDb();
   return { db, service: new AuthService(db as any) };
 }
+
 
 test('AuthService integration', async (t) => {
   const { service } = setupTestDb();

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast, Toaster } from 'sonner';
+import ReactMarkdown from 'react-markdown';
 import { ErrorBoundary } from './ErrorBoundary';
 import { 
   generateOutreachDraftAction, 
@@ -632,8 +633,8 @@ function OutreachAssistantInner({ leadId, initialDrafts, researchSnapshot, audit
                       {draft.subject && (
                         <p className="text-xs font-bold text-card-foreground mb-2">{draft.subject}</p>
                       )}
-                      <div className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap max-h-[300px] overflow-y-auto">
-                        {draft.body}
+                      <div className="text-xs text-muted-foreground leading-relaxed prose-markdown max-h-[300px] overflow-y-auto">
+                        <ReactMarkdown>{draft.body}</ReactMarkdown>
                       </div>
                       <p className="text-xs text-muted-foreground font-semibold mt-2">
                         {draft.createdAt ? new Date(draft.createdAt).toLocaleString() : 'N/A'}
@@ -776,14 +777,14 @@ function OutreachAssistantInner({ leadId, initialDrafts, researchSnapshot, audit
                   <Label htmlFor="body-input" className="text-xs uppercase tracking-wider">Message Body</Label>
                   {showPreview && activeDraft ? (
                     <Card className="min-h-[200px]" size="sm">
-                      <CardContent className="text-xs text-card-foreground leading-relaxed whitespace-pre-wrap">
+                      <CardContent className="text-xs text-card-foreground leading-relaxed prose-markdown">
                         {selectedChannel === 'EMAIL' && subjectInput && (
                           <div className="mb-3 pb-3 border-b border-border">
                             <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Subject</span>
                             <p className="font-bold text-foreground mt-1">{subjectInput}</p>
                           </div>
                         )}
-                        {bodyInput}
+                        <ReactMarkdown>{bodyInput}</ReactMarkdown>
                       </CardContent>
                     </Card>
                   ) : (

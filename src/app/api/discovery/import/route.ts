@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { triggerTriageWorkflow } from '@/lib/workflow-client';
+
 import { getDb } from '@/db';
 import { leads, activities } from '@/db/schema/core';
 import { cookies } from 'next/headers';
@@ -63,7 +63,6 @@ export async function POST(request: Request) {
         ownerId: userId,
         stage: 'New',
         status: 'Active',
-        triagePriority: 'UNASSESSED',
         createdAt: now,
         updatedAt: now,
       });
@@ -78,13 +77,6 @@ export async function POST(request: Request) {
       });
 
       importedLeadIds.push(leadId);
-    }
-
-    // 2. Trigger Triage Workflow for all imported leads
-    const workflowBinding = (process.env as unknown as Record<string, unknown>)?.TRIAGE_WORKFLOW as any;
-    
-    for (const leadId of importedLeadIds) {
-      await triggerTriageWorkflow(db, workflowBinding, leadId);
     }
 
     return NextResponse.json({ 

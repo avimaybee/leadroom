@@ -1,7 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
-import Database from 'better-sqlite3';
-import { drizzle } from 'drizzle-orm/better-sqlite3';
+import { setupTestDb as initTestDb } from './test-helpers';
 import { OutreachService } from '../../services/outreach';
 import { LeadService } from '../../services/lead';
 import { outreachDrafts, approvals } from '../schema';
@@ -9,119 +8,7 @@ import { leads, activities, users } from '../schema/core';
 import { eq } from 'drizzle-orm';
 
 function setupTestDb() {
-  const sqlite = new Database(':memory:');
-
-  sqlite.exec(`
-    CREATE TABLE users (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      email TEXT NOT NULL UNIQUE,
-      password TEXT NOT NULL,
-      created_at INTEGER DEFAULT (strftime('%s', 'now')),
-      updated_at INTEGER DEFAULT (strftime('%s', 'now'))
-    );
-
-    CREATE TABLE leads (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      company TEXT,
-      email TEXT,
-      phone TEXT,
-      website TEXT,
-      city TEXT,
-      region TEXT,
-      industry TEXT,
-      stage TEXT NOT NULL DEFAULT 'New',
-      status TEXT NOT NULL DEFAULT 'Active',
-      triage_priority TEXT DEFAULT 'UNASSESSED',
-      triage_reason TEXT,
-      owner_id TEXT REFERENCES users(id),
-      created_at INTEGER DEFAULT (strftime('%s', 'now')),
-      updated_at INTEGER DEFAULT (strftime('%s', 'now'))
-    );
-
-    CREATE TABLE job_runs (
-      id TEXT PRIMARY KEY,
-      job_type TEXT NOT NULL,
-      status TEXT NOT NULL,
-      target_lead_id TEXT REFERENCES leads(id),
-      triggered_by_user_id TEXT REFERENCES users(id),
-      error_summary TEXT,
-      started_at INTEGER,
-      finished_at INTEGER,
-      created_at INTEGER DEFAULT (strftime('%s', 'now'))
-    );
-
-    CREATE TABLE audits (
-      id TEXT PRIMARY KEY,
-      lead_id TEXT NOT NULL REFERENCES leads(id),
-      created_by_user_id TEXT REFERENCES users(id),
-      origin TEXT NOT NULL DEFAULT 'AI_GENERATED',
-      website_quality_score INTEGER,
-      design_aesthetic_score INTEGER,
-      messaging_clarity_score INTEGER,
-      social_presence_score INTEGER,
-      overall_branding_score INTEGER,
-      key_strengths TEXT,
-      key_weaknesses TEXT,
-      recommended_improvements TEXT,
-      is_modern INTEGER,
-      triage_reason TEXT,
-      opportunity_notes TEXT,
-      sources TEXT,
-      job_run_id TEXT REFERENCES job_runs(id),
-      created_at INTEGER DEFAULT (strftime('%s', 'now')),
-      updated_at INTEGER DEFAULT (strftime('%s', 'now'))
-    );
-
-    CREATE TABLE lead_scores (
-      id TEXT PRIMARY KEY,
-      lead_id TEXT NOT NULL REFERENCES leads(id),
-      score_value INTEGER NOT NULL,
-      score_label TEXT,
-      rationale_summary TEXT,
-      factors TEXT,
-      origin TEXT NOT NULL DEFAULT 'RULE_BASED',
-      is_current INTEGER NOT NULL DEFAULT 1,
-      created_by_user_id TEXT REFERENCES users(id),
-      job_run_id TEXT REFERENCES job_runs(id),
-      created_at INTEGER DEFAULT (strftime('%s', 'now')),
-      updated_at INTEGER DEFAULT (strftime('%s', 'now'))
-    );
-
-    CREATE TABLE activities (
-      id TEXT PRIMARY KEY,
-      lead_id TEXT NOT NULL REFERENCES leads(id),
-      type TEXT NOT NULL,
-      summary TEXT NOT NULL,
-      timestamp INTEGER DEFAULT (strftime('%s', 'now'))
-    );
-
-    CREATE TABLE outreach_drafts (
-      id TEXT PRIMARY KEY,
-      lead_id TEXT NOT NULL REFERENCES leads(id),
-      channel TEXT NOT NULL,
-      subject TEXT,
-      body TEXT NOT NULL,
-      status TEXT DEFAULT 'DRAFT' NOT NULL,
-      origin TEXT DEFAULT 'AI_GENERATED' NOT NULL,
-      created_by_user_id TEXT REFERENCES users(id),
-      created_at INTEGER DEFAULT (strftime('%s', 'now')),
-      updated_at INTEGER DEFAULT (strftime('%s', 'now')),
-      attachments TEXT
-    );
-
-    CREATE TABLE approvals (
-      id TEXT PRIMARY KEY,
-      draft_id TEXT NOT NULL REFERENCES outreach_drafts(id),
-      user_id TEXT NOT NULL REFERENCES users(id),
-      decision TEXT NOT NULL,
-      feedback TEXT,
-      created_at INTEGER DEFAULT (strftime('%s', 'now'))
-    );
-  `);
-
-  const db = drizzle(sqlite);
+  const { db } = initTestDb();
   return {
     db,
     leadService: new LeadService(db as any),
@@ -143,7 +30,6 @@ test('Outreach Service Integration', async (t) => {
   const lead = await leadService.createLead({
     name: 'Creative Agency Client',
     email: 'client@creativeagency.com',
-    triagePriority: 'MEDIUM',
   });
 
   let draftId = '';

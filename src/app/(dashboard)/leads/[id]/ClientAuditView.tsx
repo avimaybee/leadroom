@@ -17,8 +17,6 @@ interface ClientAuditViewProps {
   leadId: string;
   initialAudit: AuditSnapshot | null;
   initialScore: LeadScore | null;
-  triagePriority: string;
-  triageReason: string | null;
   triggerAuditAction: (leadId: string) => Promise<{ error: string | null; success?: boolean; jobId?: string | null }>;
   manualOverrideScoreAction: (prevState: ActionState, formData: FormData) => Promise<ActionState>;
 }
@@ -27,8 +25,6 @@ export default function ClientAuditView({
   leadId,
   initialAudit,
   initialScore,
-  triagePriority,
-  triageReason,
   triggerAuditAction,
   manualOverrideScoreAction,
 }: ClientAuditViewProps) {
@@ -146,8 +142,6 @@ export default function ClientAuditView({
           leadId={leadId}
           audit={initialAudit}
           score={initialScore}
-          triagePriority={triagePriority}
-          triageReason={triageReason}
           onRunAudit={handleRunAudit}
           isAuditing={isAuditing}
           auditError={jobError}

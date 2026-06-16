@@ -1,10 +1,8 @@
 import { WorkflowEntrypoint, WorkflowEvent, WorkflowStep } from "cloudflare:workers";
 import { getDb } from "../db";
-import { fetchSiteContent } from "../lib/scraper";
-import { generateResearch } from "../lib/ai";
-import { saveExtractedContacts, logContactDiscoveryActivity } from "../lib/contacts";
-import { jobRuns, researchSnapshots } from "../db/schema/research";
-import { leads, activities } from "../db/schema/core";
+import { ResearchWorkflowService } from "../services/research-workflow";
+import { jobRuns } from "../db/schema/research";
+import { activities } from "../db/schema/core";
 import { eq } from "drizzle-orm";
 
 type Env = {
@@ -22,13 +20,13 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
   async run(event: WorkflowEvent<Params>, step: WorkflowStep) {
     const { leadId, jobId, userId } = event.payload;
 
-    // Inject environment variables and bindings into process.env so libraries can access them
     (process as any).env = {
       ...(process as any).env,
       ...this.env,
     };
 
     const db = getDb();
+    const workflowService = new ResearchWorkflowService(db);
 
     try {
       // Step 1: Fetch Lead Info
@@ -43,18 +41,7 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
           timeout: "1 minute",
         },
         async () => {
-          const [row] = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
-          if (!row) {
-            throw new Error(`Lead not found: ${leadId}`);
-          }
-          return {
-            name: row.name,
-            company: row.company || null,
-            website: row.website || null,
-            industry: row.industry || null,
-            city: row.city || null,
-            region: row.region || null,
-          };
+          return await workflowService.fetchLead(leadId);
         }
       );
 
@@ -73,21 +60,16 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
           timeout: "2 minutes",
         },
         async () => {
-          if (!lead.website) {
-            return null;
-          }
           try {
-            return await fetchSiteContent(lead.website);
+            return await workflowService.scrapeWebsite(lead.website);
           } catch (error: unknown) {
             const errMsg = error instanceof Error ? error.message : String(error);
-            console.error(`Website scraping failed for ${lead.website}:`, error);
             if (error instanceof Error && (error as any).status === 429) {
               throw error; // Re-throw 429 daily limit error so workflow fails transparently
             }
-            // Return placeholder structure so we can still attempt enrichment based on metadata
             return {
               title: "",
-              url: lead.website,
+              url: lead.website || "",
               content: `[Failed to scrape website: ${errMsg}]`,
               description: "",
             };
@@ -108,90 +90,28 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
             timeout: "1 minute",
           },
           async () => {
-            const saved = await saveExtractedContacts(
-              db,
-              leadId,
-              scraped.extractedContacts!,
-              userId
-            );
-            if (saved > 0) {
-              await logContactDiscoveryActivity(db, leadId, scraped.extractedContacts!, saved);
-            }
+            await workflowService.saveContacts(leadId, scraped, userId);
           }
         );
       }
 
-      // Step 5: LLM Inference
-      const research = await step.do(
-        "call-llm",
+      // Step 5: LLM Inference & Persist Snapshot/Audit/Score/Activity
+      await step.do(
+        "generate-snapshots",
         {
           retries: {
             limit: 3,
             delay: 5000,
             backoff: "exponential",
           },
-          timeout: "5 minutes",
+          timeout: "10 minutes",
         },
         async () => {
-          const websiteMarkdown = scraped?.content || null;
-          const location = [lead.city, lead.region].filter(Boolean).join(", ") || null;
-          return await generateResearch(
-            db,
-            lead.name,
-            lead.company,
-            lead.website,
-            lead.industry,
-            websiteMarkdown,
-            location
-          );
+          await workflowService.generateSnapshots(lead, scraped, userId, jobId);
         }
       );
 
-      // Step 6: Save Snapshot & Activity
-      const snapshotId = crypto.randomUUID();
-      await step.do(
-        "save-snapshot",
-        {
-          retries: {
-            limit: 3,
-            delay: 2000,
-            backoff: "exponential",
-          },
-          timeout: "2 minutes",
-        },
-        async () => {
-          await db.insert(researchSnapshots).values({
-            id: snapshotId,
-            leadId,
-            createdByUserId: userId || null,
-            origin: "AI_GENERATED",
-            snapshotTitle: scraped?.title ? `Research Snapshot: ${scraped.title}` : "AI Research Snapshot",
-            companySummary: research.companySummary,
-            productsServicesSummary: research.productsServicesSummary,
-            digitalPresenceNotes: research.digitalPresenceNotes,
-            websiteNotes: research.websiteNotes,
-            brandingNotes: research.brandingNotes,
-            painPointsHypotheses: research.painPointsHypotheses,
-            opportunityHypotheses: research.opportunityHypotheses,
-            sources: JSON.stringify(research.sources || [lead.website].filter(Boolean)),
-            confidenceLevel: research.confidenceLevel,
-            jobRunId: jobId,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          });
-
-          // Log system activity
-          await db.insert(activities).values({
-            id: crypto.randomUUID(),
-            leadId,
-            type: "Research generated",
-            summary: `AI research snapshot generated with ${research.confidenceLevel} confidence`,
-            timestamp: new Date(),
-          });
-        }
-      );
-
-      // Step 7: Mark Job Complete
+      // Step 6: Mark Job Complete
       await step.do(
         "mark-job-complete",
         {
@@ -205,8 +125,8 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
         async () => {
           await db.update(jobRuns)
             .set({
-              status: "COMPLETED",
-              finishedAt: new Date(),
+               status: "COMPLETED",
+               finishedAt: new Date(),
             })
             .where(eq(jobRuns.id, jobId));
         }
@@ -214,7 +134,6 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
 
     } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : "Unknown workflow error occurred";
-      console.error(`Research Snapshot Workflow failed for lead ${leadId}:`, error);
 
       // Save failure details inside DB
       try {
@@ -234,10 +153,11 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
           timestamp: new Date(),
         });
       } catch (dbErr: unknown) {
-        console.error("Failed to write workflow error to DB:", dbErr);
+        // Handled silently
       }
 
       throw error;
     }
   }
 }
+

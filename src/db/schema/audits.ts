@@ -8,16 +8,9 @@ export const audits = sqliteTable('audits', {
   leadId: text('lead_id').notNull().references(() => leads.id),
   createdByUserId: text('created_by_user_id').references(() => users.id),
   origin: text('origin').notNull().default('AI_GENERATED'), // 'MANUAL' | 'AI_GENERATED'
-  websiteQualityScore: integer('website_quality_score'), // 0 to 100
-  designAestheticScore: integer('design_aesthetic_score'), // 0 to 100
-  messagingClarityScore: integer('messaging_clarity_score'), // 0 to 100
-  socialPresenceScore: integer('social_presence_score'), // 0 to 100
-  overallBrandingScore: integer('overall_branding_score'), // 0 to 100
   keyStrengths: text('key_strengths'), // Markdown-enabled text or paragraph
   keyWeaknesses: text('key_weaknesses'), // Markdown-enabled text or paragraph
   recommendedImprovements: text('recommended_improvements'), // Markdown-enabled text or paragraph
-  isModern: integer('is_modern'), // 0 or 1 — AI assessment of whether the site looks credible/modern
-  triageReason: text('triage_reason'), // AI summary explaining the isModern classification
   opportunityNotes: text('opportunity_notes'), // Hypotheses or comments
   sources: text('sources'), // JSON stringified array of URLs
   jobRunId: text('job_run_id').references(() => jobRuns.id),
