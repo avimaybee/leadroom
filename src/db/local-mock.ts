@@ -131,6 +131,7 @@ export function setupLocalDatabaseMock() {
     `ALTER TABLE outreach_drafts ADD COLUMN is_read integer DEFAULT 0 NOT NULL`,
     `ALTER TABLE audits ADD COLUMN is_modern integer`,
     `ALTER TABLE audits ADD COLUMN triage_reason text`,
+    `ALTER TABLE activities ADD COLUMN metadata text`,
   ];
   for (const stmt of migrationStmts) {
     try { sqlite.exec(stmt); } catch { /* column already exists — safe to ignore */ }

@@ -134,6 +134,10 @@ export class DiscoveryService {
       leadId: leadId,
       type: 'SYSTEM',
       summary: `Promoted from candidate lead in Scope: ${scopeName}`,
+      metadata: {
+        from_stage: 'Candidate',
+        to_stage: 'New',
+      },
       timestamp: now,
     });
 

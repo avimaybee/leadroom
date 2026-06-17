@@ -117,6 +117,7 @@ function setupTestDb() {
       lead_id TEXT NOT NULL REFERENCES leads(id),
       type TEXT NOT NULL,
       summary TEXT NOT NULL,
+      metadata TEXT,
       timestamp INTEGER DEFAULT (strftime('%s', 'now'))
     );
 
