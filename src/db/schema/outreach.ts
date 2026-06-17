@@ -9,6 +9,7 @@ export const outreachDrafts = sqliteTable('outreach_drafts', {
   subject: text('subject'),
   body: text('body').notNull(),
   status: text('status').notNull().default('DRAFT'), // 'DRAFT' | 'APPROVED' | 'REJECTED' | 'SENT'
+  isRead: integer('is_read', { mode: 'boolean' }).notNull().default(false),
   origin: text('origin').notNull().default('AI_GENERATED'), // 'AI_GENERATED' | 'MANUAL'
   createdByUserId: text('created_by_user_id').references(() => users.id),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),

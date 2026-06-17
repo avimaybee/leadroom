@@ -93,10 +93,13 @@ async listLeads() {
 
   async updateLead(id: string, input: Partial<CreateLeadInput>) {
     const now = new Date();
-    await this.db.update(leads).set({
+    const updates: any = {
       ...input,
       updatedAt: now,
-    }).where(eq(leads.id, id));
+    };
+    if (input.stage && input.stage !== 'New') updates.isRead = true;
+
+    await this.db.update(leads).set(updates).where(eq(leads.id, id));
 
     // Recalculate baseline score immediately
     const scoringService = new ScoringService(this.db);
@@ -114,10 +117,13 @@ async listLeads() {
 
     if (oldStage === newStage) return oldLead;
 
-    await this.db.update(leads).set({
+    const updates: any = {
       stage: newStage,
       updatedAt: now,
-    }).where(eq(leads.id, id));
+    };
+    if (newStage !== 'New') updates.isRead = true;
+
+    await this.db.update(leads).set(updates).where(eq(leads.id, id));
 
     await this.db.insert(activities).values({
       id: crypto.randomUUID(),
@@ -134,6 +140,7 @@ async listLeads() {
     const now = new Date();
     await this.db.update(leads).set({
       status: 'Archived',
+      isRead: true,
       updatedAt: now,
     }).where(eq(leads.id, id));
 
@@ -214,11 +221,14 @@ async listLeads() {
     const [oldTask] = await this.db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
     if (!oldTask) throw new Error('Task not found');
 
-    await this.db.update(tasks).set({
+    const updates: any = {
       status: newStatus,
       completedAt,
       updatedAt: now,
-    }).where(eq(tasks.id, taskId));
+    };
+    if (newStatus !== 'Open') updates.isRead = true;
+
+    await this.db.update(tasks).set(updates).where(eq(tasks.id, taskId));
 
     if (oldTask.leadId) {
       await this.db.insert(activities).values({

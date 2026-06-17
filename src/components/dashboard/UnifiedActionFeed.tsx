@@ -1,0 +1,146 @@
+'use client';
+
+import { useState, useTransition } from 'react';
+import Link from 'next/link';
+import { formatUTC } from '@/lib/date';
+import { Badge } from '@/components/ui/badge';
+import { Calendar, CheckCircle, Mail, User, Check, EyeOff, Eye } from 'lucide-react';
+import { toggleTriageStatusAction } from '@/app/actions/triage';
+
+export type UnifiedItemType = 'lead' | 'task' | 'draft';
+
+export interface UnifiedItem {
+  id: string;
+  type: UnifiedItemType;
+  title: string;
+  subtitle?: string | null;
+  date: Date | null;
+  isRead: boolean;
+  link: string;
+  priority?: string;
+  status?: string;
+  leadId?: string;
+}
+
+export default function UnifiedActionFeed({ items }: { items: UnifiedItem[] }) {
+  const [showRead, setShowRead] = useState(false);
+  const [pendingItems, setPendingItems] = useState<Record<string, boolean>>({});
+  const [isPending, startTransition] = useTransition();
+
+  const filteredItems = items.filter(item => showRead || !item.isRead);
+
+  const handleToggleRead = (item: UnifiedItem) => {
+    setPendingItems(prev => ({ ...prev, [item.id]: true }));
+    startTransition(async () => {
+      try {
+        await toggleTriageStatusAction(item.type, item.id, !item.isRead);
+      } catch (e) {
+        console.error('Failed to toggle triage status:', e);
+      } finally {
+        setPendingItems(prev => ({ ...prev, [item.id]: false }));
+      }
+    });
+  };
+
+  if (filteredItems.length === 0 && items.length === 0) {
+    return (
+      <div className="text-center text-sm font-semibold text-muted-foreground py-6">
+        No action needed items.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center mb-2">
+        <h3 className="text-sm font-bold text-foreground uppercase tracking-wider border-b border-border pb-1">
+          Action Needed ({items.filter(i => !i.isRead).length})
+        </h3>
+        <button
+          onClick={() => setShowRead(!showRead)}
+          className="text-xs font-semibold text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+        >
+          {showRead ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+          {showRead ? 'Hide Seen' : 'Show Seen'}
+        </button>
+      </div>
+
+      {filteredItems.length === 0 ? (
+        <div className="text-center text-sm font-semibold text-muted-foreground py-6 border border-dashed rounded-xl border-border">
+          All caught up! No unread items.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filteredItems.map(item => (
+            <div
+              key={item.id}
+              className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-start gap-3 transition-all bg-card border-border shadow-sm hover:border-accent ${
+                pendingItems[item.id] ? 'opacity-40 pointer-events-none' : ''
+              } ${item.isRead ? 'opacity-70 bg-muted/30' : ''}`}
+            >
+              <div className="flex-1 min-w-0 space-y-1">
+                <div className="flex items-center gap-2 mb-1">
+                  {item.type === 'lead' && <Badge variant="secondary" className="text-[10px] uppercase"><User className="w-3 h-3 mr-1" /> Lead</Badge>}
+                  {item.type === 'task' && <Badge variant="outline" className="text-[10px] uppercase"><CheckCircle className="w-3 h-3 mr-1" /> Task</Badge>}
+                  {item.type === 'draft' && <Badge variant="default" className="text-[10px] uppercase"><Mail className="w-3 h-3 mr-1" /> Draft</Badge>}
+                  
+                  {item.priority && (
+                    <Badge variant={item.priority === 'High' ? 'destructive' : 'outline'} className="text-[10px]">
+                      {item.priority}
+                    </Badge>
+                  )}
+                  {item.status && (
+                    <Badge variant="outline" className="text-[10px]">
+                      {item.status}
+                    </Badge>
+                  )}
+                </div>
+
+                <Link href={item.link} className="text-sm font-semibold block leading-tight text-card-foreground hover:underline hover:text-primary transition-colors">
+                  {item.title}
+                </Link>
+
+                {item.subtitle && (
+                  <p className="text-xs text-muted-foreground leading-normal line-clamp-1">
+                    {item.type !== 'lead' && 'For: '}
+                    {item.type !== 'lead' && item.leadId ? (
+                      <Link href={`/leads/${item.leadId}`} className="hover:underline text-primary font-medium">{item.subtitle}</Link>
+                    ) : (
+                      item.subtitle
+                    )}
+                  </p>
+                )}
+                
+                {item.date && (
+                  <div className="flex flex-wrap gap-2 items-center pt-1.5">
+                    <span className={`text-xs font-semibold flex items-center gap-1 ${
+                      item.type === 'task' && new Date(item.date) < new Date() ? 'text-destructive' : 'text-muted-foreground'
+                    }`}>
+                      <Calendar className={`w-3.5 h-3.5 ${item.type === 'task' && new Date(item.date) < new Date() ? 'text-destructive' : 'text-muted-foreground'}`} />
+                      {formatUTC(item.date)}
+                      {item.type === 'task' && new Date(item.date) < new Date() && ' (Overdue)'}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="shrink-0 pt-1 sm:pt-0">
+                <button
+                  onClick={() => handleToggleRead(item)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                    item.isRead 
+                      ? 'bg-muted text-muted-foreground hover:bg-secondary hover:text-secondary-foreground' 
+                      : 'bg-primary/10 text-primary hover:bg-primary/20'
+                  }`}
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  {item.isRead ? 'Mark as Unread' : 'Mark as Read'}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

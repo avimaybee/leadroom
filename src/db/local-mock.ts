@@ -126,6 +126,9 @@ export function setupLocalDatabaseMock() {
 
   // Apply pending column migrations idempotently (safe even if columns exist)
   const migrationStmts = [
+    `ALTER TABLE leads ADD COLUMN is_read integer DEFAULT 0 NOT NULL`,
+    `ALTER TABLE tasks ADD COLUMN is_read integer DEFAULT 0 NOT NULL`,
+    `ALTER TABLE outreach_drafts ADD COLUMN is_read integer DEFAULT 0 NOT NULL`,
     `ALTER TABLE audits ADD COLUMN is_modern integer`,
     `ALTER TABLE audits ADD COLUMN triage_reason text`,
   ];
