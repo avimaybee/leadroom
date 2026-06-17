@@ -388,7 +388,7 @@ export async function fetchSiteContent(url: string, timeoutMs: number = 20000): 
         url: normalized,
         content: 'Stripe is a financial infrastructure platform for the internet. Millions of companies use Stripe to accept payments, send payouts, and manage their businesses online.',
         description: 'Online payment processing for internet businesses.',
-        extractedContacts: { emails: ['support@stripe.com'], phones: [], socialLinks: {} }
+        extractedContacts: { emails: ['support@stripe.com'], phones: [], socialLinks: {}, contactPageUrls: [] }
       };
     }
     if (lower.includes('austinsmiles.com')) {
@@ -397,7 +397,7 @@ export async function fetchSiteContent(url: string, timeoutMs: number = 20000): 
         url: normalized,
         content: 'Austin Smiles Dentistry provides high quality, gentle dental care to families in Austin, Texas. Our experienced team offers cosmetic, restorative, and preventive dentistry services.',
         description: 'Dental care services in Austin, TX.',
-        extractedContacts: { emails: ['info@austinsmiles.com'], phones: ['512-555-0122'], socialLinks: {} }
+        extractedContacts: { emails: ['info@austinsmiles.com'], phones: ['512-555-0122'], socialLinks: {}, contactPageUrls: [] }
       };
     }
   }
