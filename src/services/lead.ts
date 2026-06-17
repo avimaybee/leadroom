@@ -56,7 +56,6 @@ export class LeadService {
       type: 'Lead created',
       summary: 'Lead was created',
       metadata: {
-        from_stage: null,
         to_stage: input.stage || 'New',
       },
       timestamp: now,
