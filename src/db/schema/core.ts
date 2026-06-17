@@ -56,6 +56,14 @@ export const activities = sqliteTable('activities', {
   timestamp: integer('timestamp', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
 });
 
+export const leadStageHistory = sqliteTable('lead_stage_history', {
+  id: text('id').primaryKey(),
+  leadId: text('lead_id').notNull().references(() => leads.id),
+  stage: text('stage').notNull(),
+  enteredAt: integer('entered_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
+  exitedAt: integer('exited_at', { mode: 'timestamp' }),
+});
+
 export const providerConfigs = sqliteTable('provider_configs', {
   id: text('id').primaryKey(),
   provider: text('provider').notNull().unique(), // 'gemini' | 'nvidia'
