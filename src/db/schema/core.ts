@@ -53,6 +53,11 @@ export const activities = sqliteTable('activities', {
   leadId: text('lead_id').notNull().references(() => leads.id),
   type: text('type').notNull(),
   summary: text('summary').notNull(),
+  metadata: text('metadata', { mode: 'json' }).$type<{
+    from_stage?: string;
+    to_stage?: string;
+    [key: string]: any;
+  }>(),
   timestamp: integer('timestamp', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
 });
 

@@ -55,6 +55,9 @@ export class LeadService {
       leadId: id,
       type: 'Lead created',
       summary: 'Lead was created',
+      metadata: {
+        to_stage: input.stage || 'New',
+      },
       timestamp: now,
     });
 
@@ -124,6 +127,10 @@ async listLeads() {
       leadId: id,
       type: 'Stage changed',
       summary: `Stage changed from ${oldStage} to ${newStage}`,
+      metadata: {
+        from_stage: oldStage,
+        to_stage: newStage,
+      },
       timestamp: now,
     });
 
