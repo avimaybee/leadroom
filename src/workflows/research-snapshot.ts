@@ -2,7 +2,7 @@ import { WorkflowEntrypoint, WorkflowEvent, WorkflowStep } from "cloudflare:work
 import { getDb } from "../db";
 import { ResearchWorkflowService } from "../services/research-workflow";
 import { jobRuns } from "../db/schema/research";
-import { activities } from "../db/schema/core";
+import { activities, notifications } from "../db/schema/core";
 import { eq } from "drizzle-orm";
 
 type Env = {
@@ -107,7 +107,7 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
           timeout: "10 minutes",
         },
         async () => {
-          await workflowService.generateSnapshots(lead, scraped, userId, jobId);
+          await workflowService.generateSnapshots(lead, scraped, userId || null, jobId);
         }
       );
 
@@ -129,6 +129,20 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
                finishedAt: new Date(),
             })
             .where(eq(jobRuns.id, jobId));
+            
+          if (userId) {
+            await db.insert(notifications).values({
+              id: crypto.randomUUID(),
+              userId,
+              jobRunId: jobId,
+              title: "Research Completed",
+              message: "Research workflow for lead has been completed successfully.",
+              status: "SUCCESS",
+              link: `/dashboard/leads/${leadId}/research`,
+              isRead: false,
+              createdAt: new Date(),
+            });
+          }
         }
       );
 
@@ -152,6 +166,20 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
           summary: `AI research generation failed: ${errMsg}`,
           timestamp: new Date(),
         });
+
+        if (userId) {
+          await db.insert(notifications).values({
+            id: crypto.randomUUID(),
+            userId,
+            jobRunId: jobId,
+            title: "Research Failed",
+            message: `AI research generation failed: ${errMsg}`,
+            status: "ERROR",
+            link: `/dashboard/leads/${leadId}/research`,
+            isRead: false,
+            createdAt: new Date(),
+          });
+        }
       } catch (dbErr: unknown) {
         // Handled silently
       }

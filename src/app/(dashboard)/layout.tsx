@@ -5,6 +5,8 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { LayoutDashboard, Users, Target, Settings } from 'lucide-react';
+import { NotificationProvider } from '@/components/NotificationProvider';
+import { NotificationBell } from '@/components/NotificationBell';
 
 const SIDEBAR_WIDTH_KEY = 'leadroom:sidebar:width';
 const SIDEBAR_COLLAPSED_KEY = 'leadroom:sidebar:collapsed';
@@ -74,8 +76,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   };
 
   return (
-    <div className="min-h-screen bg-background flex">
-      {/* Sidebar */}
+    <NotificationProvider>
+      <div className="min-h-screen bg-background flex">
+        {/* Sidebar */}
       <aside
         ref={sidebarRef}
         style={{ width: collapsed ? '56px' : `${DEFAULT_SIDEBAR}px`, minWidth: collapsed ? '56px' : `${MIN_SIDEBAR}px` }}
@@ -150,16 +153,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <span className="h-2 w-2 rounded-full bg-chart-2 animate-pulse" />
             <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">System Live</span>
           </div>
-          <form action="/api/auth/logout" method="POST">
-            <Button type="submit" variant="outline" size="xs">
-              Sign out
-            </Button>
-          </form>
+          <div className="flex items-center gap-4">
+            <NotificationBell />
+            <form action="/api/auth/logout" method="POST">
+              <Button type="submit" variant="outline" size="xs">
+                Sign out
+              </Button>
+            </form>
+          </div>
         </header>
         <div className="p-8 md:p-10 flex-1 overflow-y-auto">
           {children}
         </div>
       </main>
     </div>
+    </NotificationProvider>
   );
 }

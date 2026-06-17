@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { useNotifications } from '@/components/NotificationProvider';
 
 interface Scope {
   id: string;
@@ -122,7 +123,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
     }
   }, [id]);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -145,7 +146,9 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  const { recentJobUpdates } = useNotifications();
 
   useEffect(() => {
     // Fetch user profile
@@ -166,79 +169,18 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
     fetchRecentRuns();
   }, [id, fetchRecentRuns]);
 
-  // Polling loop to check crawler job status
-  const checkJobStatus = useCallback(
-    async (jobId: string): Promise<boolean> => {
-      try {
-        const res = await fetch(`/api/jobs/${jobId}`);
-        if (!res.ok) throw new Error('Failed to verify search progress');
-
-        const raw = await res.json() as {
-          status: string;
-          errorSummary?: string;
-          totalItems?: number;
-          itemsProcessed?: number;
-          currentStage?: string;
-        };
-
-        // Always refetch candidates so triage badges appear as enrichment runs
-        const candidatesRes = await fetch(`/api/candidates?scopeId=${id}`);
-        if (candidatesRes.ok) {
-          const data = await candidatesRes.json() as { data: Candidate[] };
-          setCandidates(data.data);
-        }
-
-        // Update enrichment progress (even for 0 values while still queued)
-        if (raw.totalItems != null) {
-          setEnrichProgress({
-            totalItems: raw.totalItems,
-            itemsProcessed: raw.itemsProcessed ?? 0,
-            currentStage: raw.currentStage || 'Starting...',
-          });
-
-          if (raw.status === 'COMPLETED' || raw.status === 'FAILED') {
-            // Clear progress after a brief delay so user sees "Complete"
-            setTimeout(() => setEnrichProgress(null), 2000);
-          }
-        }
-
-        if (raw.status === 'COMPLETED') {
-          await fetchRecentRuns();
-          return true; // done
-        } else if (raw.status === 'FAILED') {
-          await fetchRecentRuns();
-          return true; // done
-        }
-        return false; // still running
-      } catch (err: unknown) {
-        console.error('Polling failed, will retry:', err);
-        return false; // continue polling — don't let transient errors freeze the UI
-      }
-    },
-    [id, fetchRecentRuns],
-  );
-
   useEffect(() => {
     if (!pollingJobId) return;
 
-    let stopped = false;
-    let timeoutId: ReturnType<typeof setTimeout>;
-
-    const poll = async () => {
-      if (stopped) return;
-      const done = await checkJobStatus(pollingJobId);
-      if (!done && !stopped) {
-        timeoutId = setTimeout(poll, 6000); // 6s between polls
-      }
-    };
-
-    poll();
-
-    return () => {
-      stopped = true;
-      clearTimeout(timeoutId);
-    };
-  }, [pollingJobId, checkJobStatus]);
+    const status = recentJobUpdates[pollingJobId];
+    if (status === 'SUCCESS' || status === 'ERROR') {
+      // Job finished
+      setPollingJobId(null);
+      setEnrichProgress(null);
+      fetchRecentRuns();
+      fetchData(); // Refresh candidates list
+    }
+  }, [pollingJobId, recentJobUpdates, fetchRecentRuns, fetchData]);
 
   const handleUpdateStatus = async (candidateId: string, status: 'PROMOTED' | 'DISCARDED') => {
     try {

@@ -4,6 +4,7 @@ import { jobRuns, candidateLeads, activities } from '@/db/schema';
 import { checkApifyRunStatus, fetchApifyResults } from '@/lib/discovery/apify';
 import { eq, desc as drizzleDesc } from 'drizzle-orm';
 import { getLogger } from '@/lib/logger';
+import { createNotification } from '@/lib/notifications';
 
 const logger = getLogger('WorkflowClient');
 
@@ -79,6 +80,18 @@ export async function triggerResearchWorkflow(
         })
         .where(eq(jobRuns.id, jobId));
 
+      if (userId) {
+        await createNotification(
+          db,
+          userId,
+          jobId,
+          'Research Completed',
+          `Research workflow for lead has been completed successfully.`,
+          'SUCCESS',
+          `/dashboard/leads/${leadId}/research`
+        );
+      }
+
     } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : 'Unknown error occurred during simulation';
       logger.error('Research workflow failed during simulation', error, { leadId, jobId });
@@ -100,6 +113,18 @@ export async function triggerResearchWorkflow(
           summary: `AI research generation failed: ${errMsg}`,
           timestamp: new Date(),
         });
+
+        if (userId) {
+          await createNotification(
+            db,
+            userId,
+            jobId,
+            'Research Failed',
+            `AI research generation failed: ${errMsg}`,
+            'ERROR',
+            `/dashboard/leads/${leadId}/research`
+          );
+        }
       } catch (dbErr: unknown) {
         logger.error('Failed to write failure status to DB', dbErr);
       }
@@ -231,6 +256,18 @@ export async function triggerDiscoverySearchWorkflow(
         })
         .where(eq(jobRuns.id, jobId));
 
+      if (userId) {
+        await createNotification(
+          db,
+          userId,
+          jobId,
+          'Discovery Completed',
+          `Found ${results.length} leads for ${niche} in ${location}.`,
+          'SUCCESS',
+          scopeId ? `/dashboard/discovery/scopes/${scopeId}` : `/dashboard/discovery`
+        );
+      }
+
     } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : 'Unknown error during local simulation';
       logger.error('Discovery search failed during simulation', error, { jobId });
@@ -239,6 +276,18 @@ export async function triggerDiscoverySearchWorkflow(
         await db.update(jobRuns)
           .set({ status: 'FAILED', errorSummary: errMsg, finishedAt: new Date() })
           .where(eq(jobRuns.id, jobId));
+
+        if (userId) {
+          await createNotification(
+            db,
+            userId,
+            jobId,
+            'Discovery Failed',
+            `Discovery search failed: ${errMsg}`,
+            'ERROR',
+            scopeId ? `/dashboard/discovery/scopes/${scopeId}` : `/dashboard/discovery`
+          );
+        }
       } catch (dbErr) {
         logger.error('Failed to write failure status to DB', dbErr);
       }
