@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 
 export const users = sqliteTable('users', {
@@ -25,7 +25,9 @@ export const leads = sqliteTable('leads', {
   ownerId: text('owner_id').references(() => users.id),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
-});
+}, (table) => ({
+  statusUpdatedAtIndex: index('leads_status_updated_at_idx').on(table.status, table.updatedAt),
+}));
 
 export const tasks = sqliteTable('tasks', {
   id: text('id').primaryKey(),
@@ -38,7 +40,9 @@ export const tasks = sqliteTable('tasks', {
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   completedAt: integer('completed_at', { mode: 'timestamp' }),
-});
+}, (table) => ({
+  statusDueDateIndex: index('tasks_status_due_date_idx').on(table.status, table.dueDate),
+}));
 
 export const notes = sqliteTable('notes', {
   id: text('id').primaryKey(),
@@ -54,7 +58,9 @@ export const activities = sqliteTable('activities', {
   type: text('type').notNull(),
   summary: text('summary').notNull(),
   timestamp: integer('timestamp', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
-});
+}, (table) => ({
+  leadIdTimestampIndex: index('activities_lead_id_timestamp_idx').on(table.leadId, table.timestamp),
+}));
 
 export const providerConfigs = sqliteTable('provider_configs', {
   id: text('id').primaryKey(),
