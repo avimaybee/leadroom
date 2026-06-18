@@ -63,6 +63,12 @@ export const activities = sqliteTable('activities', {
   timestamp: integer('timestamp', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
 });
 
+export const activityMetadata = sqliteTable('activity_metadata', {
+  id: text('id').primaryKey(),
+  activityId: text('activity_id').notNull().references(() => activities.id),
+  metadata: text('metadata').notNull(),
+});
+
 export const providerConfigs = sqliteTable('provider_configs', {
   id: text('id').primaryKey(),
   provider: text('provider').notNull().unique(), // 'gemini' | 'nvidia'

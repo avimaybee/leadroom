@@ -1,4 +1,5 @@
 import { Db } from '@/db';
+import { LoggingService } from '@/services/logging';
 import { contacts, researchSnapshots } from '@/db/schema/research';
 import { activities } from '@/db/schema/core';
 import { eq, and, isNull, or, inArray } from 'drizzle-orm';
@@ -144,11 +145,9 @@ export async function logContactDiscoveryActivity(
 
   if (parts.length === 0) return;
 
-  await db.insert(activities).values({
-    id: crypto.randomUUID(),
+  await new LoggingService(db).log({
     leadId,
     type: 'Contact info discovered',
     summary: `Found ${parts.join(', ')} on website${saved > 0 ? ` (${saved} new contact${saved > 1 ? 's' : ''} saved)` : ''}`,
-    timestamp: new Date(),
   });
 }

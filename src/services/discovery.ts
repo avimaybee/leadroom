@@ -1,3 +1,4 @@
+import { LoggingService } from './logging';
 import { Db } from '../db';
 import { eq, sql } from 'drizzle-orm';
 import { discoveryScopes, candidateLeads } from '../db/schema/discovery';
@@ -129,8 +130,7 @@ export class DiscoveryService {
 
     // 5. Create activity record
     const activityId = crypto.randomUUID();
-    await this.db.insert(activities).values({
-      id: activityId,
+    await new LoggingService(this.db).log({
       leadId: leadId,
       type: 'SYSTEM',
       summary: `Promoted from candidate lead in Scope: ${scopeName}`,
@@ -138,7 +138,6 @@ export class DiscoveryService {
         from_stage: 'Candidate',
         to_stage: 'New',
       },
-      timestamp: now,
     });
 
     // 6. Recalculate baseline priority score

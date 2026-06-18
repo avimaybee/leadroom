@@ -1,3 +1,4 @@
+import { LoggingService } from './logging';
 import { Db } from '../db';
 import { fetchSiteContent, ScrapedContent } from '../lib/scraper';
 import { generateResearch, generateAudit, generateLeadScore } from '../lib/ai';
@@ -161,12 +162,11 @@ export class ResearchWorkflowService {
       updatedAt: now,
     });
 
-    await this.db.insert(activities).values({
-      id: crypto.randomUUID(),
-      leadId: lead.id,
+    await new LoggingService(this.db).log({
+leadId: lead.id,
       type: 'Research generated',
       summary: `AI research, design audit, and lead score (${score.score}) generated.`,
-      timestamp: now,
-    });
+      
+});
   }
 }

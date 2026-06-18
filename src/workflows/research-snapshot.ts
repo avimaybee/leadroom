@@ -1,3 +1,4 @@
+import { LoggingService } from '@/services/logging';
 import { WorkflowEntrypoint, WorkflowEvent, WorkflowStep } from "cloudflare:workers";
 import { getDb } from "../db";
 import { ResearchWorkflowService } from "../services/research-workflow";
@@ -145,13 +146,12 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
           })
           .where(eq(jobRuns.id, jobId));
 
-        await db.insert(activities).values({
-          id: crypto.randomUUID(),
-          leadId,
+        await new LoggingService(db).log({
+leadId,
           type: "Enrichment failed",
           summary: `AI research generation failed: ${errMsg}`,
-          timestamp: new Date(),
-        });
+          
+});
       } catch (dbErr: unknown) {
         // Handled silently
       }
