@@ -1,5 +1,5 @@
 import { Db } from '../db';
-import { eq, desc, and, isNull } from 'drizzle-orm';
+import { eq, desc, and, isNull, sql } from 'drizzle-orm';
 import { leads, activities, activityMetadata, tasks, notes, leadStageHistory } from '../db/schema/core';
 import { candidateLeads, discoveryScopes } from '../db/schema/discovery';
 import { CreateLeadInput } from '../db/models/lead';
@@ -136,9 +136,41 @@ export class LeadService {
     return lead;
   }
 
-async listLeads() {
-  return this.db.select().from(leads).where(eq(leads.status, 'Active')).orderBy(desc(leads.updatedAt));
-}
+  async listLeads() {
+    return this.db.select().from(leads).where(eq(leads.status, 'Active')).orderBy(desc(leads.updatedAt));
+  }
+
+  async getPipelineMetrics() {
+    const rawCounts = await this.db
+      .select({
+        stage: leads.stage,
+        count: sql<number>`count(*)`,
+      })
+      .from(leads)
+      .where(eq(leads.status, 'Active'))
+      .groupBy(leads.stage);
+
+    let totalLeads = 0;
+    const stageCounts: Record<string, number> = {};
+
+    const STAGE_MAP: Record<string, string> = {
+      'NEW': 'New',
+      'Researching': 'In Research',
+      'Qualified': 'Audited',
+      'Outreach in Progress': 'Outreach Sent',
+      'Meeting / Call': 'Meeting',
+    };
+
+    for (const row of rawCounts) {
+      const count = Number(row.count);
+      totalLeads += count;
+      const rawStage = row.stage || 'New';
+      const stage = STAGE_MAP[rawStage] || rawStage;
+      stageCounts[stage] = (stageCounts[stage] || 0) + count;
+    }
+
+    return { totalLeads, stageCounts };
+  }
 
   async getLead(id: string) {
     const [row] = await this.db

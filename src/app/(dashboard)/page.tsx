@@ -12,30 +12,15 @@ export default async function DashboardPage() {
   const leadService = new LeadService(db);
   const discoveryService = new DiscoveryService(db);
 
-  const [leads, scopes, dashboardTasks] = await Promise.all([
-    leadService.listLeads(),
+  const [pipelineMetrics, scopes, dashboardTasks] = await Promise.all([
+    leadService.getPipelineMetrics(),
     discoveryService.listScopes(),
     leadService.getDashboardTasks(),
   ]);
 
-  const totalLeads = leads.length;
+  const { totalLeads, stageCounts } = pipelineMetrics;
   const activeScopesCount = scopes.length;
   const pendingCandidatesCount = await discoveryService.countPendingCandidates();
-
-  const STAGE_MAP: Record<string, string> = {
-    'NEW': 'New',
-    'Researching': 'In Research',
-    'Qualified': 'Audited',
-    'Outreach in Progress': 'Outreach Sent',
-    'Meeting / Call': 'Meeting',
-  };
-
-  const stageCounts = leads.reduce((acc: Record<string, number>, lead: { stage: string }) => {
-    const raw = lead.stage || 'New';
-    const stage = STAGE_MAP[raw] || raw;
-    acc[stage] = (acc[stage] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
 
   const stages = ['New', 'In Research', 'Auditing', 'Audited', 'Drafting', 'Ready to Send', 'Outreach Sent', 'Meeting', 'Won', 'Lost'];
 

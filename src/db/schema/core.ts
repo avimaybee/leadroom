@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 
 export const users = sqliteTable('users', {
@@ -28,7 +28,10 @@ export const leads = sqliteTable('leads', {
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   stageUpdatedAt: integer('stage_updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   lastActivityAt: integer('last_activity_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
-});
+}, (table) => ({
+  stageIdx: index('leads_stage_idx').on(table.stage),
+  createdAtIdx: index('leads_created_at_idx').on(table.createdAt),
+}));
 
 export const stageThresholds = sqliteTable('stage_thresholds', {
   id: text('id').primaryKey(),
