@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 import { users, leads } from './core';
 
@@ -15,7 +15,9 @@ export const outreachDrafts = sqliteTable('outreach_drafts', {
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   attachments: text('attachments'),
-});
+}, (table) => ({
+  leadIdIdx: index('idx_outreach_drafts_lead_id').on(table.leadId),
+}));
 
 export const approvals = sqliteTable('approvals', {
   id: text('id').primaryKey(),

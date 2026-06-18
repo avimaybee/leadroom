@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 import { users, leads } from './core';
 import { jobRuns } from './research';
@@ -16,7 +16,9 @@ export const audits = sqliteTable('audits', {
   jobRunId: text('job_run_id').references(() => jobRuns.id),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
-});
+}, (table) => ({
+  leadIdIdx: index('idx_audits_lead_id').on(table.leadId),
+}));
 
 export const leadScores = sqliteTable('lead_scores', {
   id: text('id').primaryKey(),
@@ -31,4 +33,6 @@ export const leadScores = sqliteTable('lead_scores', {
   jobRunId: text('job_run_id').references(() => jobRuns.id),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
-});
+}, (table) => ({
+  leadIdIdx: index('idx_lead_scores_lead_id').on(table.leadId),
+}));

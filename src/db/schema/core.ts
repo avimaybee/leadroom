@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 
 export const users = sqliteTable('users', {
@@ -26,7 +26,10 @@ export const leads = sqliteTable('leads', {
   ownerId: text('owner_id').references(() => users.id),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
-});
+}, (table) => ({
+  statusIdx: index('idx_leads_status').on(table.status),
+  updatedAtIdx: index('idx_leads_updated_at').on(table.updatedAt),
+}));
 
 export const tasks = sqliteTable('tasks', {
   id: text('id').primaryKey(),
@@ -40,7 +43,9 @@ export const tasks = sqliteTable('tasks', {
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   completedAt: integer('completed_at', { mode: 'timestamp' }),
-});
+}, (table) => ({
+  leadIdIdx: index('idx_tasks_lead_id').on(table.leadId),
+}));
 
 export const notes = sqliteTable('notes', {
   id: text('id').primaryKey(),
@@ -48,7 +53,9 @@ export const notes = sqliteTable('notes', {
   authorId: text('author_id').references(() => users.id),
   body: text('body').notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
-});
+}, (table) => ({
+  leadIdIdx: index('idx_notes_lead_id').on(table.leadId),
+}));
 
 export const activities = sqliteTable('activities', {
   id: text('id').primaryKey(),
@@ -61,7 +68,9 @@ export const activities = sqliteTable('activities', {
     [key: string]: any;
   }>(),
   timestamp: integer('timestamp', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
-});
+}, (table) => ({
+  leadIdIdx: index('idx_activities_lead_id').on(table.leadId),
+}));
 
 export const leadStageHistory = sqliteTable('lead_stage_history', {
   id: text('id').primaryKey(),
@@ -69,7 +78,9 @@ export const leadStageHistory = sqliteTable('lead_stage_history', {
   stage: text('stage').notNull(),
   enteredAt: integer('entered_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   exitedAt: integer('exited_at', { mode: 'timestamp' }),
-});
+}, (table) => ({
+  leadIdIdx: index('idx_lead_stage_history_lead_id').on(table.leadId),
+}));
 
 export const activityMetadata = sqliteTable('activity_metadata', {
   id: text('id').primaryKey(),

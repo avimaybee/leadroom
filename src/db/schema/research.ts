@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 import { users, leads } from './core';
 
@@ -19,7 +19,9 @@ export const jobRuns = sqliteTable('job_runs', {
   startedAt: integer('started_at', { mode: 'timestamp' }),
   finishedAt: integer('finished_at', { mode: 'timestamp' }),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
-});
+}, (table) => ({
+  targetLeadIdIdx: index('idx_job_runs_target_lead_id').on(table.targetLeadId),
+}));
 
 export const researchSnapshots = sqliteTable('research_snapshots', {
   id: text('id').primaryKey(),
@@ -40,7 +42,9 @@ export const researchSnapshots = sqliteTable('research_snapshots', {
   jobRunId: text('job_run_id').references(() => jobRuns.id),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
-});
+}, (table) => ({
+  leadIdIdx: index('idx_research_snapshots_lead_id').on(table.leadId),
+}));
 
 export const contacts = sqliteTable('contacts', {
   id: text('id').primaryKey(),
@@ -58,4 +62,6 @@ export const contacts = sqliteTable('contacts', {
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   deletedAt: integer('deleted_at', { mode: 'timestamp' }),
-});
+}, (table) => ({
+  leadIdIdx: index('idx_contacts_lead_id').on(table.leadId),
+}));
