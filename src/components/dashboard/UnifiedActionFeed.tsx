@@ -54,7 +54,7 @@ export default function UnifiedActionFeed({ items }: { items: UnifiedItem[] }) {
     <div className="space-y-4">
       <div className="flex justify-between items-center mb-2">
         <h3 className="text-sm font-bold text-foreground uppercase tracking-wider border-b border-border pb-1">
-          Action Needed ({items.filter(i => !i.isRead).length})
+          Daily Priority ({items.filter(i => !i.isRead).length})
         </h3>
         <button
           onClick={() => setShowRead(!showRead)}

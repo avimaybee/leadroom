@@ -112,6 +112,7 @@ export async function generateOutreachDraftAction(
 
     try {
       revalidatePath(`/leads/${lead.id}`);
+      revalidatePath('/');
     } catch (e) {}
 
     return { success: true, drafts: newDrafts };
@@ -148,6 +149,7 @@ export async function duplicateDraftAction(draftId: string) {
 
     try {
       revalidatePath(`/leads/${oldDraft.leadId}`);
+      revalidatePath('/');
     } catch (e) {}
 
     return { success: true, draft: duplicatedDraft };
@@ -172,6 +174,8 @@ export async function updateDraftAction(draftId: string, subject: string | null,
     const draft = await outreachService.getDraftById(draftId);
     try {
       if (draft) revalidatePath(`/leads/${draft.leadId}`);
+      revalidatePath('/');
+      revalidatePath('/');
     } catch (e) {}
     return { success: true };
   } catch (e: unknown) {
@@ -204,6 +208,7 @@ export async function recordApprovalAction(draftId: string, decision: 'APPROVED'
 
     try {
       revalidatePath(`/leads/${draft.leadId}`);
+      revalidatePath('/');
     } catch (e) {}
     return { success: true };
   } catch (e: unknown) {
@@ -230,6 +235,7 @@ export async function deleteDraftAction(draftId: string) {
 
     try {
       revalidatePath('/leads');
+      revalidatePath('/');
     } catch (e) {}
 
     return { success: true };
@@ -271,6 +277,7 @@ export async function markAsSentAction(draftId: string) {
 
     try {
       revalidatePath(`/leads/${draft.leadId}`);
+      revalidatePath('/');
     } catch (e) {}
     return { success: true };
   } catch (e: unknown) {

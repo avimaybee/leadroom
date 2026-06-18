@@ -2,14 +2,14 @@
 
 import { getDb } from '@/db';
 import { eq, desc, and } from 'drizzle-orm';
-import { leads, tasks } from '@/db/schema/core';
+import { leads, tasks, stageThresholds } from '@/db/schema/core';
 import { outreachDrafts } from '@/db/schema/outreach';
 import UnifiedActionFeed, { UnifiedItem } from '@/components/dashboard/UnifiedActionFeed';
 
 export default async function UnifiedFeedLoader() {
   const db = getDb();
   
-  const [activeLeads, openTasks, draftOutreach] = await Promise.all([
+  const [activeLeads, openTasks, draftOutreach, thresholdsData] = await Promise.all([
     db.select().from(leads).where(eq(leads.status, 'Active')).orderBy(desc(leads.createdAt)),
     db.select({
       task: tasks,
@@ -18,21 +18,42 @@ export default async function UnifiedFeedLoader() {
     db.select({
       draft: outreachDrafts,
       leadName: leads.name
-    }).from(outreachDrafts).leftJoin(leads, eq(outreachDrafts.leadId, leads.id)).where(eq(outreachDrafts.status, 'DRAFT')).orderBy(desc(outreachDrafts.createdAt))
+    }).from(outreachDrafts).leftJoin(leads, eq(outreachDrafts.leadId, leads.id)).where(eq(outreachDrafts.status, 'DRAFT')).orderBy(desc(outreachDrafts.createdAt)),
+    db.select().from(stageThresholds)
   ]);
 
-  const items: UnifiedItem[] = [];
+  const thresholds = thresholdsData.reduce((acc, t) => {
+    acc[t.stage] = t.days;
+    return acc;
+  }, {} as Record<string, number>);
 
-  activeLeads.forEach(l => {
+  const now = new Date().getTime();
+
+  const staleLeads = activeLeads.filter(l => {
+    const defaultThreshold = 5;
+    const thresholdDays = thresholds[l.stage] ?? defaultThreshold;
+    const thresholdMs = thresholdDays * 24 * 60 * 60 * 1000;
+    
+    const lastActivityTime = l.lastActivityAt 
+      ? new Date(l.lastActivityAt).getTime() 
+      : (l.stageUpdatedAt ? new Date(l.stageUpdatedAt).getTime() : (l.createdAt ? new Date(l.createdAt).getTime() : now));
+      
+    return (now - lastActivityTime) > thresholdMs;
+  });
+
+  let items: UnifiedItem[] = [];
+
+  staleLeads.forEach(l => {
     items.push({
       id: l.id,
       type: 'lead',
-      title: l.name + (l.company ? ` at ${l.company}` : ''),
-      subtitle: l.stage,
-      date: l.createdAt,
+      title: `Stale Lead: ${l.name}${l.company ? ` at ${l.company}` : ''}`,
+      subtitle: `Idle in ${l.stage}`,
+      date: l.lastActivityAt || l.stageUpdatedAt || l.createdAt,
       isRead: l.isRead,
       link: `/leads/${l.id}`,
-      status: l.stage,
+      status: 'Needs Attention',
+      priority: 'High',
     });
   });
 
@@ -70,6 +91,8 @@ export default async function UnifiedFeedLoader() {
     const timeB = b.date ? new Date(b.date).getTime() : 0;
     return timeB - timeA;
   });
+
+  items = items.slice(0, 10);
 
   return (
     <div className="bg-card p-6 rounded-2xl border border-border/80 shadow-sm">

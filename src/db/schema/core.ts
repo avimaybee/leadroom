@@ -26,6 +26,15 @@ export const leads = sqliteTable('leads', {
   ownerId: text('owner_id').references(() => users.id),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
+  stageUpdatedAt: integer('stage_updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
+  lastActivityAt: integer('last_activity_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
+});
+
+export const stageThresholds = sqliteTable('stage_thresholds', {
+  id: text('id').primaryKey(),
+  stage: text('stage').notNull().unique(),
+  days: integer('days').notNull().default(5),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
 });
 
 export const tasks = sqliteTable('tasks', {
