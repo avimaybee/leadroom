@@ -1,3 +1,4 @@
+import { LoggingService } from './logging';
 import { Db } from '../db';
 import { eq, desc, lt, and, isNotNull } from 'drizzle-orm';
 import { outreachDrafts, approvals, activities } from '../db/schema';
@@ -119,13 +120,12 @@ export class OutreachService {
     await this.db.insert(outreachDrafts).values(newDraft);
 
     // Log Activity
-    await this.db.insert(activities).values({
-      id: crypto.randomUUID(),
-      leadId: input.leadId,
+    await new LoggingService(this.db).log({
+leadId: input.leadId,
       type: 'Outreach draft created',
       summary: `Created outreach draft for ${input.channel}`,
-      timestamp: now,
-    });
+      
+});
 
     // Run cleanup in background
     this.cleanOldAttachments().catch(e => console.error('Background cleanup failed', e));
@@ -158,13 +158,12 @@ export class OutreachService {
       .where(eq(outreachDrafts.id, draftId));
 
     // Log activity for the edit
-    await this.db.insert(activities).values({
-      id: crypto.randomUUID(),
-      leadId: draft.leadId,
+    await new LoggingService(this.db).log({
+leadId: draft.leadId,
       type: 'Outreach draft edited',
       summary: `Edited outreach draft for ${draft.channel}`,
-      timestamp: now,
-    });
+      
+});
 
     return { ...draft, subject, body, updatedAt: now };
   }
@@ -194,23 +193,25 @@ export class OutreachService {
     }
 
     const now = new Date();
+    const updates: any = {
+      status,
+      updatedAt: now,
+    };
+    if (status !== 'DRAFT') updates.isRead = true;
+
     await this.db
       .update(outreachDrafts)
-      .set({
-        status,
-        updatedAt: now,
-      })
+      .set(updates)
       .where(eq(outreachDrafts.id, draftId));
 
     // Log activity if transitioning to SENT
     if (status === 'SENT') {
-      await this.db.insert(activities).values({
-        id: crypto.randomUUID(),
-        leadId: draft.leadId,
+      await new LoggingService(this.db).log({
+leadId: draft.leadId,
         type: 'Outreach sent',
         summary: `Sent outreach draft via ${draft.channel}`,
-        timestamp: now,
-      });
+        
+});
     }
 
     return { ...draft, status, updatedAt: now };
@@ -231,13 +232,12 @@ export class OutreachService {
     await this.db.delete(outreachDrafts).where(eq(outreachDrafts.id, draftId));
 
     // Log activity
-    await this.db.insert(activities).values({
-      id: crypto.randomUUID(),
-      leadId: draft.leadId,
+    await new LoggingService(this.db).log({
+leadId: draft.leadId,
       type: 'Outreach draft deleted',
       summary: `Deleted outreach draft for ${draft.channel}`,
-      timestamp: new Date(),
-    });
+      
+});
 
     return true;
   }
@@ -279,22 +279,24 @@ export class OutreachService {
     await this.db.insert(approvals).values(newApproval);
 
     // Update the draft status to match the decision
+    const updates: any = {
+      status: decision,
+      updatedAt: now,
+      isRead: true,
+    };
+
     await this.db
       .update(outreachDrafts)
-      .set({
-        status: decision,
-        updatedAt: now,
-      })
+      .set(updates)
       .where(eq(outreachDrafts.id, draftId));
 
     // Log Activity
-    await this.db.insert(activities).values({
-      id: crypto.randomUUID(),
-      leadId: draft.leadId,
+    await new LoggingService(this.db).log({
+leadId: draft.leadId,
       type: decision === 'APPROVED' ? 'Outreach approved' : 'Outreach rejected',
       summary: `${decision === 'APPROVED' ? 'Approved' : 'Rejected'} outreach draft for ${draft.channel}`,
-      timestamp: now,
-    });
+      
+});
 
     return newApproval;
   }

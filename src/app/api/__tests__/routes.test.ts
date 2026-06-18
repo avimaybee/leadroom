@@ -106,6 +106,7 @@ function setupTestDb() {
       industry TEXT,
       stage TEXT NOT NULL DEFAULT 'New',
       status TEXT NOT NULL DEFAULT 'Active',
+      is_read INTEGER DEFAULT 0 NOT NULL,
       owner_id TEXT REFERENCES users(id),
       created_at INTEGER DEFAULT (strftime('%s', 'now')),
       updated_at INTEGER DEFAULT (strftime('%s', 'now'))
@@ -116,6 +117,7 @@ function setupTestDb() {
       lead_id TEXT NOT NULL REFERENCES leads(id),
       type TEXT NOT NULL,
       summary TEXT NOT NULL,
+      metadata TEXT,
       timestamp INTEGER DEFAULT (strftime('%s', 'now'))
     );
 

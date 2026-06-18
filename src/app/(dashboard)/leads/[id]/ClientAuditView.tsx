@@ -1,17 +1,12 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { AuditSnapshot, LeadScore } from './components/audit/types';
 import { AuditDisplay } from './components/audit/AuditDisplay';
 import { ActionState } from '@/app/actions/audits';
-import { z } from 'zod';
-
-const JobStatusResponseSchema = z.object({
-  status: z.string(),
-  errorSummary: z.string().nullable().optional(),
-});
+import { useNotifications } from '@/components/NotificationProvider';
 
 interface ClientAuditViewProps {
   leadId: string;
@@ -29,73 +24,31 @@ export default function ClientAuditView({
   manualOverrideScoreAction,
 }: ClientAuditViewProps) {
   const router = useRouter();
+  const { recentJobUpdates } = useNotifications();
 
-  // Job Polling state
+  // Job state
   const [pollingJobId, setPollingJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<string | null>(null);
   const [jobError, setJobError] = useState<string | null>(null);
   const [isAuditing, setIsAuditing] = useState(false);
 
-  // Stable ref to router.refresh() — prevents the polling useEffect from needing
-  // router in its dep array (useRouter() returns a new reference on every render,
-  // which would otherwise restart the interval every time router.refresh() fires).
-  const refreshRef = useRef<() => void>(() => {});
-  useEffect(() => {
-    refreshRef.current = () => router.refresh();
-  }); // no dep array: always syncs to latest router instance
-
-  // Polling effect — ONLY depends on pollingJobId, NOT on router
   useEffect(() => {
     if (!pollingJobId) return;
-
-    let stopped = false;
-
-    const checkJobStatus = async () => {
-      if (stopped) return;
-      try {
-        const res = await fetch(`/api/jobs/${pollingJobId}`);
-        if (!res.ok) {
-          throw new Error('Failed to verify audit job status');
-        }
-
-        const json = await res.json();
-        const data = JobStatusResponseSchema.parse(json);
-        if (stopped) return;
-        setJobStatus(data.status);
-
-        if (data.status === 'COMPLETED') {
-          stopped = true;
-          setPollingJobId(null);
-          setJobStatus(null);
-          setIsAuditing(false);
-          setJobError(null);
-          refreshRef.current(); // stable ref — no dep array issue
-        } else if (data.status === 'FAILED') {
-          stopped = true;
-          setPollingJobId(null);
-          setJobStatus(null);
-          setIsAuditing(false);
-          setJobError(data.errorSummary || 'Audit job execution failed.');
-        }
-      } catch (err: unknown) {
-        if (stopped) return;
-        console.error('Audit job status check error:', err);
-        stopped = true;
-        setPollingJobId(null);
-        setJobStatus(null);
-        setIsAuditing(false);
-        setJobError('Failed to verify status. Please refresh.');
-      }
-    };
-
-    checkJobStatus();
-    const intervalId = setInterval(checkJobStatus, 5000);
-
-    return () => {
-      stopped = true;
-      clearInterval(intervalId);
-    };
-  }, [pollingJobId]); // ← deliberately omits router
+    
+    const status = recentJobUpdates[pollingJobId];
+    if (status === 'SUCCESS') {
+      setPollingJobId(null);
+      setJobStatus(null);
+      setIsAuditing(false);
+      setJobError(null);
+      router.refresh();
+    } else if (status === 'ERROR') {
+      setPollingJobId(null);
+      setJobStatus(null);
+      setIsAuditing(false);
+      setJobError('Audit job execution failed. Please check notifications for details.');
+    }
+  }, [pollingJobId, recentJobUpdates, router]);
 
   const handleRunAudit = useCallback(async () => {
     if (isAuditing) return; // UI-level guard against duplicate clicks

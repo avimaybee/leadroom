@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useActionState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ResearchSnapshot } from './components/research/types';
@@ -8,6 +8,7 @@ import { ResearchLoadingState } from './components/research/ResearchLoadingState
 import { ResearchEmptyState } from './components/research/ResearchEmptyState';
 import { ResearchEditForm } from './components/research/ResearchEditForm';
 import { ResearchDisplay } from './components/research/ResearchDisplay';
+import { useNotifications } from '@/components/NotificationProvider';
 
 interface ClientResearchViewProps {
   leadId: string;
@@ -24,6 +25,7 @@ export default function ClientResearchView({
   saveResearchSnapshotAction,
 }: ClientResearchViewProps) {
   const router = useRouter();
+  const { recentJobUpdates } = useNotifications();
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'audit' | 'opportunity'>('overview');
   const [state, formAction] = useActionState(saveResearchSnapshotAction, undefined);
@@ -32,75 +34,27 @@ export default function ClientResearchView({
   // Guard to prevent duplicate trigger clicks before pollingJobId is set
   const [isEnriching, setIsEnriching] = useState(false);
 
-  // Polling state for background jobs
+  // Job state
   const [pollingJobId, setPollingJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<string | null>(null);
   const [jobError, setJobError] = useState<string | null>(null);
 
-  // Keep a stable ref to router.refresh() so the polling useEffect doesn't need
-  // router in its dependency array. useRouter() returns a new object reference
-  // on every render, which would otherwise cause the polling interval to restart
-  // whenever router.refresh() triggers a re-render — creating duplicate intervals.
-  const refreshRef = useRef<() => void>(() => {});
-  useEffect(() => {
-    refreshRef.current = () => router.refresh();
-  }); // no dep array: always syncs to latest router instance without causing polling re-runs
-
-  // Polling effect — ONLY depends on pollingJobId, NOT on router
   useEffect(() => {
     if (!pollingJobId) return;
 
-    // `stopped` flag prevents async callbacks from acting after cleanup
-    let stopped = false;
-
-    const checkJobStatus = async () => {
-      if (stopped) return;
-      try {
-        const res = await fetch(`/api/jobs/${pollingJobId}`);
-        if (!res.ok) {
-          throw new Error('Failed to check job status');
-        }
-
-        const rawData = await res.json();
-        const data = rawData as { status: string; errorSummary?: string };
-
-        if (stopped) return;
-        setJobStatus(data.status);
-
-        if (data.status === 'COMPLETED') {
-          stopped = true;
-          setPollingJobId(null);
-          setJobStatus(null);
-          setIsEnriching(false);
-          // Stable ref prevents this call from being a useEffect dependency
-          refreshRef.current();
-        } else if (data.status === 'FAILED') {
-          stopped = true;
-          setPollingJobId(null);
-          setJobStatus(null);
-          setIsEnriching(false);
-          setJobError(data.errorSummary || 'Research enrichment job failed.');
-        }
-      } catch (err: unknown) {
-        if (stopped) return;
-        console.error('Polling error:', err);
-        stopped = true;
-        setPollingJobId(null);
-        setJobStatus(null);
-        setIsEnriching(false);
-        setJobError('Failed to verify job status. Please refresh.');
-      }
-    };
-
-    // Run first check immediately, then every 5 seconds
-    checkJobStatus();
-    const intervalId = setInterval(checkJobStatus, 5000);
-
-    return () => {
-      stopped = true;
-      clearInterval(intervalId);
-    };
-  }, [pollingJobId]); // ← deliberately omits router
+    const status = recentJobUpdates[pollingJobId];
+    if (status === 'SUCCESS') {
+      setPollingJobId(null);
+      setJobStatus(null);
+      setIsEnriching(false);
+      router.refresh();
+    } else if (status === 'ERROR') {
+      setPollingJobId(null);
+      setJobStatus(null);
+      setIsEnriching(false);
+      setJobError('Research enrichment job failed. Please check notifications for details.');
+    }
+  }, [pollingJobId, recentJobUpdates, router]);
 
   const handleEnrich = useCallback(async () => {
     // UI-level guard: prevents duplicate requests before the first pollingJobId is set.

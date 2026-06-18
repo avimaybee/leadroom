@@ -27,6 +27,7 @@ import {
   triggerAuditAction, 
   manualOverrideScoreAction 
 } from '@/app/actions/audits';
+import ClientActivityList from "./ClientActivityList";
 import ClientNotesForm from './ClientNotesForm';
 import ClientTaskForm from './ClientTaskForm';
 import ClientTaskItem from './ClientTaskItem';
@@ -169,64 +170,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             
             <ClientNotesForm leadId={lead.id} addNoteAction={addNoteAction} />
 
-            {activities.length === 0 ? (
-              <div className="bg-card border border-border rounded-2xl p-6 text-center text-muted-foreground font-medium">
-                No activity log found.
-              </div>
-            ) : (
-              <div className="max-h-[420px] overflow-y-auto border border-border/60 rounded-xl bg-card">
-                <div className="divide-y divide-border/40">
-                  {activities.map((act: any) => {
-                    const isNote = act.type === 'Note added';
-                    return (
-                      <div key={act.id} className={`${isNote ? 'bg-chart-5/[0.02]' : ''}`}>
-                        {isNote ? (
-                          <div className="px-4 py-3">
-                            <div className="flex justify-between items-start gap-3">
-                              <div className="min-w-0">
-                                <span className="inline-block px-2 py-0.5 rounded text-[11px] font-bold uppercase bg-chart-5/10 text-chart-5">
-                                  {act.type}
-                                </span>
-                                <p className="text-sm font-semibold text-foreground mt-1.5 leading-relaxed">
-                                  {act.summary}
-                                </p>
-                              </div>
-                              <span className="text-[11px] text-muted-foreground font-semibold shrink-0 mt-0.5">
-                                {formatDateTimeUTC(act.timestamp)}
-                              </span>
-                            </div>
-                          </div>
-                        ) : (
-                          <details className="group">
-                            <summary className="flex justify-between items-center gap-3 px-4 py-2.5 list-none marker:content-none cursor-pointer hover:bg-muted/30 transition-colors">
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <svg className="w-3 h-3 text-muted-foreground shrink-0 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                                </svg>
-                                <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-muted text-muted-foreground leading-tight shrink-0">
-                                  {act.type}
-                                </span>
-                                <span className="text-xs text-muted-foreground font-medium truncate">
-                                  {act.summary}
-                                </span>
-                              </div>
-                              <span className="text-[11px] text-muted-foreground font-semibold shrink-0">
-                                {formatDateTimeUTC(act.timestamp)}
-                              </span>
-                            </summary>
-                            <div className="px-4 pb-3 pl-[37px]">
-                              <p className="text-xs text-muted-foreground font-medium leading-relaxed">
-                                {act.summary}
-                              </p>
-                            </div>
-                          </details>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+            <ClientActivityList activities={activities} />
           </div>
         </div>
 

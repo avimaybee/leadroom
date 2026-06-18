@@ -21,6 +21,7 @@ export const leads = sqliteTable('leads', {
   region: text('region'),
   industry: text('industry'),
   stage: text('stage').notNull().default('New'),
+  isRead: integer('is_read', { mode: 'boolean' }).notNull().default(false),
   status: text('status').notNull().default('Active'),
   ownerId: text('owner_id').references(() => users.id),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
@@ -36,6 +37,7 @@ export const tasks = sqliteTable('tasks', {
   leadId: text('lead_id').references(() => leads.id),
   dueDate: integer('due_date', { mode: 'timestamp' }),
   status: text('status').notNull().default('Open'),
+  isRead: integer('is_read', { mode: 'boolean' }).notNull().default(false),
   priority: text('priority').notNull().default('Medium'),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
@@ -57,10 +59,29 @@ export const activities = sqliteTable('activities', {
   leadId: text('lead_id').notNull().references(() => leads.id),
   type: text('type').notNull(),
   summary: text('summary').notNull(),
+  metadata: text('metadata', { mode: 'json' }).$type<{
+    from_stage?: string;
+    to_stage?: string;
+    [key: string]: any;
+  }>(),
   timestamp: integer('timestamp', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
 }, (table) => ({
   leadIdTimestampIndex: index('activities_lead_id_timestamp_idx').on(table.leadId, table.timestamp),
 }));
+
+export const leadStageHistory = sqliteTable('lead_stage_history', {
+  id: text('id').primaryKey(),
+  leadId: text('lead_id').notNull().references(() => leads.id),
+  stage: text('stage').notNull(),
+  enteredAt: integer('entered_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
+  exitedAt: integer('exited_at', { mode: 'timestamp' }),
+});
+
+export const activityMetadata = sqliteTable('activity_metadata', {
+  id: text('id').primaryKey(),
+  activityId: text('activity_id').notNull().references(() => activities.id),
+  metadata: text('metadata').notNull(),
+});
 
 export const providerConfigs = sqliteTable('provider_configs', {
   id: text('id').primaryKey(),
@@ -70,4 +91,16 @@ export const providerConfigs = sqliteTable('provider_configs', {
   isActive: integer('is_active', { mode: 'boolean' }).default(true),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
+});
+
+export const notifications = sqliteTable('notifications', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id),
+  jobRunId: text('job_run_id'), // can reference jobRuns, but they are in research.ts. Better just leave it as text and link logically.
+  title: text('title').notNull(),
+  message: text('message').notNull(),
+  status: text('status').notNull(), // 'SUCCESS', 'ERROR', 'INFO'
+  isRead: integer('is_read', { mode: 'boolean' }).notNull().default(false),
+  link: text('link'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
 });
