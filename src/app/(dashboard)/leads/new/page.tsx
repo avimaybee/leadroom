@@ -79,6 +79,11 @@ export default function NewLeadPage() {
             <Input type="text" name="region" placeholder="e.g. CA" />
           </div>
           <div className="sm:col-span-2">
+            <Label className="text-xs uppercase tracking-wider mb-2 block">Source / Campaign</Label>
+            <Input type="text" name="sourceName" placeholder="e.g. Direct Outreach, Q3_Tech_Conference" />
+            <p className="text-[11px] text-muted-foreground mt-1.5">If left blank, it defaults to "Manual Entry". Entering a new name will create a campaign badge.</p>
+          </div>
+          <div className="sm:col-span-2">
             <Label className="text-xs uppercase tracking-wider mb-2 block">Pipeline Stage</Label>
             <select 
               name="stage" 
