@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "95f71e4f-6c3b-48f6-be95-78e2e0ca833b",
-  "prevId": "e14986e1-597d-4154-af89-bdee85591518",
+  "id": "05ebd66a-6a44-447c-8eec-4e807bebfc49",
+  "prevId": "95f71e4f-6c3b-48f6-be95-78e2e0ca833b",
   "tables": {
     "activities": {
       "name": "activities",
@@ -51,7 +51,16 @@
           "default": "(strftime('%s', 'now'))"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "activities_lead_id_timestamp_idx": {
+          "name": "activities_lead_id_timestamp_idx",
+          "columns": [
+            "lead_id",
+            "timestamp"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {
         "activities_lead_id_leads_id_fk": {
           "name": "activities_lead_id_leads_id_fk",
@@ -306,7 +315,16 @@
           "default": "(strftime('%s', 'now'))"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "leads_status_updated_at_idx": {
+          "name": "leads_status_updated_at_idx",
+          "columns": [
+            "status",
+            "updated_at"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {
         "leads_owner_id_users_id_fk": {
           "name": "leads_owner_id_users_id_fk",
@@ -692,7 +710,16 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "tasks_status_due_date_idx": {
+          "name": "tasks_status_due_date_idx",
+          "columns": [
+            "status",
+            "due_date"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {
         "tasks_lead_id_leads_id_fk": {
           "name": "tasks_lead_id_leads_id_fk",

@@ -97,10 +97,12 @@ export class DiscoveryService {
 
     // 2. Fetch the scope details if any
     let scopeName = 'Discovery';
+    let scopeIndustry = null;
     if (candidate.discoveryScopeId) {
       const [scope] = await this.db.select().from(discoveryScopes).where(eq(discoveryScopes.id, candidate.discoveryScopeId)).limit(1);
       if (scope) {
         scopeName = scope.name;
+        scopeIndustry = scope.industryFilter;
       }
     }
 
@@ -111,6 +113,7 @@ export class DiscoveryService {
       name: candidate.rawName,
       website: candidate.rawWebsiteUrl,
       city: candidate.rawLocation || null,
+      industry: scopeIndustry,
       stage: 'New',
       status: 'Active',
       ownerId: ownerId,

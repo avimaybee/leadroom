@@ -206,12 +206,15 @@ leadId: draft.leadId,
 
     // Log activity if transitioning to SENT
     if (status === 'SENT') {
+      const { leads } = await import('../db/schema/core');
+      await this.db.update(leads).set({ lastActivityAt: now, updatedAt: now }).where(eq(leads.id, draft.leadId));
+
       await new LoggingService(this.db).log({
-leadId: draft.leadId,
+        leadId: draft.leadId,
         type: 'Outreach sent',
         summary: `Sent outreach draft via ${draft.channel}`,
         
-});
+      });
     }
 
     return { ...draft, status, updatedAt: now };
