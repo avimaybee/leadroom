@@ -5,11 +5,18 @@ import { Users } from 'lucide-react';
 import { archiveLeadAction } from '@/app/actions/leads';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { leads, leadScores, candidateLeads, discoveryScopes } from '@/db/schema';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { eq, and, desc, asc, sql } from 'drizzle-orm';
+import { LeadsTable } from './LeadsTable';
 
-export default async function LeadsPage() {
+export default async function LeadsPage(props: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const db = getDb();
   
+  const searchParams = await props.searchParams;
+  const sort = typeof searchParams.sort === 'string' ? searchParams.sort : 'updatedAt';
+  const order = typeof searchParams.order === 'string' ? searchParams.order : 'desc';
+
+  const sortFn = order === 'asc' ? asc : desc;
+
   const activeLeads = await db
     .select({
       id: leads.id,
@@ -18,6 +25,7 @@ export default async function LeadsPage() {
       email: leads.email,
       stage: leads.stage,
       status: leads.status,
+      stageUpdatedAt: leads.stageUpdatedAt,
       scoreValue: leadScores.scoreValue,
       scoreLabel: leadScores.scoreLabel,
       campaignId: discoveryScopes.id,
@@ -28,32 +36,7 @@ export default async function LeadsPage() {
     .leftJoin(candidateLeads, eq(leads.id, candidateLeads.promotedLeadId))
     .leftJoin(discoveryScopes, eq(candidateLeads.discoveryScopeId, discoveryScopes.id))
     .where(eq(leads.status, 'Active'))
-    .orderBy(desc(leads.updatedAt));
-
-  const getStageBadgeClass = (stage: string) => {
-    switch (stage) {
-      case 'In Research':
-        return 'bg-chart-5/10 text-chart-5 border border-chart-5/20';
-      case 'Auditing':
-        return 'bg-chart-3/10 text-chart-3 border border-chart-3/20';
-      case 'Audited':
-        return 'bg-chart-2/10 text-chart-2 border border-chart-2/20';
-      case 'Drafting':
-        return 'bg-primary/10 text-primary border border-primary/20';
-      case 'Ready to Send':
-        return 'bg-chart-4/10 text-chart-4 border border-chart-4/20';
-      case 'Outreach Sent':
-        return 'bg-primary/20 text-primary border border-primary/30';
-      case 'Meeting':
-        return 'bg-destructive/10 text-destructive border border-destructive/20';
-      case 'Won':
-        return 'bg-chart-2/20 text-chart-2 border border-chart-2/30';
-      case 'Lost':
-        return 'bg-destructive/20 text-destructive border border-destructive/30';
-      default:
-        return 'bg-muted text-muted-foreground border border-border';
-    }
-  };
+    .orderBy(sortFn(sort === 'stageUpdatedAt' ? leads.stageUpdatedAt : leads.updatedAt));
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -90,80 +73,7 @@ export default async function LeadsPage() {
           </div>
         </div>
       ) : (
-        <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-border">
-              <thead className="bg-muted">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Prospect Details</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Priority</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Pipeline Stage</th>
-                  <th className="px-6 py-4 text-right text-xs font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-card divide-y divide-border">
-                {activeLeads.map((lead: any) => (
-                  <tr key={lead.id} className="hover:bg-muted/50 transition duration-150">
-                    <td className="px-6 py-4 min-w-[200px]">
-                      <Link href={`/leads/${lead.id}`} className="hover:underline group block">
-                        <div className="font-bold text-card-foreground text-sm leading-snug group-hover:text-primary transition-colors truncate max-w-[240px] md:max-w-[320px]">{lead.name}</div>
-                      </Link>                      <div className="flex flex-col gap-0.5 mt-1">
-                        {lead.company && (
-                          <div className="text-xs text-foreground/85 font-semibold truncate max-w-[240px] md:max-w-[320px]">{lead.company}</div>
-                        )}
-                        {lead.email && (
-                          <div className="text-xs text-muted-foreground font-medium truncate max-w-[240px] md:max-w-[320px]">{lead.email}</div>
-                        )}
-                        {lead.campaignName && (
-                          <div className="mt-1 flex">
-                            <Link 
-                              href={`/scopes/${lead.campaignId}`}
-                              className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-muted/65 text-muted-foreground border border-border/50 uppercase tracking-wide hover:bg-muted hover:text-foreground transition-colors"
-                            >
-                              Campaign: {lead.campaignName}
-                            </Link>
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {lead.scoreValue !== null && lead.scoreValue !== undefined ? (
-                        <span 
-                          aria-label={`${lead.scoreLabel} Priority, score ${lead.scoreValue} out of 100`}
-                          className={`inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-bold border ${
-                            lead.scoreLabel === 'High' ? 'bg-destructive/10 text-destructive border-destructive/20' :
-                            lead.scoreLabel === 'Medium' ? 'bg-chart-3/15 text-chart-3 border-chart-3/30' :
-                            'bg-muted text-muted-foreground border-border'
-                          }`}
-                        >
-                          <span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${
-                            lead.scoreLabel === 'High' ? 'bg-destructive animate-pulse' :
-                            lead.scoreLabel === 'Medium' ? 'bg-chart-3' : 'bg-muted-foreground'
-                          }`} />
-                          {lead.scoreLabel} ({lead.scoreValue})
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-bold border bg-muted/50 text-muted-foreground border-border/60">
-                          Unassessed
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold ${getStageBadgeClass(lead.stage)}`}>
-                        {lead.stage}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <form action={archiveLeadAction.bind(null, lead.id)}>
-                        <Button type="submit" variant="destructive" size="xs">Archive</Button>
-                      </form>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <LeadsTable leads={activeLeads} sort={sort} order={order} />
       )}
     </div>
   );

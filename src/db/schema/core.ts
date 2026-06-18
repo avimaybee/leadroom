@@ -26,6 +26,7 @@ export const leads = sqliteTable('leads', {
   ownerId: text('owner_id').references(() => users.id),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
+  stageUpdatedAt: integer('stage_updated_at', { mode: 'timestamp' }),
 });
 
 export const tasks = sqliteTable('tasks', {

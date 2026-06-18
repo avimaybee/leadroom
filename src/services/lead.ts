@@ -1,5 +1,5 @@
 import { Db } from '../db';
-import { eq, desc, and, isNull } from 'drizzle-orm';
+import { eq, desc, and, isNull, inArray } from 'drizzle-orm';
 import { leads, activities, activityMetadata, tasks, notes, leadStageHistory } from '../db/schema/core';
 import { candidateLeads, discoveryScopes } from '../db/schema/discovery';
 import { CreateLeadInput } from '../db/models/lead';
@@ -49,6 +49,7 @@ export class LeadService {
       status: 'Active',
       createdAt: now,
       updatedAt: now,
+      stageUpdatedAt: now,
     });
 
     await this.db.insert(leadStageHistory).values({
@@ -133,6 +134,9 @@ async listLeads() {
       ...input,
       updatedAt: now,
     };
+    if (input.stage && input.stage !== oldLead.stage) {
+      updates.stageUpdatedAt = now;
+    }
     if (input.stage && input.stage !== 'New') updates.isRead = true;
 
     await this.db.update(leads).set(updates).where(eq(leads.id, id));
@@ -167,6 +171,7 @@ async listLeads() {
     const updates: any = {
       stage: newStage,
       updatedAt: now,
+      stageUpdatedAt: now,
     };
     if (newStage !== 'New') updates.isRead = true;
 
@@ -183,6 +188,50 @@ async listLeads() {
     });
 
     return this.getLead(id);
+  }
+
+  async bulkUpdateStage(leadIds: string[], newStage: string) {
+    if (leadIds.length === 0) return;
+    const now = new Date();
+    const oldLeads = await this.db.select().from(leads).where(inArray(leads.id, leadIds));
+    
+    const affectedLeadIds = oldLeads.filter(l => l.stage !== newStage).map(l => l.id);
+    if (affectedLeadIds.length === 0) return;
+
+    for (const id of affectedLeadIds) {
+      await this.db.update(leadStageHistory)
+        .set({ exitedAt: now })
+        .where(and(eq(leadStageHistory.leadId, id), isNull(leadStageHistory.exitedAt)));
+        
+      await this.db.insert(leadStageHistory).values({
+        id: crypto.randomUUID(),
+        leadId: id,
+        stage: newStage,
+        enteredAt: now,
+      });
+
+      const oldLead = oldLeads.find(l => l.id === id);
+      await new LoggingService(this.db).log({
+        leadId: id,
+        type: 'Stage changed',
+        summary: `Stage changed from ${oldLead?.stage} to ${newStage}`,
+        metadata: {
+          from_stage: oldLead?.stage,
+          to_stage: newStage,
+        },
+      });
+    }
+
+    const updates: any = {
+      stage: newStage,
+      updatedAt: now,
+      stageUpdatedAt: now,
+    };
+    if (newStage !== 'New') updates.isRead = true;
+
+    await this.db.update(leads)
+      .set(updates)
+      .where(inArray(leads.id, affectedLeadIds));
   }
 
   async archiveLead(id: string) {

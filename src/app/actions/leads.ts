@@ -86,6 +86,17 @@ export async function updateStageAction(formData: FormData) {
   }
 }
 
+export async function bulkUpdateStageAction(leadIds: string[], newStage: string) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  const service = await getService();
+  if (leadIds.length > 0 && newStage) {
+    await service.bulkUpdateStage(leadIds, newStage);
+    revalidatePath('/leads');
+  }
+}
+
 export async function updateLeadAction(prevState: ActionState, formData: FormData) {
   const userId = await getUserId();
   if (!userId) return { error: 'Unauthorized' };

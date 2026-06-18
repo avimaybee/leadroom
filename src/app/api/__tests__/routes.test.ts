@@ -109,7 +109,8 @@ function setupTestDb() {
       is_read INTEGER DEFAULT 0 NOT NULL,
       owner_id TEXT REFERENCES users(id),
       created_at INTEGER DEFAULT (strftime('%s', 'now')),
-      updated_at INTEGER DEFAULT (strftime('%s', 'now'))
+      updated_at INTEGER DEFAULT (strftime('%s', 'now')),
+      stage_updated_at INTEGER
     );
 
     CREATE TABLE activities (
