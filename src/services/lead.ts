@@ -28,6 +28,27 @@ export class LeadService {
    * Advance the lead to the given stage only if it's further along than the current stage.
    * No-op if already at or past the target stage.
    */
+
+
+  private async triggerWorkflowIfOutreachSent(leadId: string, newStage: string, oldStage: string, stageUpdatedAt?: Date | null) {
+    if (newStage === 'Outreach Sent' && oldStage !== 'Outreach Sent') {
+      try {
+        const { triggerMonitorStalledLeadWorkflow } = await import('../lib/workflow-client');
+        let workflowBinding: any = undefined;
+        try {
+          const { getCloudflareContext } = await import('@opennextjs/cloudflare');
+          workflowBinding = getCloudflareContext().env?.MONITOR_STALLED_LEAD_WORKFLOW;
+        } catch (e) {}
+        if (!workflowBinding) {
+          workflowBinding = (process.env as any)?.MONITOR_STALLED_LEAD_WORKFLOW;
+        }
+        await triggerMonitorStalledLeadWorkflow(this.db, workflowBinding, leadId, stageUpdatedAt ? stageUpdatedAt.getTime() : Date.now());
+      } catch (e) {
+        console.error('Failed to trigger stalled lead monitor workflow:', e);
+      }
+    }
+  }
+
   async advanceStageIfEarlier(leadId: string, targetStage: PipelineStage) {
     const lead = await this.getLead(leadId);
     if (!lead) return;
@@ -107,6 +128,11 @@ export class LeadService {
     await scoringService.recalculateScore(id);
 
     const [lead] = await this.db.select().from(leads).where(eq(leads.id, id)).limit(1);
+    
+    if (input.stage === 'Outreach Sent') {
+      await this.triggerWorkflowIfOutreachSent(id, 'Outreach Sent', 'New', lead?.stageUpdatedAt);
+    }
+
     return lead;
   }
 
@@ -177,6 +203,11 @@ async listLeads() {
     const scoringService = new ScoringService(this.db);
     await scoringService.recalculateScore(id);
 
+    if (input.stage) {
+      const updatedLead = await this.getLead(id);
+      await this.triggerWorkflowIfOutreachSent(id, input.stage, oldLead.stage, updatedLead?.stageUpdatedAt);
+    }
+
     return this.getLead(id);
   }
 
@@ -218,6 +249,9 @@ async listLeads() {
         to_stage: newStage,
       },
     });
+
+    const updatedLead = await this.getLead(id);
+    await this.triggerWorkflowIfOutreachSent(id, newStage, oldStage, updatedLead?.stageUpdatedAt);
 
     return this.getLead(id);
   }
