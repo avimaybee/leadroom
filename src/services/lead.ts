@@ -42,10 +42,12 @@ export class LeadService {
     const id = crypto.randomUUID();
     const now = new Date();
     
+    const { sourceName, ...leadData } = input;
+    
     await this.db.insert(leads).values({
-      ...input,
+      ...leadData,
       id,
-      stage: input.stage || 'New',
+      stage: leadData.stage || 'New',
       status: 'Active',
       createdAt: now,
       updatedAt: now,
@@ -54,16 +56,49 @@ export class LeadService {
     await this.db.insert(leadStageHistory).values({
       id: crypto.randomUUID(),
       leadId: id,
-      stage: input.stage || 'New',
+      stage: leadData.stage || 'New',
       enteredAt: now,
+    });
+
+    let finalSourceName = sourceName?.trim() || 'Manual Entry';
+    
+    // Find or create Discovery Scope
+    let [scope] = await this.db.select().from(discoveryScopes).where(eq(discoveryScopes.name, finalSourceName)).limit(1);
+    
+    if (!scope) {
+      const scopeId = crypto.randomUUID();
+      await this.db.insert(discoveryScopes).values({
+        id: scopeId,
+        name: finalSourceName,
+        description: `Automatically created for source: ${finalSourceName}`,
+        createdByUserId: leadData.ownerId || 'system',
+        createdAt: now,
+        updatedAt: now,
+      });
+      [scope] = await this.db.select().from(discoveryScopes).where(eq(discoveryScopes.id, scopeId)).limit(1);
+    }
+    
+    // Create candidate lead linking to the scope
+    await this.db.insert(candidateLeads).values({
+      id: crypto.randomUUID(),
+      discoveryScopeId: scope.id,
+      rawName: leadData.name,
+      rawWebsiteUrl: leadData.website || null,
+      rawContactInfo: leadData.email || leadData.phone || null,
+      rawLocation: [leadData.city, leadData.region].filter(Boolean).join(', ') || null,
+      status: 'PROMOTED',
+      promotedLeadId: id,
+      createdAt: now,
+      updatedAt: now,
     });
 
     await new LoggingService(this.db).log({
       leadId: id,
       type: 'Lead created',
-      summary: 'Lead was created',
+      summary: `Lead was created from source: ${finalSourceName}`,
       metadata: {
-        to_stage: input.stage || 'New',
+        to_stage: leadData.stage || 'New',
+        source: finalSourceName
       },
     });
 

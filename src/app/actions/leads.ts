@@ -43,6 +43,7 @@ export async function createLeadAction(prevState: ActionState, formData: FormDat
     region: formData.get('region') as string,
     industry: formData.get('industry') as string,
     stage: formData.get('stage') as string,
+    sourceName: formData.get('sourceName') as string,
   };
 
   const validated = CreateLeadSchema.safeParse(rawData);

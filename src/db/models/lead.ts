@@ -12,6 +12,7 @@ export const CreateLeadSchema = z.object({
   industry: z.string().optional().nullable(),
   stage: z.string().optional(),
   ownerId: z.string().optional().nullable(),
+  sourceName: z.string().optional().nullable(),
 });
 
 export type Lead = typeof leads.$inferSelect;
@@ -26,4 +27,5 @@ export type CreateLeadInput = {
   industry?: string | null;
   stage?: string;
   ownerId?: string | null;
+  sourceName?: string | null;
 };
