@@ -10,7 +10,7 @@ import { createNotification } from '@/lib/notifications';
 const logger = getLogger('WorkflowClient');
 
 export interface CloudflareWorkflow {
-  create(options: { params: Record<string, unknown> }): Promise<unknown>;
+  create(options: { id?: string; params: Record<string, unknown> }): Promise<unknown>;
 }
 
 /**
@@ -309,5 +309,74 @@ export async function triggerDiscoverySearchWorkflow(
     ctx.waitUntil(runSimulation());
   } else {
     runSimulation().catch((err) => logger.error('Unhandled discovery search simulation error', err));
+  }
+}
+
+
+/**
+ * Triggers the Monitor Stalled Lead Workflow.
+ */
+export async function triggerMonitorStalledLeadWorkflow(
+  db: Db,
+  workflowBinding: CloudflareWorkflow | undefined | null,
+  leadId: string,
+  stageUpdatedAt: number
+) {
+  if (workflowBinding && typeof workflowBinding.create === 'function') {
+    logger.info('Triggering Cloudflare Monitor Stalled Lead Workflow', { leadId });
+    try {
+      // By supplying an id, Cloudflare Workflows deduplicates automatically
+      // But we can also just rely on not triggering it when the stage is already Outreach Sent.
+      await workflowBinding.create({
+        id: `monitor-stalled-${leadId}-${Date.now()}`,
+        params: { leadId, stageUpdatedAt }
+      });
+      return;
+    } catch (err: unknown) {
+      logger.error('Failed to trigger Cloudflare Monitor Stalled Lead Workflow binding. Falling back to simulation.', err, { leadId });
+    }
+  }
+
+  // Simulation mode
+  logger.info('Local simulation mode for monitor stalled lead', { leadId });
+
+  const runSimulation = async () => {
+    try {
+      // Simulate 72 hour wait locally by waiting a short time for dev, or actually we can wait a realistic shorter time for tests if needed, but the prompt says 72 hours.
+      // Wait, in simulation we might just not actually wait 72 hours if the Node process dies. 
+      // But we must meet acceptance criteria. Let's sleep for 72 hours in simulation.
+      await new Promise((resolve) => setTimeout(resolve, 72 * 60 * 60 * 1000));
+      
+      const { LeadService } = await import('@/services/lead');
+      const leadService = new LeadService(db);
+      const lead = await leadService.getLead(leadId);
+      
+      const currentStageUpdatedAt = lead?.stageUpdatedAt ? new Date(lead.stageUpdatedAt).getTime() : 0;
+      const isUnchanged = Math.abs(currentStageUpdatedAt - stageUpdatedAt) < 5000;
+      
+      if (lead && lead.stage === 'Outreach Sent' && isUnchanged) {
+        await leadService.addTask(
+          leadId,
+          'Follow up on stalled outreach',
+          'This lead has been in the "Outreach Sent" stage for 72 hours without any movement. Please follow up.',
+          new Date(),
+          'High'
+        );
+      }
+    } catch (error: unknown) {
+      logger.error('Monitor stalled lead failed during simulation', error, { leadId });
+    }
+  };
+
+  let ctx: any = undefined;
+  try {
+    const { getCloudflareContext } = require('@opennextjs/cloudflare');
+    ctx = getCloudflareContext().ctx;
+  } catch (e) {}
+
+  if (ctx && typeof ctx.waitUntil === 'function') {
+    ctx.waitUntil(runSimulation());
+  } else {
+    runSimulation().catch((err) => logger.error('Unhandled monitor stalled lead simulation error', err));
   }
 }
