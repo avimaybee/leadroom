@@ -1,5 +1,6 @@
 import { getDb, type Db } from '@/db';
 import { ResearchWorkflowService } from '@/services/research-workflow';
+import { LoggingService } from '@/services/logging';
 import { jobRuns, candidateLeads, activities } from '@/db/schema';
 import { checkApifyRunStatus, fetchApifyResults } from '@/lib/discovery/apify';
 import { eq, desc as drizzleDesc } from 'drizzle-orm';
@@ -106,12 +107,16 @@ export async function triggerResearchWorkflow(
           })
           .where(eq(jobRuns.id, jobId));
 
-        await db.insert(activities).values({
-          id: crypto.randomUUID(),
+        await new LoggingService(db).log({
           leadId,
           type: 'Enrichment failed',
           summary: `AI research generation failed: ${errMsg}`,
-          timestamp: new Date(),
+          metadata: {
+            error: {
+              message: errMsg,
+              stack: error instanceof Error ? error.stack : undefined,
+            }
+          }
         });
 
         if (userId) {

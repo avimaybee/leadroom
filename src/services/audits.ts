@@ -1,3 +1,4 @@
+import { LoggingService } from './logging';
 import { Db } from '../db';
 import { eq, desc } from 'drizzle-orm';
 import { audits, activities, leads } from '../db/schema';
@@ -61,13 +62,12 @@ export class AuditService {
     await this.db.insert(audits).values(newAudit);
 
     // Log Activity
-    await this.db.insert(activities).values({
-      id: crypto.randomUUID(),
-      leadId: input.leadId,
+    await new LoggingService(this.db).log({
+leadId: input.leadId,
       type: 'Audit generated',
       summary: `Website audit completed.`,
-      timestamp: now,
-    });
+      
+});
 
     // Re-score the lead
     await this.scoringService.recalculateScore(input.leadId, input.jobRunId, input.createdByUserId);

@@ -1,3 +1,4 @@
+import { LoggingService } from './logging';
 import { Db } from '../db';
 import { eq, desc, and, isNull } from 'drizzle-orm';
 import { researchSnapshots, contacts } from '../db/schema/research';
@@ -54,13 +55,12 @@ export class ResearchService {
     });
 
     // Log update activity
-    await this.db.insert(activities).values({
-      id: crypto.randomUUID(),
-      leadId,
+    await new LoggingService(this.db).log({
+leadId,
       type: 'Research updated',
       summary: 'Research snapshot updated manually by operator',
-      timestamp: now,
-    });
+      
+});
 
     const [snapshot] = await this.db.select()
       .from(researchSnapshots)
@@ -124,13 +124,12 @@ export class ResearchService {
     });
 
     // Log activity
-    await this.db.insert(activities).values({
-      id: crypto.randomUUID(),
-      leadId,
+    await new LoggingService(this.db).log({
+leadId,
       type: 'Contact added',
       summary: `Contact ${input.fullName || input.email || 'unnamed'} was added`,
-      timestamp: now,
-    });
+      
+});
 
     const [contact] = await this.db.select()
       .from(contacts)
@@ -176,13 +175,12 @@ export class ResearchService {
       .where(eq(contacts.id, contactId));
 
     // Log activity
-    await this.db.insert(activities).values({
-      id: crypto.randomUUID(),
-      leadId,
+    await new LoggingService(this.db).log({
+leadId,
       type: 'Contact updated',
       summary: `Contact ${input.fullName || 'unnamed'} was updated`,
-      timestamp: now,
-    });
+      
+});
 
     const [contact] = await this.db.select()
       .from(contacts)
@@ -206,12 +204,11 @@ export class ResearchService {
       .where(eq(contacts.id, contactId));
 
     // Log activity
-    await this.db.insert(activities).values({
-      id: crypto.randomUUID(),
-      leadId,
+    await new LoggingService(this.db).log({
+leadId,
       type: 'Contact deleted',
       summary: `Contact ${c?.fullName || c?.email || 'unnamed'} was deleted`,
-      timestamp: now,
-    });
+      
+});
   }
 }

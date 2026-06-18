@@ -1,8 +1,9 @@
+import { LoggingService } from '@/services/logging';
 import { WorkflowEntrypoint, WorkflowEvent, WorkflowStep } from "cloudflare:workers";
 import { getDb } from "../db";
 import { ResearchWorkflowService } from "../services/research-workflow";
 import { jobRuns } from "../db/schema/research";
-import { activities, notifications } from "../db/schema/core";
+import { notifications } from "../db/schema/core";
 import { eq } from "drizzle-orm";
 
 type Env = {
@@ -159,12 +160,10 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
           })
           .where(eq(jobRuns.id, jobId));
 
-        await db.insert(activities).values({
-          id: crypto.randomUUID(),
+        await new LoggingService(db).log({
           leadId,
           type: "Enrichment failed",
           summary: `AI research generation failed: ${errMsg}`,
-          timestamp: new Date(),
         });
 
         if (userId) {
