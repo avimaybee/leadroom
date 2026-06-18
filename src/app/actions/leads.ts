@@ -83,6 +83,7 @@ export async function updateStageAction(formData: FormData) {
     await service.updateStage(id, stage);
     revalidatePath(`/leads/${id}`);
     revalidatePath('/leads');
+    revalidatePath('/');
   }
 }
 
@@ -121,6 +122,7 @@ export async function updateLeadAction(prevState: ActionState, formData: FormDat
   
   revalidatePath(`/leads/${id}`);
   revalidatePath('/leads');
+  revalidatePath('/');
   return { success: true };
 }
 
@@ -144,4 +146,5 @@ export async function addNoteAction(prevState: ActionState, formData: FormData) 
   }
 
   revalidatePath(`/leads/${leadId}`);
+  revalidatePath('/');
 }

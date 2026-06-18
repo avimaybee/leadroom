@@ -18,6 +18,7 @@ const navItems = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Leads', href: '/leads', icon: Users },
   { name: 'Campaigns', href: '/scopes', icon: Target },
+  { name: 'Pipeline Settings', href: '/settings/pipeline', icon: Settings },
   { name: 'Integrations', href: '/settings/integrations', icon: Settings },
 ];
 

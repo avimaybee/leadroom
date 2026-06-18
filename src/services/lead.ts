@@ -134,6 +134,7 @@ async listLeads() {
       updatedAt: now,
     };
     if (input.stage && input.stage !== 'New') updates.isRead = true;
+    if (input.stage && input.stage !== oldLead.stage) updates.stageUpdatedAt = now;
 
     await this.db.update(leads).set(updates).where(eq(leads.id, id));
 
@@ -167,6 +168,7 @@ async listLeads() {
     const updates: any = {
       stage: newStage,
       updatedAt: now,
+      stageUpdatedAt: now,
     };
     if (newStage !== 'New') updates.isRead = true;
 
@@ -234,6 +236,8 @@ async listLeads() {
       createdAt: now,
     });
 
+    await this.db.update(leads).set({ lastActivityAt: now, updatedAt: now }).where(eq(leads.id, leadId));
+
     const excerpt = body.length > 60 ? body.substring(0, 60) + '...' : body;
 
     await new LoggingService(this.db).log({
@@ -265,6 +269,8 @@ async listLeads() {
       createdAt: now,
       updatedAt: now,
     });
+
+    await this.db.update(leads).set({ lastActivityAt: now, updatedAt: now }).where(eq(leads.id, leadId));
 
     await new LoggingService(this.db).log({
       leadId,
