@@ -1,3 +1,4 @@
+import { LoggingService } from './logging';
 import { Db } from '../db';
 import { eq, and, desc } from 'drizzle-orm';
 import { leads, leadScores, audits, activities, researchSnapshots } from '../db/schema';
@@ -118,13 +119,12 @@ export class ScoringService {
     await this.db.insert(leadScores).values(newScore);
 
     // Insert activity log
-    await this.db.insert(activities).values({
-      id: crypto.randomUUID(),
-      leadId,
+    await new LoggingService(this.db).log({
+leadId,
       type: 'Score updated',
       summary: `Lead score updated to ${scoreValue} (${scoreLabel})`,
-      timestamp: now,
-    });
+      
+});
 
     return newScore;
   }
@@ -212,13 +212,12 @@ export class ScoringService {
     await this.db.insert(leadScores).values(overrideScore);
 
     // Log Activity
-    await this.db.insert(activities).values({
-      id: crypto.randomUUID(),
-      leadId,
+    await new LoggingService(this.db).log({
+leadId,
       type: 'Score updated',
       summary: `Score overridden to ${value} (${scoreLabel}) by operator`,
-      timestamp: now,
-    });
+      
+});
 
     return overrideScore;
   }

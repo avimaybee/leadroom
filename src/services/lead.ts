@@ -1,8 +1,9 @@
 import { Db } from '../db';
 import { eq, desc, and, isNull } from 'drizzle-orm';
-import { leads, activities, tasks, notes, leadStageHistory } from '../db/schema/core';
+import { leads, activities, activityMetadata, tasks, notes, leadStageHistory } from '../db/schema/core';
 import { candidateLeads, discoveryScopes } from '../db/schema/discovery';
 import { CreateLeadInput } from '../db/models/lead';
+import { LoggingService } from './logging';
 import { ScoringService } from './scoring';
 
 export const PIPELINE_STAGES = [
@@ -57,12 +58,13 @@ export class LeadService {
       enteredAt: now,
     });
 
-    await this.db.insert(activities).values({
-      id: crypto.randomUUID(),
+    await new LoggingService(this.db).log({
       leadId: id,
       type: 'Lead created',
       summary: 'Lead was created',
-      timestamp: now,
+      metadata: {
+        to_stage: input.stage || 'New',
+      },
     });
 
     // Recalculate baseline score immediately
@@ -116,19 +118,24 @@ async listLeads() {
         enteredAt: now,
       });
 
-      await this.db.insert(activities).values({
-        id: crypto.randomUUID(),
+      await new LoggingService(this.db).log({
         leadId: id,
         type: 'Stage changed',
         summary: `Stage changed from ${oldLead.stage} to ${input.stage}`,
-        timestamp: now,
+        metadata: {
+          from_stage: oldLead.stage,
+          to_stage: input.stage,
+        },
       });
     }
 
-    await this.db.update(leads).set({
+    const updates: any = {
       ...input,
       updatedAt: now,
-    }).where(eq(leads.id, id));
+    };
+    if (input.stage && input.stage !== 'New') updates.isRead = true;
+
+    await this.db.update(leads).set(updates).where(eq(leads.id, id));
 
     // Recalculate baseline score immediately
     const scoringService = new ScoringService(this.db);
@@ -157,17 +164,22 @@ async listLeads() {
       enteredAt: now,
     });
 
-    await this.db.update(leads).set({
+    const updates: any = {
       stage: newStage,
       updatedAt: now,
-    }).where(eq(leads.id, id));
+    };
+    if (newStage !== 'New') updates.isRead = true;
 
-    await this.db.insert(activities).values({
-      id: crypto.randomUUID(),
+    await this.db.update(leads).set(updates).where(eq(leads.id, id));
+
+    await new LoggingService(this.db).log({
       leadId: id,
       type: 'Stage changed',
       summary: `Stage changed from ${oldStage} to ${newStage}`,
-      timestamp: now,
+      metadata: {
+        from_stage: oldStage,
+        to_stage: newStage,
+      },
     });
 
     return this.getLead(id);
@@ -182,6 +194,7 @@ async listLeads() {
 
     await this.db.update(leads).set({
       status: 'Archived',
+      isRead: true,
       updatedAt: now,
     }).where(eq(leads.id, id));
 
@@ -189,7 +202,24 @@ async listLeads() {
   }
 
   async getActivities(leadId: string) {
-    return this.db.select().from(activities).where(eq(activities.leadId, leadId)).orderBy(desc(activities.timestamp));
+    const results = await this.db
+      .select({
+        id: activities.id,
+        leadId: activities.leadId,
+        type: activities.type,
+        summary: activities.summary,
+        timestamp: activities.timestamp,
+        metadata: activityMetadata.metadata,
+      })
+      .from(activities)
+      .leftJoin(activityMetadata, eq(activities.id, activityMetadata.activityId))
+      .where(eq(activities.leadId, leadId))
+      .orderBy(desc(activities.timestamp));
+
+    return results.map(row => ({
+      ...row,
+      metadata: row.metadata ? JSON.parse(row.metadata) : null,
+    }));
   }
 
   async addNote(leadId: string, authorId: string | null, body: string) {
@@ -206,12 +236,10 @@ async listLeads() {
 
     const excerpt = body.length > 60 ? body.substring(0, 60) + '...' : body;
 
-    await this.db.insert(activities).values({
-      id: crypto.randomUUID(),
+    await new LoggingService(this.db).log({
       leadId,
       type: 'Note added',
       summary: `Added note: "${excerpt}"`,
-      timestamp: now,
     });
 
     const [note] = await this.db.select().from(notes).where(eq(notes.id, id)).limit(1);
@@ -238,12 +266,10 @@ async listLeads() {
       updatedAt: now,
     });
 
-    await this.db.insert(activities).values({
-      id: crypto.randomUUID(),
+    await new LoggingService(this.db).log({
       leadId,
       type: 'Task created',
       summary: `Created task: "${title}"`,
-      timestamp: now,
     });
 
     const [task] = await this.db.select().from(tasks).where(eq(tasks.id, id)).limit(1);
@@ -262,19 +288,20 @@ async listLeads() {
     const [oldTask] = await this.db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
     if (!oldTask) throw new Error('Task not found');
 
-    await this.db.update(tasks).set({
+    const updates: any = {
       status: newStatus,
       completedAt,
       updatedAt: now,
-    }).where(eq(tasks.id, taskId));
+    };
+    if (newStatus !== 'Open') updates.isRead = true;
+
+    await this.db.update(tasks).set(updates).where(eq(tasks.id, taskId));
 
     if (oldTask.leadId) {
-      await this.db.insert(activities).values({
-        id: crypto.randomUUID(),
+      await new LoggingService(this.db).log({
         leadId: oldTask.leadId,
         type: 'Task updated',
         summary: `Task "${oldTask.title}" marked as ${newStatus}`,
-        timestamp: now,
       });
     }
 

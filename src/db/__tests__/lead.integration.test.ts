@@ -39,6 +39,7 @@ test('LeadService integration', async (t) => {
   await t.test('archiveLead should mark lead as Archived', async () => {
     const lead = await service.createLead({ name: 'To Archive' });
     const archived = await service.archiveLead(lead.id);
+    assert.ok(archived);
     assert.strictEqual(archived.status, 'Archived');
     
     const list = await service.listLeads();
@@ -49,6 +50,7 @@ test('LeadService integration', async (t) => {
     const lead = await service.createLead({ name: 'Stage Test' });
     const updated = await service.updateStage(lead.id, 'Qualified');
     
+    assert.ok(updated);
     assert.strictEqual(updated.stage, 'Qualified');
 
     const logs = await service['db'].select().from(activities).where(eq(activities.leadId, lead.id));

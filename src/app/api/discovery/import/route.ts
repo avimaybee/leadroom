@@ -1,3 +1,4 @@
+import { LoggingService } from '@/services/logging';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
@@ -68,13 +69,12 @@ export async function POST(request: Request) {
       });
 
       // Log import activity
-      await db.insert(activities).values({
-        id: crypto.randomUUID(),
-        leadId,
+      await new LoggingService(db).log({
+leadId,
         type: 'Lead imported',
         summary: `Imported via Discovery Engine. Source: ${item.sourceUrl || 'Local Search API'}`,
-        timestamp: now,
-      });
+        
+});
 
       importedLeadIds.push(leadId);
     }

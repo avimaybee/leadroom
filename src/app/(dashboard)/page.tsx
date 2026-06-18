@@ -4,9 +4,7 @@ import { DiscoveryService } from '@/services/discovery';
 import { getDb } from '@/db';
 import Link from 'next/link';
 import { Users, Search, AlertTriangle } from 'lucide-react';
-import DashboardTaskList from '@/components/dashboard/DashboardTaskList';
-import { toggleTaskStatusAction } from '@/app/actions/tasks';
-
+import UnifiedFeedLoader from '@/app/(dashboard)/UnifiedFeedLoader';
 
 export default async function DashboardPage() {
   const db = getDb();
@@ -148,21 +146,7 @@ export default async function DashboardPage() {
             </div>
           </div>
 
-          {dashboardTasks.length > 0 ? (
-            <div className="bg-card p-6 rounded-2xl border border-border/80 shadow-sm">
-              <h3 className="text-sm font-bold text-foreground uppercase tracking-wider border-b border-border pb-3 mb-4">
-                Pending Tasks Checklist
-              </h3>
-              <DashboardTaskList tasks={dashboardTasks} toggleTaskStatusAction={toggleTaskStatusAction} />
-            </div>
-          ) : (
-            <div className="bg-muted/50 border border-border/60 p-5 rounded-2xl flex items-center justify-between text-xs text-muted-foreground font-semibold shadow-sm animate-fade-in">
-              <span>All caught up! No pending tasks checklist for today.</span>
-              <Link href="/leads" className="text-primary hover:underline">
-                Go to Active Leads to configure tasks &rarr;
-              </Link>
-            </div>
-          )}
+          <UnifiedFeedLoader />
         </div>
 
         <div className="bg-card p-6 rounded-2xl border border-border/80 shadow-sm flex flex-col justify-between">
