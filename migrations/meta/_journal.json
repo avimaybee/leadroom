@@ -57,6 +57,20 @@
       "when": 1781619443642,
       "tag": "0007_goofy_earthquake",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1781710949343,
+      "tag": "0008_chubby_machine_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1781717972473,
+      "tag": "0009_quiet_sasquatch",
+      "breakpoints": true
     }
   ]
 }

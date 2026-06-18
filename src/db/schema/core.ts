@@ -21,6 +21,7 @@ export const leads = sqliteTable('leads', {
   region: text('region'),
   industry: text('industry'),
   stage: text('stage').notNull().default('New'),
+  isRead: integer('is_read', { mode: 'boolean' }).notNull().default(false),
   status: text('status').notNull().default('Active'),
   ownerId: text('owner_id').references(() => users.id),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
@@ -34,6 +35,7 @@ export const tasks = sqliteTable('tasks', {
   leadId: text('lead_id').references(() => leads.id),
   dueDate: integer('due_date', { mode: 'timestamp' }),
   status: text('status').notNull().default('Open'),
+  isRead: integer('is_read', { mode: 'boolean' }).notNull().default(false),
   priority: text('priority').notNull().default('Medium'),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
@@ -53,6 +55,11 @@ export const activities = sqliteTable('activities', {
   leadId: text('lead_id').notNull().references(() => leads.id),
   type: text('type').notNull(),
   summary: text('summary').notNull(),
+  metadata: text('metadata', { mode: 'json' }).$type<{
+    from_stage?: string;
+    to_stage?: string;
+    [key: string]: any;
+  }>(),
   timestamp: integer('timestamp', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
 });
 
