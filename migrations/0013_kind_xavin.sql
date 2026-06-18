@@ -1,0 +1,26 @@
+CREATE INDEX `activities_lead_id_idx` ON `activities` (`lead_id`);--> statement-breakpoint
+CREATE INDEX `activities_timestamp_idx` ON `activities` (`timestamp`);--> statement-breakpoint
+CREATE INDEX `activity_metadata_activity_id_idx` ON `activity_metadata` (`activity_id`);--> statement-breakpoint
+CREATE INDEX `lead_stage_history_lead_id_idx` ON `lead_stage_history` (`lead_id`);--> statement-breakpoint
+CREATE INDEX `leads_owner_id_idx` ON `leads` (`owner_id`);--> statement-breakpoint
+CREATE INDEX `leads_stage_idx` ON `leads` (`stage`);--> statement-breakpoint
+CREATE INDEX `leads_status_idx` ON `leads` (`status`);--> statement-breakpoint
+CREATE INDEX `leads_owner_stage_idx` ON `leads` (`owner_id`,`stage`);--> statement-breakpoint
+CREATE INDEX `leads_owner_status_idx` ON `leads` (`owner_id`,`status`);--> statement-breakpoint
+CREATE INDEX `notes_lead_id_idx` ON `notes` (`lead_id`);--> statement-breakpoint
+CREATE INDEX `notes_author_id_idx` ON `notes` (`author_id`);--> statement-breakpoint
+CREATE INDEX `notifications_user_id_idx` ON `notifications` (`user_id`);--> statement-breakpoint
+CREATE INDEX `notifications_job_run_id_idx` ON `notifications` (`job_run_id`);--> statement-breakpoint
+CREATE INDEX `notifications_user_is_read_idx` ON `notifications` (`user_id`,`is_read`);--> statement-breakpoint
+CREATE INDEX `tasks_lead_id_idx` ON `tasks` (`lead_id`);--> statement-breakpoint
+CREATE INDEX `tasks_status_idx` ON `tasks` (`status`);--> statement-breakpoint
+CREATE INDEX `tasks_lead_status_idx` ON `tasks` (`lead_id`,`status`);--> statement-breakpoint
+CREATE INDEX `contacts_lead_id_idx` ON `contacts` (`lead_id`);--> statement-breakpoint
+CREATE INDEX `contacts_created_by_user_id_idx` ON `contacts` (`created_by_user_id`);--> statement-breakpoint
+CREATE INDEX `job_runs_target_lead_id_idx` ON `job_runs` (`target_lead_id`);--> statement-breakpoint
+CREATE INDEX `job_runs_triggered_by_user_id_idx` ON `job_runs` (`triggered_by_user_id`);--> statement-breakpoint
+CREATE INDEX `job_runs_status_idx` ON `job_runs` (`status`);--> statement-breakpoint
+CREATE INDEX `job_runs_job_type_idx` ON `job_runs` (`job_type`);--> statement-breakpoint
+CREATE INDEX `research_snapshots_lead_id_idx` ON `research_snapshots` (`lead_id`);--> statement-breakpoint
+CREATE INDEX `research_snapshots_created_by_user_id_idx` ON `research_snapshots` (`created_by_user_id`);--> statement-breakpoint
+CREATE INDEX `research_snapshots_job_run_id_idx` ON `research_snapshots` (`job_run_id`);

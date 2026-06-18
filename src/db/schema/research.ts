@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 import { users, leads } from './core';
 
@@ -19,7 +19,12 @@ export const jobRuns = sqliteTable('job_runs', {
   startedAt: integer('started_at', { mode: 'timestamp' }),
   finishedAt: integer('finished_at', { mode: 'timestamp' }),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
-});
+}, (table) => ({
+  targetLeadIdIdx: index('job_runs_target_lead_id_idx').on(table.targetLeadId),
+  triggeredByUserIdIdx: index('job_runs_triggered_by_user_id_idx').on(table.triggeredByUserId),
+  statusIdx: index('job_runs_status_idx').on(table.status),
+  jobTypeIdx: index('job_runs_job_type_idx').on(table.jobType),
+}));
 
 export const researchSnapshots = sqliteTable('research_snapshots', {
   id: text('id').primaryKey(),
@@ -40,7 +45,11 @@ export const researchSnapshots = sqliteTable('research_snapshots', {
   jobRunId: text('job_run_id').references(() => jobRuns.id),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
-});
+}, (table) => ({
+  leadIdIdx: index('research_snapshots_lead_id_idx').on(table.leadId),
+  createdByUserIdIdx: index('research_snapshots_created_by_user_id_idx').on(table.createdByUserId),
+  jobRunIdIdx: index('research_snapshots_job_run_id_idx').on(table.jobRunId),
+}));
 
 export const contacts = sqliteTable('contacts', {
   id: text('id').primaryKey(),
@@ -58,4 +67,7 @@ export const contacts = sqliteTable('contacts', {
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   deletedAt: integer('deleted_at', { mode: 'timestamp' }),
-});
+}, (table) => ({
+  leadIdIdx: index('contacts_lead_id_idx').on(table.leadId),
+  createdByUserIdIdx: index('contacts_created_by_user_id_idx').on(table.createdByUserId),
+}));
