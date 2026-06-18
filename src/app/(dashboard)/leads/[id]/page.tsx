@@ -55,7 +55,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   const scoringService = new ScoringService(db);
   const outreachService = new OutreachService(db);
 
-  const [notes, tasks, activities, latestSnapshot, contactsList, latestAudit, currentScore, outreachDrafts] = await Promise.all([
+  const [notes, tasks, rawActivities, latestSnapshot, contactsList, latestAudit, currentScore, outreachDrafts, stageHistory] = await Promise.all([
     service.getNotes(id),
     service.getTasks(id),
     service.getActivities(id),
@@ -64,7 +64,18 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
     auditService.getLatestAudit(id),
     scoringService.getCurrentScore(id),
     outreachService.getDraftsForLead(id),
+    service.getStageHistory(id),
   ]);
+
+  const stageActivities = stageHistory.map(h => ({
+    id: h.id,
+    type: 'Stage History',
+    summary: `Moved from ${h.previousStage || 'None'} to ${h.stage}${h.changedBy ? ` by ${h.changedBy}` : ''}`,
+    timestamp: h.enteredAt
+  }));
+
+  const combinedActivities = [...rawActivities.filter(a => a.type !== 'Stage changed'), ...stageActivities]
+    .sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
 
   const STAGE_MAP: Record<string, string> = {
     'Researching': 'In Research',
@@ -170,7 +181,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             
             <ClientNotesForm leadId={lead.id} addNoteAction={addNoteAction} />
 
-            <ClientActivityList activities={activities} />
+            <ClientActivityList activities={combinedActivities} />
           </div>
         </div>
 

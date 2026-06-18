@@ -12,10 +12,15 @@ export default async function DashboardPage() {
   const leadService = new LeadService(db);
   const discoveryService = new DiscoveryService(db);
 
-  const [leads, scopes, dashboardTasks] = await Promise.all([
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const [leads, scopes, dashboardTasks, rawStageCounts, oldStageCounts] = await Promise.all([
     leadService.listLeads(),
     discoveryService.listScopes(),
     leadService.getDashboardTasks(),
+    leadService.getPipelineDistribution(),
+    leadService.getPipelineDistribution(thirtyDaysAgo),
   ]);
 
   const totalLeads = leads.length;
@@ -30,10 +35,15 @@ export default async function DashboardPage() {
     'Meeting / Call': 'Meeting',
   };
 
-  const stageCounts = leads.reduce((acc: Record<string, number>, lead: { stage: string }) => {
-    const raw = lead.stage || 'New';
+  const stageCounts = Object.entries(rawStageCounts).reduce((acc, [raw, count]) => {
     const stage = STAGE_MAP[raw] || raw;
-    acc[stage] = (acc[stage] || 0) + 1;
+    acc[stage] = (acc[stage] || 0) + count;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const oldMappedCounts = Object.entries(oldStageCounts).reduce((acc, [raw, count]) => {
+    const stage = STAGE_MAP[raw] || raw;
+    acc[stage] = (acc[stage] || 0) + count;
     return acc;
   }, {} as Record<string, number>);
 
@@ -127,12 +137,21 @@ export default async function DashboardPage() {
             <div className="space-y-5">
               {stages.map((stage) => {
                 const count = stageCounts[stage] || 0;
+                const oldCount = oldMappedCounts[stage] || 0;
+                const trend = count - oldCount;
                 const percent = totalLeads > 0 ? (count / totalLeads) * 100 : 0;
                 return (
                   <div key={stage} className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span className="font-semibold text-foreground/80">{stage}</span>
-                      <span className="text-muted-foreground font-bold">{count} {count === 1 ? 'lead' : 'leads'}</span>
+                      <div className="flex items-center gap-2">
+                        {trend !== 0 && (
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${trend > 0 ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+                            {trend > 0 ? '+' : ''}{trend} vs 30d
+                          </span>
+                        )}
+                        <span className="text-muted-foreground font-bold">{count} {count === 1 ? 'lead' : 'leads'}</span>
+                      </div>
                     </div>
                     <div className="w-full bg-muted rounded-full h-2.5">
                       <div 

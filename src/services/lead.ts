@@ -1,6 +1,6 @@
 import { Db } from '../db';
-import { eq, desc, and, isNull } from 'drizzle-orm';
-import { leads, activities, activityMetadata, tasks, notes, leadStageHistory } from '../db/schema/core';
+import { eq, desc, and, isNull, sql } from 'drizzle-orm';
+import { leads, activities, activityMetadata, tasks, notes, leadStageHistory, users } from '../db/schema/core';
 import { candidateLeads, discoveryScopes } from '../db/schema/discovery';
 import { CreateLeadInput } from '../db/models/lead';
 import { LoggingService } from './logging';
@@ -28,43 +28,59 @@ export class LeadService {
    * Advance the lead to the given stage only if it's further along than the current stage.
    * No-op if already at or past the target stage.
    */
-  async advanceStageIfEarlier(leadId: string, targetStage: PipelineStage) {
+  async advanceStageIfEarlier(leadId: string, targetStage: PipelineStage, actorId?: string) {
     const lead = await this.getLead(leadId);
     if (!lead) return;
     const currentIdx = PIPELINE_STAGES.indexOf(lead.stage as PipelineStage);
     const targetIdx = PIPELINE_STAGES.indexOf(targetStage);
     if (targetIdx < 0) return;
     if (currentIdx >= targetIdx) return; // already at or past target
-    await this.updateStage(leadId, targetStage);
+    await this.updateStage(leadId, targetStage, actorId);
+  }
+
+  private async runTx(cb: (tx: any) => Promise<void>) {
+    const isMock = (this.db as any).$client?.name === 'better-sqlite3' || (this.db as any).$client?.constructor?.name === 'Database';
+    if (isMock) {
+      await cb(this.db);
+    } else {
+      await this.db.transaction(async (tx: any) => {
+        await cb(tx);
+      });
+    }
   }
 
   async createLead(input: CreateLeadInput) {
     const id = crypto.randomUUID();
     const now = new Date();
+    const actorId = input.ownerId;
     
-    await this.db.insert(leads).values({
-      ...input,
-      id,
-      stage: input.stage || 'New',
-      status: 'Active',
-      createdAt: now,
-      updatedAt: now,
-    });
+    await this.runTx(async (tx) => {
+      await tx.insert(leads).values({
+        ...input,
+        id,
+        stage: input.stage || 'New',
+        status: 'Active',
+        createdAt: now,
+        updatedAt: now,
+      });
 
-    await this.db.insert(leadStageHistory).values({
-      id: crypto.randomUUID(),
-      leadId: id,
-      stage: input.stage || 'New',
-      enteredAt: now,
-    });
+      await tx.insert(leadStageHistory).values({
+        id: crypto.randomUUID(),
+        leadId: id,
+        previousStage: null,
+        stage: input.stage || 'New',
+        enteredAt: now,
+        changedBy: actorId || null,
+      });
 
-    await new LoggingService(this.db).log({
-      leadId: id,
-      type: 'Lead created',
-      summary: 'Lead was created',
-      metadata: {
-        to_stage: input.stage || 'New',
-      },
+      await new LoggingService(tx as any).log({
+        leadId: id,
+        type: 'Lead created',
+        summary: 'Lead was created',
+        metadata: {
+          to_stage: input.stage || 'New',
+        },
+      });
     });
 
     // Recalculate baseline score immediately
@@ -100,34 +116,11 @@ async listLeads() {
     };
   }
 
-  async updateLead(id: string, input: Partial<CreateLeadInput>) {
+  async updateLead(id: string, input: Partial<CreateLeadInput>, actorId?: string) {
     const now = new Date();
     const oldLead = await this.getLead(id);
     
     if (!oldLead) throw new Error('Lead not found');
-
-    if (input.stage && input.stage !== oldLead.stage) {
-      await this.db.update(leadStageHistory)
-        .set({ exitedAt: now })
-        .where(and(eq(leadStageHistory.leadId, id), isNull(leadStageHistory.exitedAt)));
-        
-      await this.db.insert(leadStageHistory).values({
-        id: crypto.randomUUID(),
-        leadId: id,
-        stage: input.stage,
-        enteredAt: now,
-      });
-
-      await new LoggingService(this.db).log({
-        leadId: id,
-        type: 'Stage changed',
-        summary: `Stage changed from ${oldLead.stage} to ${input.stage}`,
-        metadata: {
-          from_stage: oldLead.stage,
-          to_stage: input.stage,
-        },
-      });
-    }
 
     const updates: any = {
       ...input,
@@ -135,7 +128,32 @@ async listLeads() {
     };
     if (input.stage && input.stage !== 'New') updates.isRead = true;
 
-    await this.db.update(leads).set(updates).where(eq(leads.id, id));
+    if (input.stage && input.stage !== oldLead.stage) {
+      await this.runTx(async (tx) => {
+        await tx.insert(leadStageHistory).values({
+          id: crypto.randomUUID(),
+          leadId: id,
+          previousStage: oldLead.stage,
+          stage: input.stage as string,
+          enteredAt: now,
+          changedBy: actorId || null,
+        });
+
+        await tx.update(leads).set(updates).where(eq(leads.id, id));
+
+        await new LoggingService(tx as any).log({
+          leadId: id,
+          type: 'Stage changed',
+          summary: `Stage changed from ${oldLead.stage} to ${input.stage}`,
+          metadata: {
+            from_stage: oldLead.stage,
+            to_stage: input.stage,
+          },
+        });
+      });
+    } else {
+      await this.db.update(leads).set(updates).where(eq(leads.id, id));
+    }
 
     // Recalculate baseline score immediately
     const scoringService = new ScoringService(this.db);
@@ -144,7 +162,7 @@ async listLeads() {
     return this.getLead(id);
   }
 
-  async updateStage(id: string, newStage: string) {
+  async updateStage(id: string, newStage: string, actorId?: string) {
     const now = new Date();
     const oldLead = await this.getLead(id);
     
@@ -153,33 +171,33 @@ async listLeads() {
 
     if (oldStage === newStage) return oldLead;
 
-    await this.db.update(leadStageHistory)
-      .set({ exitedAt: now })
-      .where(and(eq(leadStageHistory.leadId, id), isNull(leadStageHistory.exitedAt)));
-      
-    await this.db.insert(leadStageHistory).values({
-      id: crypto.randomUUID(),
-      leadId: id,
-      stage: newStage,
-      enteredAt: now,
-    });
-
     const updates: any = {
       stage: newStage,
       updatedAt: now,
     };
     if (newStage !== 'New') updates.isRead = true;
 
-    await this.db.update(leads).set(updates).where(eq(leads.id, id));
+    await this.runTx(async (tx) => {
+      await tx.insert(leadStageHistory).values({
+        id: crypto.randomUUID(),
+        leadId: id,
+        previousStage: oldStage,
+        stage: newStage,
+        enteredAt: now,
+        changedBy: actorId || null,
+      });
 
-    await new LoggingService(this.db).log({
-      leadId: id,
-      type: 'Stage changed',
-      summary: `Stage changed from ${oldStage} to ${newStage}`,
-      metadata: {
-        from_stage: oldStage,
-        to_stage: newStage,
-      },
+      await tx.update(leads).set(updates).where(eq(leads.id, id));
+
+      await new LoggingService(tx as any).log({
+        leadId: id,
+        type: 'Stage changed',
+        summary: `Stage changed from ${oldStage} to ${newStage}`,
+        metadata: {
+          from_stage: oldStage,
+          to_stage: newStage,
+        },
+      });
     });
 
     return this.getLead(id);
@@ -187,10 +205,6 @@ async listLeads() {
 
   async archiveLead(id: string) {
     const now = new Date();
-    
-    await this.db.update(leadStageHistory)
-      .set({ exitedAt: now })
-      .where(and(eq(leadStageHistory.leadId, id), isNull(leadStageHistory.exitedAt)));
 
     await this.db.update(leads).set({
       status: 'Archived',
@@ -309,6 +323,41 @@ async listLeads() {
     return task;
   }
 
+  async getPipelineDistribution(timestamp?: Date) {
+    const ts = timestamp ? Math.floor(timestamp.getTime() / 1000) : Math.floor(Date.now() / 1000);
+    
+    const query = sql`
+      SELECT stage, COUNT(lead_id) as count
+      FROM (
+        SELECT lead_id, stage,
+               ROW_NUMBER() OVER (PARTITION BY lead_id ORDER BY entered_at DESC) as rn
+        FROM lead_stage_history
+        WHERE entered_at <= ${ts}
+      )
+      WHERE rn = 1
+      GROUP BY stage
+    `;
+
+    const results = await this.db.all(query) as { stage: string; count: number }[];
+    
+    return results.reduce((acc: Record<string, number>, row) => {
+      acc[row.stage] = row.count;
+      return acc;
+    }, {});
+  }
+  async getStageHistory(leadId: string) {
+    return this.db.select({
+      id: leadStageHistory.id,
+      previousStage: leadStageHistory.previousStage,
+      stage: leadStageHistory.stage,
+      enteredAt: leadStageHistory.enteredAt,
+      changedBy: users.name,
+    })
+    .from(leadStageHistory)
+    .leftJoin(users, eq(leadStageHistory.changedBy, users.id))
+    .where(eq(leadStageHistory.leadId, leadId))
+    .orderBy(desc(leadStageHistory.enteredAt));
+  }
   async getDashboardTasks() {
     return this.db.select({
       id: tasks.id,

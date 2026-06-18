@@ -66,9 +66,11 @@ export const activities = sqliteTable('activities', {
 export const leadStageHistory = sqliteTable('lead_stage_history', {
   id: text('id').primaryKey(),
   leadId: text('lead_id').notNull().references(() => leads.id),
+  previousStage: text('previous_stage'),
   stage: text('stage').notNull(),
   enteredAt: integer('entered_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   exitedAt: integer('exited_at', { mode: 'timestamp' }),
+  changedBy: text('changed_by').references(() => users.id),
 });
 
 export const activityMetadata = sqliteTable('activity_metadata', {
