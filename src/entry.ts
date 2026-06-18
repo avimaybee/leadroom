@@ -1,6 +1,8 @@
+// @ts-ignore
 import handler from '../.open-next/worker.js';
 import { ResearchSnapshotWorkflow } from './workflows/research-snapshot';
 import { DiscoverySearchWorkflow } from './workflows/discovery-search';
+import { MonitorStalledLeadWorkflow } from './workflows/monitor-stalled-lead';
 
 export default {
   async fetch(request: Request, env: any, ctx: any) {
@@ -11,4 +13,4 @@ export default {
   }
 };
 
-export { ResearchSnapshotWorkflow, DiscoverySearchWorkflow };
+export { ResearchSnapshotWorkflow, DiscoverySearchWorkflow, MonitorStalledLeadWorkflow };

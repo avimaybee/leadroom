@@ -7,6 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
+import { useDebounce } from '@/lib/use-debounce';
+import { Percent, TrendingUp, Sparkles, MapPin } from 'lucide-react';
+
+
 const US_STATES = [
   'Texas, USA',
   'California, USA',
@@ -30,6 +34,27 @@ export default function NewScopePage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [debouncedNiche] = useDebounce(niche, 500);
+  const [debouncedLocation] = useDebounce(location, 500);
+  const [metrics, setMetrics] = useState<any>(null);
+  const [loadingMetrics, setLoadingMetrics] = useState(false);
+
+  useEffect(() => {
+    if (debouncedNiche && debouncedLocation) {
+      setLoadingMetrics(true);
+      fetch(`/api/market-metrics?niche=${encodeURIComponent(debouncedNiche)}&location=${encodeURIComponent(debouncedLocation)}`)
+        .then(res => res.json())
+        .then((data: any) => {
+          if (data.data) {
+            setMetrics(data.data);
+          }
+        })
+        .finally(() => setLoadingMetrics(false));
+    } else {
+      setMetrics(null);
+    }
+  }, [debouncedNiche, debouncedLocation]);
+
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -148,6 +173,51 @@ export default function NewScopePage() {
         )}
 
         <div className="space-y-5">
+
+        {metrics && (
+          <div className="bg-primary/5 border border-primary/20 rounded-xl p-5 space-y-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="text-sm font-bold flex items-center gap-2 text-foreground">
+                  <TrendingUp className="w-4 h-4 text-primary" />
+                  Historical Market Performance
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1">Based on past campaigns in this segment.</p>
+              </div>
+              {metrics.conversionRate !== null ? (
+                <div className="bg-primary/10 text-primary px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-1.5">
+                  <Percent className="w-4 h-4" />
+                  {metrics.conversionRate.toFixed(1)}% Promoted
+                </div>
+              ) : (
+                <div className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">Not enough data</div>
+              )}
+            </div>
+
+            {metrics.recommendations && metrics.recommendations.length > 0 && (
+              <div className="pt-3 border-t border-primary/10">
+                <p className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                  Recommended Alternatives in {debouncedLocation || 'this area'}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {metrics.recommendations.map((rec: any) => (
+                    <button
+                      key={rec.niche}
+                      type="button"
+                      onClick={() => setNiche(rec.niche)}
+                      className="text-xs px-2.5 py-1 bg-background hover:bg-muted border border-border rounded-md transition-colors flex items-center gap-1.5 group"
+                    >
+                      <span className="font-medium group-hover:text-primary transition-colors">{rec.niche}</span>
+                      <span className="text-muted-foreground">({rec.conversionRate.toFixed(1)}%)</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
           <div>
             <Label className="text-xs uppercase tracking-wider mb-2 block">Target Niche / Keyword *</Label>
             <Input

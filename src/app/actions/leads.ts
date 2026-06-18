@@ -43,6 +43,7 @@ export async function createLeadAction(prevState: ActionState, formData: FormDat
     region: formData.get('region') as string,
     industry: formData.get('industry') as string,
     stage: formData.get('stage') as string,
+    sourceName: formData.get('sourceName') as string,
   };
 
   const validated = CreateLeadSchema.safeParse(rawData);
@@ -83,6 +84,7 @@ export async function updateStageAction(formData: FormData) {
     await service.updateStage(id, stage);
     revalidatePath(`/leads/${id}`);
     revalidatePath('/leads');
+    revalidatePath('/');
   }
 }
 
@@ -121,6 +123,7 @@ export async function updateLeadAction(prevState: ActionState, formData: FormDat
   
   revalidatePath(`/leads/${id}`);
   revalidatePath('/leads');
+  revalidatePath('/');
   return { success: true };
 }
 
@@ -144,4 +147,5 @@ export async function addNoteAction(prevState: ActionState, formData: FormData) 
   }
 
   revalidatePath(`/leads/${leadId}`);
+  revalidatePath('/');
 }

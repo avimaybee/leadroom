@@ -24,6 +24,25 @@ export type PipelineStage = typeof PIPELINE_STAGES[number];
 export class LeadService {
   constructor(private db: Db) {}
 
+  private async triggerWorkflowIfOutreachSent(leadId: string, newStage: string, oldStage: string, stageUpdatedAt?: Date | null) {
+    if (newStage === 'Outreach Sent' && oldStage !== 'Outreach Sent') {
+      try {
+        const { triggerMonitorStalledLeadWorkflow } = await import('../lib/workflow-client');
+        let workflowBinding: any = undefined;
+        try {
+          const { getCloudflareContext } = await import('@opennextjs/cloudflare');
+          workflowBinding = getCloudflareContext().env?.MONITOR_STALLED_LEAD_WORKFLOW;
+        } catch (e) {}
+        if (!workflowBinding) {
+          workflowBinding = (process.env as any)?.MONITOR_STALLED_LEAD_WORKFLOW;
+        }
+        await triggerMonitorStalledLeadWorkflow(this.db, workflowBinding, leadId, stageUpdatedAt ? stageUpdatedAt.getTime() : Date.now());
+      } catch (e) {
+        console.error('Failed to trigger stalled lead monitor workflow:', e);
+      }
+    }
+  }
+
   /**
    * Advance the lead to the given stage only if it's further along than the current stage.
    * No-op if already at or past the target stage.
@@ -53,12 +72,13 @@ export class LeadService {
     const id = crypto.randomUUID();
     const now = new Date();
     const actorId = input.ownerId;
+    const { sourceName, ...leadData } = input;
     
     await this.runTx(async (tx) => {
       await tx.insert(leads).values({
-        ...input,
+        ...leadData,
         id,
-        stage: input.stage || 'New',
+        stage: leadData.stage || 'New',
         status: 'Active',
         createdAt: now,
         updatedAt: now,
@@ -68,17 +88,50 @@ export class LeadService {
         id: crypto.randomUUID(),
         leadId: id,
         previousStage: null,
-        stage: input.stage || 'New',
+        stage: leadData.stage || 'New',
         enteredAt: now,
         changedBy: actorId || null,
+      });
+
+      let finalSourceName = sourceName?.trim() || 'Manual Entry';
+      
+      // Find or create Discovery Scope
+      let [scope] = await tx.select().from(discoveryScopes).where(eq(discoveryScopes.name, finalSourceName)).limit(1);
+      
+      if (!scope) {
+        const scopeId = crypto.randomUUID();
+        await tx.insert(discoveryScopes).values({
+          id: scopeId,
+          name: finalSourceName,
+          description: `Automatically created for source: ${finalSourceName}`,
+          createdByUserId: leadData.ownerId || 'system',
+          createdAt: now,
+          updatedAt: now,
+        });
+        [scope] = await tx.select().from(discoveryScopes).where(eq(discoveryScopes.id, scopeId)).limit(1);
+      }
+      
+      // Create candidate lead linking to the scope
+      await tx.insert(candidateLeads).values({
+        id: crypto.randomUUID(),
+        discoveryScopeId: scope.id,
+        rawName: leadData.name,
+        rawWebsiteUrl: leadData.website || null,
+        rawContactInfo: leadData.email || leadData.phone || null,
+        rawLocation: [leadData.city, leadData.region].filter(Boolean).join(', ') || null,
+        status: 'PROMOTED',
+        promotedLeadId: id,
+        createdAt: now,
+        updatedAt: now,
       });
 
       await new LoggingService(tx as any).log({
         leadId: id,
         type: 'Lead created',
-        summary: 'Lead was created',
+        summary: `Lead was created from source: ${finalSourceName}`,
         metadata: {
-          to_stage: input.stage || 'New',
+          to_stage: leadData.stage || 'New',
+          source: finalSourceName
         },
       });
     });
@@ -88,6 +141,11 @@ export class LeadService {
     await scoringService.recalculateScore(id);
 
     const [lead] = await this.db.select().from(leads).where(eq(leads.id, id)).limit(1);
+    
+    if (input.stage === 'Outreach Sent') {
+      await this.triggerWorkflowIfOutreachSent(id, 'Outreach Sent', 'New', lead?.stageUpdatedAt);
+    }
+
     return lead;
   }
 
@@ -127,6 +185,7 @@ async listLeads() {
       updatedAt: now,
     };
     if (input.stage && input.stage !== 'New') updates.isRead = true;
+    if (input.stage && input.stage !== oldLead.stage) updates.stageUpdatedAt = now;
 
     if (input.stage && input.stage !== oldLead.stage) {
       await this.runTx(async (tx) => {
@@ -159,6 +218,11 @@ async listLeads() {
     const scoringService = new ScoringService(this.db);
     await scoringService.recalculateScore(id);
 
+    if (input.stage) {
+      const updatedLead = await this.getLead(id);
+      await this.triggerWorkflowIfOutreachSent(id, input.stage, oldLead.stage, updatedLead?.stageUpdatedAt);
+    }
+
     return this.getLead(id);
   }
 
@@ -174,6 +238,7 @@ async listLeads() {
     const updates: any = {
       stage: newStage,
       updatedAt: now,
+      stageUpdatedAt: now,
     };
     if (newStage !== 'New') updates.isRead = true;
 
@@ -199,6 +264,9 @@ async listLeads() {
         },
       });
     });
+
+    const updatedLead = await this.getLead(id);
+    await this.triggerWorkflowIfOutreachSent(id, newStage, oldStage, updatedLead?.stageUpdatedAt);
 
     return this.getLead(id);
   }
@@ -248,6 +316,8 @@ async listLeads() {
       createdAt: now,
     });
 
+    await this.db.update(leads).set({ lastActivityAt: now, updatedAt: now }).where(eq(leads.id, leadId));
+
     const excerpt = body.length > 60 ? body.substring(0, 60) + '...' : body;
 
     await new LoggingService(this.db).log({
@@ -279,6 +349,8 @@ async listLeads() {
       createdAt: now,
       updatedAt: now,
     });
+
+    await this.db.update(leads).set({ lastActivityAt: now, updatedAt: now }).where(eq(leads.id, leadId));
 
     await new LoggingService(this.db).log({
       leadId,

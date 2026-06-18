@@ -39,6 +39,11 @@
 			"name": "discovery-search-workflow",
 			"binding": "DISCOVERY_SEARCH_WORKFLOW",
 			"class_name": "DiscoverySearchWorkflow"
+		},
+		{
+			"name": "monitor-stalled-lead-workflow",
+			"binding": "MONITOR_STALLED_LEAD_WORKFLOW",
+			"class_name": "MonitorStalledLeadWorkflow"
 		}
 	]
 }

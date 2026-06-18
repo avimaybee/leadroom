@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "95f71e4f-6c3b-48f6-be95-78e2e0ca833b",
-  "prevId": "e14986e1-597d-4154-af89-bdee85591518",
+  "id": "66027f84-cbe0-4d00-9ec2-684a53a7c25e",
+  "prevId": "95f71e4f-6c3b-48f6-be95-78e2e0ca833b",
   "tables": {
     "activities": {
       "name": "activities",
@@ -133,6 +133,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "previous_stage": {
+          "name": "previous_stage",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "stage": {
           "name": "stage",
           "type": "text",
@@ -154,6 +161,13 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "changed_by": {
+          "name": "changed_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {},
@@ -164,6 +178,19 @@
           "tableTo": "leads",
           "columnsFrom": [
             "lead_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "lead_stage_history_changed_by_users_id_fk": {
+          "name": "lead_stage_history_changed_by_users_id_fk",
+          "tableFrom": "lead_stage_history",
+          "tableTo": "users",
+          "columnsFrom": [
+            "changed_by"
           ],
           "columnsTo": [
             "id"

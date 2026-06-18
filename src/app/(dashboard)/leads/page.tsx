@@ -7,10 +7,13 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { leads, leadScores, candidateLeads, discoveryScopes } from '@/db/schema';
 import { eq, and, desc, sql } from 'drizzle-orm';
 
-export default async function LeadsPage() {
+export default async function LeadsPage({ searchParams }: { searchParams: Promise<{ campaignId?: string }> }) {
   const db = getDb();
   
-  const activeLeads = await db
+  const resolvedParams = await searchParams;
+  const campaignIdFilter = resolvedParams.campaignId;
+  
+  const baseQuery = db
     .select({
       id: leads.id,
       name: leads.name,
@@ -29,6 +32,13 @@ export default async function LeadsPage() {
     .leftJoin(discoveryScopes, eq(candidateLeads.discoveryScopeId, discoveryScopes.id))
     .where(eq(leads.status, 'Active'))
     .orderBy(desc(leads.updatedAt));
+    
+  const activeLeads = campaignIdFilter 
+    ? (await baseQuery).filter(l => l.campaignId === campaignIdFilter)
+    : await baseQuery;
+
+  // Fetch scopes for the filter dropdown
+  const allScopes = await db.select({ id: discoveryScopes.id, name: discoveryScopes.name }).from(discoveryScopes).orderBy(desc(discoveryScopes.createdAt));
 
   const getStageBadgeClass = (stage: string) => {
     switch (stage) {
@@ -64,9 +74,24 @@ export default async function LeadsPage() {
             Manage your active sales and consulting pipeline leads.
           </p>
         </div>
-        <Link href="/leads/new" className={buttonVariants({ variant: "default" })}>
-          + New Lead
-        </Link>
+        <div className="flex items-center gap-4">
+          <form method="get" action="/leads" className="flex items-center gap-2">
+            <select
+              name="campaignId"
+              defaultValue={campaignIdFilter || ''}
+              className="rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 text-foreground"
+              onChange={(e) => e.target.form?.submit()}
+            >
+              <option value="">All Campaigns / Sources</option>
+              {allScopes.map(scope => (
+                <option key={scope.id} value={scope.id}>{scope.name}</option>
+              ))}
+            </select>
+          </form>
+          <Link href="/leads/new" className={buttonVariants({ variant: "default" })}>
+            + New Lead
+          </Link>
+        </div>
       </div>
 
       {activeLeads.length === 0 ? (
