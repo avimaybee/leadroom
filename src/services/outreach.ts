@@ -193,12 +193,15 @@ leadId: draft.leadId,
     }
 
     const now = new Date();
+    const updates: any = {
+      status,
+      updatedAt: now,
+    };
+    if (status !== 'DRAFT') updates.isRead = true;
+
     await this.db
       .update(outreachDrafts)
-      .set({
-        status,
-        updatedAt: now,
-      })
+      .set(updates)
       .where(eq(outreachDrafts.id, draftId));
 
     // Log activity if transitioning to SENT
@@ -276,12 +279,15 @@ leadId: draft.leadId,
     await this.db.insert(approvals).values(newApproval);
 
     // Update the draft status to match the decision
+    const updates: any = {
+      status: decision,
+      updatedAt: now,
+      isRead: true,
+    };
+
     await this.db
       .update(outreachDrafts)
-      .set({
-        status: decision,
-        updatedAt: now,
-      })
+      .set(updates)
       .where(eq(outreachDrafts.id, draftId));
 
     // Log Activity

@@ -131,11 +131,14 @@ export class DiscoveryService {
     // 5. Create activity record
     const activityId = crypto.randomUUID();
     await new LoggingService(this.db).log({
-leadId: leadId,
+      leadId: leadId,
       type: 'SYSTEM',
       summary: `Promoted from candidate lead in Scope: ${scopeName}`,
-      
-});
+      metadata: {
+        from_stage: 'Candidate',
+        to_stage: 'New',
+      },
+    });
 
     // 6. Recalculate baseline priority score
     const scoringService = new ScoringService(this.db);

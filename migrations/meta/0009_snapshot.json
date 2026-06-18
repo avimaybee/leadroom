@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "4933b0a7-d0c8-4d09-80a4-220d1cf4b2cb",
-  "prevId": "24854b8b-780e-4589-9d58-3a4d0a19f236",
+  "id": "eb478e07-2944-4fdc-b103-0658e0737f9d",
+  "prevId": "4933b0a7-d0c8-4d09-80a4-220d1cf4b2cb",
   "tables": {
     "activities": {
       "name": "activities",
@@ -144,6 +144,14 @@
           "notNull": true,
           "autoincrement": false,
           "default": "'New'"
+        },
+        "is_read": {
+          "name": "is_read",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
         },
         "status": {
           "name": "status",
@@ -385,6 +393,14 @@
           "notNull": true,
           "autoincrement": false,
           "default": "'Open'"
+        },
+        "is_read": {
+          "name": "is_read",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
         },
         "priority": {
           "name": "priority",
@@ -1559,6 +1575,14 @@
           "notNull": true,
           "autoincrement": false,
           "default": "'DRAFT'"
+        },
+        "is_read": {
+          "name": "is_read",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
         },
         "origin": {
           "name": "origin",

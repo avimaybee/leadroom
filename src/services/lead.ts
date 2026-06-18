@@ -55,6 +55,9 @@ export class LeadService {
       leadId: id,
       type: 'Lead created',
       summary: 'Lead was created',
+      metadata: {
+        to_stage: input.stage || 'New',
+      },
     });
 
     // Recalculate baseline score immediately
@@ -92,10 +95,13 @@ async listLeads() {
 
   async updateLead(id: string, input: Partial<CreateLeadInput>) {
     const now = new Date();
-    await this.db.update(leads).set({
+    const updates: any = {
       ...input,
       updatedAt: now,
-    }).where(eq(leads.id, id));
+    };
+    if (input.stage && input.stage !== 'New') updates.isRead = true;
+
+    await this.db.update(leads).set(updates).where(eq(leads.id, id));
 
     // Recalculate baseline score immediately
     const scoringService = new ScoringService(this.db);
@@ -113,15 +119,22 @@ async listLeads() {
 
     if (oldStage === newStage) return oldLead;
 
-    await this.db.update(leads).set({
+    const updates: any = {
       stage: newStage,
       updatedAt: now,
-    }).where(eq(leads.id, id));
+    };
+    if (newStage !== 'New') updates.isRead = true;
+
+    await this.db.update(leads).set(updates).where(eq(leads.id, id));
 
     await new LoggingService(this.db).log({
       leadId: id,
       type: 'Stage changed',
       summary: `Stage changed from ${oldStage} to ${newStage}`,
+      metadata: {
+        from_stage: oldStage,
+        to_stage: newStage,
+      },
     });
 
     return this.getLead(id);
@@ -131,6 +144,7 @@ async listLeads() {
     const now = new Date();
     await this.db.update(leads).set({
       status: 'Archived',
+      isRead: true,
       updatedAt: now,
     }).where(eq(leads.id, id));
 
@@ -224,11 +238,14 @@ async listLeads() {
     const [oldTask] = await this.db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
     if (!oldTask) throw new Error('Task not found');
 
-    await this.db.update(tasks).set({
+    const updates: any = {
       status: newStatus,
       completedAt,
       updatedAt: now,
-    }).where(eq(tasks.id, taskId));
+    };
+    if (newStatus !== 'Open') updates.isRead = true;
+
+    await this.db.update(tasks).set(updates).where(eq(tasks.id, taskId));
 
     if (oldTask.leadId) {
       await new LoggingService(this.db).log({
