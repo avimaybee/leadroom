@@ -133,6 +133,21 @@ export function setupLocalDatabaseMock() {
     `ALTER TABLE audits ADD COLUMN triage_reason text`,
     `ALTER TABLE activities ADD COLUMN metadata text`,
   ];
+  try {
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS notifications (
+      id text PRIMARY KEY,
+      user_id text NOT NULL,
+      job_run_id text,
+      title text NOT NULL,
+      message text NOT NULL,
+      status text NOT NULL,
+      is_read integer DEFAULT 0 NOT NULL,
+      link text,
+      created_at integer DEFAULT (strftime('%s', 'now'))
+    )`);
+  } catch (e) {
+    console.error('Failed to create notifications table in mock DB', e);
+  }
   for (const stmt of migrationStmts) {
     try { sqlite.exec(stmt); } catch { /* column already exists — safe to ignore */ }
   }
