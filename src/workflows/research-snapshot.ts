@@ -91,7 +91,7 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
             timeout: "1 minute",
           },
           async () => {
-            await workflowService.saveContacts(leadId, scraped, userId);
+            await workflowService.saveContacts(leadId, scraped, userId ?? null);
           }
         );
       }

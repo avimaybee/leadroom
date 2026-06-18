@@ -1,6 +1,6 @@
 import { Db } from '../db';
-import { eq, desc } from 'drizzle-orm';
-import { leads, activities, activityMetadata, tasks, notes } from '../db/schema/core';
+import { eq, desc, and, isNull } from 'drizzle-orm';
+import { leads, activities, activityMetadata, tasks, notes, leadStageHistory } from '../db/schema/core';
 import { candidateLeads, discoveryScopes } from '../db/schema/discovery';
 import { CreateLeadInput } from '../db/models/lead';
 import { LoggingService } from './logging';
@@ -51,6 +51,13 @@ export class LeadService {
       updatedAt: now,
     });
 
+    await this.db.insert(leadStageHistory).values({
+      id: crypto.randomUUID(),
+      leadId: id,
+      stage: input.stage || 'New',
+      enteredAt: now,
+    });
+
     await new LoggingService(this.db).log({
       leadId: id,
       type: 'Lead created',
@@ -95,6 +102,33 @@ async listLeads() {
 
   async updateLead(id: string, input: Partial<CreateLeadInput>) {
     const now = new Date();
+    const oldLead = await this.getLead(id);
+    
+    if (!oldLead) throw new Error('Lead not found');
+
+    if (input.stage && input.stage !== oldLead.stage) {
+      await this.db.update(leadStageHistory)
+        .set({ exitedAt: now })
+        .where(and(eq(leadStageHistory.leadId, id), isNull(leadStageHistory.exitedAt)));
+        
+      await this.db.insert(leadStageHistory).values({
+        id: crypto.randomUUID(),
+        leadId: id,
+        stage: input.stage,
+        enteredAt: now,
+      });
+
+      await new LoggingService(this.db).log({
+        leadId: id,
+        type: 'Stage changed',
+        summary: `Stage changed from ${oldLead.stage} to ${input.stage}`,
+        metadata: {
+          from_stage: oldLead.stage,
+          to_stage: input.stage,
+        },
+      });
+    }
+
     const updates: any = {
       ...input,
       updatedAt: now,
@@ -119,6 +153,17 @@ async listLeads() {
 
     if (oldStage === newStage) return oldLead;
 
+    await this.db.update(leadStageHistory)
+      .set({ exitedAt: now })
+      .where(and(eq(leadStageHistory.leadId, id), isNull(leadStageHistory.exitedAt)));
+      
+    await this.db.insert(leadStageHistory).values({
+      id: crypto.randomUUID(),
+      leadId: id,
+      stage: newStage,
+      enteredAt: now,
+    });
+
     const updates: any = {
       stage: newStage,
       updatedAt: now,
@@ -142,6 +187,11 @@ async listLeads() {
 
   async archiveLead(id: string) {
     const now = new Date();
+    
+    await this.db.update(leadStageHistory)
+      .set({ exitedAt: now })
+      .where(and(eq(leadStageHistory.leadId, id), isNull(leadStageHistory.exitedAt)));
+
     await this.db.update(leads).set({
       status: 'Archived',
       isRead: true,
