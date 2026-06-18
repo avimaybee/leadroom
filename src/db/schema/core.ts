@@ -86,3 +86,15 @@ export const providerConfigs = sqliteTable('provider_configs', {
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
 });
+
+export const notifications = sqliteTable('notifications', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id),
+  jobRunId: text('job_run_id'), // can reference jobRuns, but they are in research.ts. Better just leave it as text and link logically.
+  title: text('title').notNull(),
+  message: text('message').notNull(),
+  status: text('status').notNull(), // 'SUCCESS', 'ERROR', 'INFO'
+  isRead: integer('is_read', { mode: 'boolean' }).notNull().default(false),
+  link: text('link'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
+});

@@ -3,6 +3,7 @@ import { getDb } from '../db';
 import { checkApifyRunStatus, fetchApifyResults } from '../lib/discovery/apify';
 import { candidateLeads } from '../db/schema/discovery';
 import { jobRuns } from '../db/schema/research';
+import { notifications } from '../db/schema/core';
 import { eq } from 'drizzle-orm';
 
 type DiscoveryParams = {
@@ -22,7 +23,7 @@ type Env = {
 
 export class DiscoverySearchWorkflow extends WorkflowEntrypoint<Env, DiscoveryParams> {
   async run(event: WorkflowEvent<DiscoveryParams>, step: WorkflowStep) {
-    const { jobId, runId, datasetId, niche, location, scopeId } = event.payload;
+    const { jobId, runId, datasetId, niche, location, scopeId, userId } = event.payload;
 
     (process as any).env = {
       ...(process as any).env,
@@ -138,6 +139,20 @@ export class DiscoverySearchWorkflow extends WorkflowEntrypoint<Env, DiscoveryPa
               finishedAt: now,
             })
             .where(eq(jobRuns.id, jobId));
+
+          if (userId) {
+            await db.insert(notifications).values({
+              id: crypto.randomUUID(),
+              userId,
+              jobRunId: jobId,
+              title: 'Discovery Completed',
+              message: `Found ${results.length} leads for ${niche} in ${location}.`,
+              status: 'SUCCESS',
+              link: scopeId ? `/dashboard/discovery/scopes/${scopeId}` : `/dashboard/discovery`,
+              isRead: false,
+              createdAt: now,
+            });
+          }
         },
       );
 
@@ -153,6 +168,21 @@ export class DiscoverySearchWorkflow extends WorkflowEntrypoint<Env, DiscoveryPa
             finishedAt: new Date(),
           })
           .where(eq(jobRuns.id, jobId));
+
+        const { userId, scopeId } = event.payload;
+        if (userId) {
+          await db.insert(notifications).values({
+            id: crypto.randomUUID(),
+            userId,
+            jobRunId: jobId,
+            title: 'Discovery Failed',
+            message: `Discovery search failed: ${errMsg}`,
+            status: 'ERROR',
+            link: scopeId ? `/dashboard/discovery/scopes/${scopeId}` : `/dashboard/discovery`,
+            isRead: false,
+            createdAt: new Date(),
+          });
+        }
       } catch (dbErr) {
         console.error('Failed to write job failure status to DB:', dbErr);
       }
