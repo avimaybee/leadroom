@@ -10,7 +10,71 @@ import { createNotification } from '@/lib/notifications';
 const logger = getLogger('WorkflowClient');
 
 export interface CloudflareWorkflow {
-  create(options: { params: Record<string, unknown> }): Promise<unknown>;
+  create(options: { id?: string; params: Record<string, unknown> }): Promise<unknown>;
+}
+
+/**
+ * Triggers the Delayed Monitor Workflow.
+ */
+export async function triggerDelayedMonitorWorkflow(
+  db: Db,
+  workflowBinding: CloudflareWorkflow | undefined | null,
+  leadId: string
+) {
+  const workflowId = `monitor-outreach-${leadId}`;
+
+  if (workflowBinding && typeof workflowBinding.create === 'function') {
+    logger.info('Triggering Cloudflare Delayed Monitor Workflow', { leadId, workflowId });
+    try {
+      await workflowBinding.create({
+        id: workflowId,
+        params: { leadId }
+      });
+      return;
+    } catch (err: unknown) {
+      logger.error('Failed to trigger Cloudflare Delayed Monitor Workflow binding. Falling back to simulation.', err, { leadId });
+    }
+  }
+
+  // Simulation mode
+  logger.info('Local simulation mode for delayed monitor', { leadId });
+
+  const runSimulation = async () => {
+    try {
+      if (process.env.NODE_ENV !== 'test') {
+        await new Promise(resolve => setTimeout(resolve, 72 * 60 * 60 * 1000));
+      } else {
+        logger.info('Skipping 72-hour wait in test environment');
+      }
+      
+      const { leads, tasks } = await import('@/db/schema/core');
+      const [lead] = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
+      if (lead && lead.stage === "Outreach Sent") {
+        await db.insert(tasks).values({
+          id: crypto.randomUUID(),
+          title: "Follow up on outreach",
+          description: "This lead has been in the 'Outreach Sent' stage for 72 hours without progression.",
+          leadId: lead.id,
+          status: "Open",
+          priority: "High",
+        });
+      }
+    } catch (err) {
+      logger.error('Delayed monitor simulation error', err);
+    }
+  };
+
+  let ctx: any = undefined;
+  try {
+    const { getCloudflareContext } = require('@opennextjs/cloudflare');
+    ctx = getCloudflareContext().ctx;
+  } catch (e) {}
+
+  if (ctx && typeof ctx.waitUntil === 'function') {
+    ctx.waitUntil(runSimulation());
+  } else {
+    runSimulation().catch((err) => logger.error('Unhandled delayed monitor simulation error', err));
+  }
 }
 
 /**

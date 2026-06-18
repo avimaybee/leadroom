@@ -9,6 +9,7 @@ import { LeadService } from '@/services/lead';
 import { ResearchService } from '@/services/research';
 import { AuditService } from '@/services/audits';
 import { generateOutreachDraft, getModelInfo } from '@/lib/ai';
+import { triggerDelayedMonitorWorkflow } from '@/lib/workflow-client';
 
 async function getUserId() {
   if (process.env.NODE_ENV === 'test' && (globalThis as any).mockUserId) {
@@ -267,6 +268,18 @@ export async function markAsSentAction(draftId: string) {
         ? 'Outreach Sent' 
         : 'Meeting';
       await leadService.advanceStageIfEarlier(lead.id, newStage);
+
+      if (newStage === 'Outreach Sent') {
+        let workflowBinding: any = undefined;
+        try {
+          const { getCloudflareContext } = require('@opennextjs/cloudflare');
+          workflowBinding = getCloudflareContext().env?.DELAYED_WORKFLOW_MONITOR;
+        } catch (e) {}
+        if (!workflowBinding) {
+          workflowBinding = (process.env as any)?.DELAYED_WORKFLOW_MONITOR;
+        }
+        await triggerDelayedMonitorWorkflow(db, workflowBinding, lead.id);
+      }
     }
 
     try {
