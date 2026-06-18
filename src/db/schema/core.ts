@@ -33,10 +33,12 @@ export const tasks = sqliteTable('tasks', {
   title: text('title').notNull(),
   description: text('description'),
   leadId: text('lead_id').references(() => leads.id),
+  jobRunId: text('job_run_id'),
   dueDate: integer('due_date', { mode: 'timestamp' }),
   status: text('status').notNull().default('Open'),
   isRead: integer('is_read', { mode: 'boolean' }).notNull().default(false),
   priority: text('priority').notNull().default('Medium'),
+  origin: text('origin').notNull().default('MANUAL'),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   completedAt: integer('completed_at', { mode: 'timestamp' }),
@@ -97,4 +99,13 @@ export const notifications = sqliteTable('notifications', {
   isRead: integer('is_read', { mode: 'boolean' }).notNull().default(false),
   link: text('link'),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
+});
+
+export const automationSettings = sqliteTable('automation_settings', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id),
+  eventType: text('event_type').notNull(),
+  isEnabled: integer('is_enabled', { mode: 'boolean' }).notNull().default(true),
+  createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
 });

@@ -1,0 +1,1 @@
+ALTER TABLE `tasks` ADD `origin` text DEFAULT 'MANUAL' NOT NULL;

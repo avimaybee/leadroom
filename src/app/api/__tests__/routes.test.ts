@@ -94,6 +94,43 @@ function setupTestDb() {
       updated_at INTEGER DEFAULT (strftime('%s', 'now'))
     );
 
+    CREATE TABLE notifications (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      job_run_id TEXT,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      status TEXT NOT NULL,
+      is_read INTEGER DEFAULT 0 NOT NULL,
+      link TEXT,
+      created_at INTEGER DEFAULT (strftime('%s', 'now'))
+    );
+
+    CREATE TABLE automation_settings (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id),
+      event_type TEXT NOT NULL,
+      is_enabled INTEGER DEFAULT 1 NOT NULL,
+      created_at INTEGER DEFAULT (strftime('%s', 'now')),
+      updated_at INTEGER DEFAULT (strftime('%s', 'now'))
+    );
+
+    CREATE TABLE tasks (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT,
+      lead_id TEXT REFERENCES leads(id),
+      job_run_id TEXT,
+      due_date INTEGER,
+      status TEXT NOT NULL DEFAULT 'Open',
+      is_read INTEGER NOT NULL DEFAULT 0,
+      priority TEXT NOT NULL DEFAULT 'Medium',
+      origin TEXT NOT NULL DEFAULT 'MANUAL',
+      created_at INTEGER DEFAULT (strftime('%s', 'now')),
+      updated_at INTEGER DEFAULT (strftime('%s', 'now')),
+      completed_at INTEGER
+    );
+
     CREATE TABLE leads (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -136,6 +173,7 @@ function setupTestDb() {
       job_type TEXT NOT NULL,
       status TEXT NOT NULL,
       target_lead_id TEXT REFERENCES leads(id),
+      job_run_id TEXT,
       triggered_by_user_id TEXT REFERENCES users(id),
       error_summary TEXT,
       external_run_id TEXT,

@@ -143,6 +143,10 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
               isRead: false,
               createdAt: new Date(),
             });
+            
+            const { emitEvent } = await import('../lib/events/index');
+            await emitEvent('research.completed', { leadId, jobId, userId }, db);
+            await emitEvent('audit.completed', { leadId, jobId, userId }, db);
           }
         }
       );

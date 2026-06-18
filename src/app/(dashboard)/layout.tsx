@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { LayoutDashboard, Users, Target, Settings } from 'lucide-react';
+import { LayoutDashboard, Users, Target, Settings, Zap } from 'lucide-react';
 import { NotificationProvider } from '@/components/NotificationProvider';
 import { NotificationBell } from '@/components/NotificationBell';
 
@@ -18,6 +18,7 @@ const navItems = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Leads', href: '/leads', icon: Users },
   { name: 'Campaigns', href: '/scopes', icon: Target },
+  { name: 'Automations', href: '/settings/automations', icon: Zap },
   { name: 'Integrations', href: '/settings/integrations', icon: Settings },
 ];
 

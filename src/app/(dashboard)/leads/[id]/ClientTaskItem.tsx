@@ -3,7 +3,7 @@
 import { useTransition } from 'react';
 import { formatUTC } from '@/lib/date';
 import { Badge } from '@/components/ui/badge';
-import { Calendar } from 'lucide-react';
+import { Calendar, Zap } from 'lucide-react';
 
 interface Task {
   id: string;
@@ -12,6 +12,7 @@ interface Task {
   dueDate: Date | null;
   status: string;
   priority: string;
+  origin?: string;
 }
 
 interface ClientTaskItemProps {
@@ -76,6 +77,12 @@ export default function ClientTaskItem({ leadId, task, toggleTaskStatusAction }:
           <Badge variant={getPriorityVariant(task.priority)} className="uppercase">
             {task.priority}
           </Badge>
+          {task.origin === 'AUTOMATED' && (
+            <Badge variant="outline" className="text-amber-500 border-amber-200 bg-amber-50/50 flex items-center gap-1">
+              <Zap className="w-3 h-3" />
+              Automated
+            </Badge>
+          )}
           {task.dueDate && (
             <span className="text-xs text-muted-foreground font-semibold flex items-center gap-1">
               <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
