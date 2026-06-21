@@ -753,7 +753,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                     )}
                     {candidate.status === 'PROMOTED' && candidate.promotedLeadId && (
                       <Link
-                        href={`/leads/${candidate.promotedLeadId}`}
+                        href={`/leads/${candidate.promotedLeadId}?autoEnrich=true`}
                         className="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-bold bg-chart-2/20 text-chart-2 border border-chart-2/30 hover:bg-chart-2/30 hover:text-chart-2/95 transition-colors text-center"
                       >
                         Research Lead &rarr;

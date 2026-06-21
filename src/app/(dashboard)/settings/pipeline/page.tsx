@@ -16,7 +16,7 @@ export default async function PipelineSettingsPage() {
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">Pipeline Settings</h1>
+      <h1 className="text-2xl font-bold mb-6">Preferences</h1>
       <p className="text-muted-foreground mb-6">Set staleness thresholds (in days) for each pipeline stage. Leads idle longer than these thresholds will appear in the Daily Priority feed.</p>
       
       <div className="space-y-4">

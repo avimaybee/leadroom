@@ -204,6 +204,18 @@ function setupTestDb() {
       updated_at INTEGER DEFAULT (strftime('%s', 'now'))
     );
 
+    CREATE TABLE notifications (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      job_run_id TEXT,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      status TEXT NOT NULL,
+      is_read INTEGER DEFAULT 0 NOT NULL,
+      link TEXT,
+      created_at INTEGER DEFAULT (strftime('%s', 'now'))
+    );
+
     CREATE TABLE lead_scores (
       id TEXT PRIMARY KEY,
       lead_id TEXT NOT NULL REFERENCES leads(id),

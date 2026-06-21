@@ -2,7 +2,7 @@
 
 import { useState, useActionState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Loader2, FileText } from 'lucide-react';
+import { FileText } from 'lucide-react';
 import { AuditSnapshot, LeadScore } from './types';
 import { ActionState } from '@/app/actions/audits';
 import { Button } from '@/components/ui/button';
@@ -13,9 +13,6 @@ interface AuditDisplayProps {
   leadId: string;
   audit: AuditSnapshot | null;
   score: LeadScore | null;
-  onRunAudit: () => void;
-  isAuditing: boolean;
-  auditError: string | null;
   manualOverrideScoreAction: (prevState: ActionState, formData: FormData) => Promise<ActionState>;
 }
 
@@ -23,9 +20,6 @@ export function AuditDisplay({
   leadId,
   audit,
   score,
-  onRunAudit,
-  isAuditing,
-  auditError,
   manualOverrideScoreAction,
 }: AuditDisplayProps) {
   const [showOverrideForm, setShowOverrideForm] = useState(false);
@@ -50,8 +44,8 @@ export function AuditDisplay({
       <div className="bg-card p-6 rounded-2xl border border-border shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
           <div>
-            <span className="text-xs font-bold text-card-foreground block">Operational Controls</span>
-            <h4 className="text-sm font-semibold text-muted-foreground mt-1">Audit & Manual Override Settings</h4>
+            <span className="text-xs font-bold text-card-foreground block">Score Controls</span>
+            <h4 className="text-sm font-semibold text-muted-foreground mt-1">Manual Score Override</h4>
           </div>
           <div className="flex gap-2 shrink-0">
             <Button
@@ -60,17 +54,6 @@ export function AuditDisplay({
               size="sm"
             >
               {showOverrideForm ? 'Hide Override' : 'Override Score'}
-            </Button>
-            <Button
-              onClick={onRunAudit}
-              disabled={isAuditing}
-              size="sm"
-            >
-              {isAuditing ? (
-                <><Loader2 className="h-3 w-3 animate-spin mr-2" /> Auditing...</>
-              ) : (
-                'Run Design Audit'
-              )}
             </Button>
           </div>
         </div>
@@ -109,12 +92,9 @@ export function AuditDisplay({
           </form>
         )}
 
-        {auditError && (
-          <p className="text-destructive text-xs font-bold">{auditError}</p>
-        )}
-        {!showOverrideForm && !auditError && (
+        {!showOverrideForm && (
           <p className="text-xs text-muted-foreground font-semibold">
-            Trigger background scraper & AI design audits. Scores and recommendations are automatically updated.
+            Audit data and score populate automatically when research enrichment runs.
           </p>
         )}
       </div>
@@ -169,12 +149,9 @@ export function AuditDisplay({
               <div className="space-y-1">
                 <h4 className="text-sm font-bold text-card-foreground">No Web Presence Audit Found</h4>
                 <p className="text-xs text-muted-foreground max-w-sm mx-auto font-medium">
-                  Run a design and branding audit to scrape this lead's website and compute their priority scores.
+                  The design audit populates automatically when you run research enrichment on this lead.
                 </p>
               </div>
-              <Button onClick={onRunAudit} disabled={isAuditing} size="sm">
-                {isAuditing ? 'Auditing Website...' : 'Trigger First-Pass Audit'}
-              </Button>
             </div>
           )}
         </div>
@@ -206,7 +183,7 @@ export function AuditDisplay({
             <div className="pt-4 border-t border-border mt-2">
               <h5 className="text-xs font-bold text-card-foreground mb-2">AI Rationale</h5>
               <p className="text-xs text-muted-foreground font-medium leading-relaxed">
-                {score?.rationaleSummary || 'No score calculated yet. Run an audit to generate priority scores.'}
+                {score?.rationaleSummary || 'No score calculated yet. Run research enrichment to generate priority scores.'}
               </p>
               
               {score?.factors && (

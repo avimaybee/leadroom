@@ -52,7 +52,7 @@ export const AIOutreachDraftSchema = z.object({
     subject: z.string().nullable().optional(),
     body: z.string(),
     variationTone: z.string().optional()
-  })).min(1).max(2)
+  })).min(1).max(1)
 });
 
 export type AIOutreachDraftOutput = z.infer<typeof AIOutreachDraftSchema>;
@@ -313,7 +313,7 @@ const OPENAI_URLS: Record<string, string> = {
 };
 
 const OPENAI_EXTRA_HEADERS: Record<string, Record<string, string>> = {
-  openrouter: { 'HTTP-Referer': 'https://github.com/googlemind/leadroom', 'X-Title': 'Draftroom' },
+  openrouter: { 'HTTP-Referer': 'https://github.com/googlemind/leadroom', 'X-Title': 'Leadroom' },
 };
 
 /**
@@ -737,6 +737,8 @@ Provide your response strictly in JSON format. The response must match the follo
                 properties: {
                   drafts: {
                     type: 'ARRAY',
+                    minItems: 1,
+                    maxItems: 1,
                     items: {
                       type: 'OBJECT',
                       properties: {
@@ -846,7 +848,7 @@ export async function checkModelVisionCapability(provider: string, modelName: st
       const response = await fetch('https://openrouter.ai/api/v1/models', {
         headers: {
           'HTTP-Referer': 'https://github.com/googlemind/leadroom',
-          'X-Title': 'Draftroom',
+          'X-Title': 'Leadroom',
         }
       });
       if (response.ok) {

@@ -5,40 +5,43 @@ import { Users } from 'lucide-react';
 import { archiveLeadAction } from '@/app/actions/leads';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { leads, leadScores, candidateLeads, discoveryScopes } from '@/db/schema';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { eq, desc } from 'drizzle-orm';
+import { CampaignFilter } from './CampaignFilter';
 
 export default async function LeadsPage({ searchParams }: { searchParams: Promise<{ campaignId?: string }> }) {
   const db = getDb();
-  
   const resolvedParams = await searchParams;
   const campaignIdFilter = resolvedParams.campaignId;
-  
-  const baseQuery = db
-    .select({
-      id: leads.id,
-      name: leads.name,
-      company: leads.company,
-      email: leads.email,
-      stage: leads.stage,
-      status: leads.status,
+
+  const [activeLeadsData, scores, campaigns] = await Promise.all([
+    db.select().from(leads).where(eq(leads.status, 'Active')).orderBy(desc(leads.updatedAt)),
+    db.select({
+      leadId: leadScores.leadId,
       scoreValue: leadScores.scoreValue,
       scoreLabel: leadScores.scoreLabel,
+    }).from(leadScores).where(eq(leadScores.isCurrent, 1)),
+    db.select({
       campaignId: discoveryScopes.id,
       campaignName: discoveryScopes.name,
-    })
-    .from(leads)
-    .leftJoin(leadScores, and(eq(leads.id, leadScores.leadId), eq(leadScores.isCurrent, 1)))
-    .leftJoin(candidateLeads, eq(leads.id, candidateLeads.promotedLeadId))
-    .leftJoin(discoveryScopes, eq(candidateLeads.discoveryScopeId, discoveryScopes.id))
-    .where(eq(leads.status, 'Active'))
-    .orderBy(desc(leads.updatedAt));
-    
-  const activeLeads = campaignIdFilter 
-    ? (await baseQuery).filter(l => l.campaignId === campaignIdFilter)
-    : await baseQuery;
+      leadId: candidateLeads.promotedLeadId,
+    }).from(discoveryScopes)
+      .leftJoin(candidateLeads, eq(discoveryScopes.id, candidateLeads.discoveryScopeId)),
+  ]);
 
-  // Fetch scopes for the filter dropdown
   const allScopes = await db.select({ id: discoveryScopes.id, name: discoveryScopes.name }).from(discoveryScopes).orderBy(desc(discoveryScopes.createdAt));
+
+  const scoreMap = new Map(scores.map(s => [s.leadId, { scoreValue: s.scoreValue, scoreLabel: s.scoreLabel }]));
+  const campaignMap = new Map(campaigns.filter(c => c.leadId).map(c => [c.leadId!, { campaignId: c.campaignId, campaignName: c.campaignName }]));
+
+  const enrichedLeads = activeLeadsData.map(lead => ({
+    ...lead,
+    ...(scoreMap.get(lead.id) || { scoreValue: null, scoreLabel: null }),
+    ...(campaignMap.get(lead.id) || { campaignId: null, campaignName: null }),
+  }));
+
+  const filteredLeads = campaignIdFilter
+    ? enrichedLeads.filter(l => l.campaignId === campaignIdFilter)
+    : enrichedLeads;
 
   const getStageBadgeClass = (stage: string) => {
     switch (stage) {
@@ -76,17 +79,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
         </div>
         <div className="flex items-center gap-4">
           <form method="get" action="/leads" className="flex items-center gap-2">
-            <select
-              name="campaignId"
-              defaultValue={campaignIdFilter || ''}
-              className="rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 text-foreground"
-              onChange={(e) => e.target.form?.submit()}
-            >
-              <option value="">All Campaigns / Sources</option>
-              {allScopes.map(scope => (
-                <option key={scope.id} value={scope.id}>{scope.name}</option>
-              ))}
-            </select>
+            <CampaignFilter scopes={allScopes} defaultValue={campaignIdFilter || ''} />
           </form>
           <Link href="/leads/new" className={buttonVariants({ variant: "default" })}>
             + New Lead
@@ -94,7 +87,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
         </div>
       </div>
 
-      {activeLeads.length === 0 ? (
+      {filteredLeads.length === 0 ? (
         <div className="bg-card rounded-2xl border border-border p-12 text-center max-w-xl mx-auto mt-8 space-y-6 shadow-sm animate-fade-in">
           <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center text-primary mx-auto">
             <Users className="w-6 h-6" />
@@ -127,12 +120,13 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                 </tr>
               </thead>
               <tbody className="bg-card divide-y divide-border">
-                {activeLeads.map((lead: any) => (
+                {filteredLeads.map((lead: any) => (
                   <tr key={lead.id} className="hover:bg-muted/50 transition duration-150">
                     <td className="px-6 py-4 min-w-[200px]">
                       <Link href={`/leads/${lead.id}`} className="hover:underline group block">
                         <div className="font-bold text-card-foreground text-sm leading-snug group-hover:text-primary transition-colors truncate max-w-[240px] md:max-w-[320px]">{lead.name}</div>
-                      </Link>                      <div className="flex flex-col gap-0.5 mt-1">
+                      </Link>
+                      <div className="flex flex-col gap-0.5 mt-1">
                         {lead.company && (
                           <div className="text-xs text-foreground/85 font-semibold truncate max-w-[240px] md:max-w-[320px]">{lead.company}</div>
                         )}
@@ -141,7 +135,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                         )}
                         {lead.campaignName && (
                           <div className="mt-1 flex">
-                            <Link 
+                            <Link
                               href={`/scopes/${lead.campaignId}`}
                               className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-muted/65 text-muted-foreground border border-border/50 uppercase tracking-wide hover:bg-muted hover:text-foreground transition-colors"
                             >
@@ -153,7 +147,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {lead.scoreValue !== null && lead.scoreValue !== undefined ? (
-                        <span 
+                        <span
                           aria-label={`${lead.scoreLabel} Priority, score ${lead.scoreValue} out of 100`}
                           className={`inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-bold border ${
                             lead.scoreLabel === 'High' ? 'bg-destructive/10 text-destructive border-destructive/20' :

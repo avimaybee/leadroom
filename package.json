@@ -20,9 +20,11 @@
   "dependencies": {
     "@base-ui/react": "^1.5.0",
     "@cloudflare/puppeteer": "^1.1.0",
+    "@google/jules-sdk": "^0.2.0",
     "@opennextjs/cloudflare": "^1.19.11",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
     "drizzle-zod": "^0.8.3",
     "jose": "^6.2.3",
@@ -39,6 +41,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260610.1",
+    "@google/jules-cli": "https://firebasestorage.googleapis.com/v0/b/alpha-note-274ac.appspot.com/o/jules%2Flatest.tgz?alt=media",
     "@tailwindcss/postcss": "^4.3.0",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20.0.0",

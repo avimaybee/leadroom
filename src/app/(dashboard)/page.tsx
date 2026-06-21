@@ -50,16 +50,16 @@ export default async function DashboardPage() {
         </div>
         <div className="flex items-center gap-3">
           <Link 
-            href="/leads/new" 
+            href="/scopes/new" 
             className="px-4 py-2.5 bg-primary hover:bg-primary/80 text-primary-foreground hover:scale-[1.01] rounded-xl font-bold text-xs shadow-md shadow-primary/10 transition duration-150"
           >
-            + New Active Lead
+            + Start New Discovery
           </Link>
           <Link 
-            href="/scopes/new" 
+            href="/leads/new" 
             className="px-4 py-2.5 bg-card text-foreground hover:bg-muted border border-border hover:scale-[1.01] rounded-xl font-bold text-xs transition duration-150"
           >
-            Configure Scope
+            + Add Lead Manually
           </Link>
         </div>
       </div>
@@ -96,7 +96,7 @@ export default async function DashboardPage() {
           </div>
           <div className="mt-4 pt-3 border-t border-border/80">
             <Link href="/scopes" className="text-xs font-bold text-primary hover:text-primary/80 flex items-center gap-1 py-2.5 pr-4 -my-2.5 -ml-1">
-              Configure Scopes <span className="font-bold">&rarr;</span>
+              Start New Discovery <span className="font-bold">&rarr;</span>
             </Link>
           </div>
         </div>

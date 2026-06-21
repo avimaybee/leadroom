@@ -30,6 +30,24 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
     const workflowService = new ResearchWorkflowService(db);
 
     try {
+      // Step 0: Mark job as RUNNING so the UI sees progress immediately
+      await step.do(
+        "mark-running",
+        {
+          retries: {
+            limit: 3,
+            delay: 1000,
+            backoff: "linear",
+          },
+          timeout: "30 seconds",
+        },
+        async () => {
+          await db.update(jobRuns)
+            .set({ status: "RUNNING", startedAt: new Date() })
+            .where(eq(jobRuns.id, jobId));
+        }
+      );
+
       // Step 1: Fetch Lead Info
       const lead = await step.do(
         "fetch-lead",

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useActionState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ResearchSnapshot } from './components/research/types';
@@ -13,6 +13,8 @@ import { useNotifications } from '@/components/NotificationProvider';
 interface ClientResearchViewProps {
   leadId: string;
   initialSnapshot: ResearchSnapshot | null;
+  autoEnrich?: boolean;
+  activeJobId?: string | null;
   saveResearchSnapshotAction: (
     prevState: { error?: string | null; success?: boolean } | null | undefined,
     formData: FormData
@@ -22,6 +24,8 @@ interface ClientResearchViewProps {
 export default function ClientResearchView({
   leadId,
   initialSnapshot,
+  autoEnrich,
+  activeJobId,
   saveResearchSnapshotAction,
 }: ClientResearchViewProps) {
   const router = useRouter();
@@ -38,6 +42,15 @@ export default function ClientResearchView({
   const [pollingJobId, setPollingJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<string | null>(null);
   const [jobError, setJobError] = useState<string | null>(null);
+
+  // Resume polling on mount if an active research job exists
+  useEffect(() => {
+    if (activeJobId && !initialSnapshot) {
+      setPollingJobId(activeJobId);
+      setJobStatus(activeJobId ? 'QUEUED' : null);
+      setIsEnriching(true);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!pollingJobId) return;
@@ -92,6 +105,15 @@ export default function ClientResearchView({
       setIsEnriching(false);
     }
   }, [leadId, isEnriching]);
+
+  const autoEnrichStarted = useRef(false);
+
+  useEffect(() => {
+    if (autoEnrich && !initialSnapshot && !autoEnrichStarted.current) {
+      autoEnrichStarted.current = true;
+      handleEnrich();
+    }
+  }, [autoEnrich, initialSnapshot, handleEnrich]);
 
   // 1. Loading/Triggering State
   if (pollingJobId || jobStatus === 'QUEUED' || jobStatus === 'RUNNING') {

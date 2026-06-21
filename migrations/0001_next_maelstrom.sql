@@ -1,3 +1,5 @@
+ALTER TABLE `job_runs` ADD `external_run_id` text;--> statement-breakpoint
+ALTER TABLE `job_runs` ADD `job_meta` text;--> statement-breakpoint
 CREATE TABLE `audits` (
 	`id` text PRIMARY KEY NOT NULL,
 	`lead_id` text NOT NULL,

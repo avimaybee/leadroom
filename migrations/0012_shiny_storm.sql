@@ -19,5 +19,6 @@ CREATE TABLE `stage_thresholds` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `stage_thresholds_stage_unique` ON `stage_thresholds` (`stage`);--> statement-breakpoint
-ALTER TABLE `leads` ADD `stage_updated_at` integer DEFAULT (strftime('%s', 'now'));--> statement-breakpoint
-ALTER TABLE `leads` ADD `last_activity_at` integer DEFAULT (strftime('%s', 'now'));
+ALTER TABLE `leads` ADD `stage_updated_at` integer;--> statement-breakpoint
+ALTER TABLE `leads` ADD `last_activity_at` integer;--> statement-breakpoint
+UPDATE `leads` SET `stage_updated_at` = CAST(strftime('%s', 'now') AS INTEGER), `last_activity_at` = CAST(strftime('%s', 'now') AS INTEGER) WHERE `stage_updated_at` IS NULL;

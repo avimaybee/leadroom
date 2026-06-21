@@ -24,9 +24,10 @@ import {
   deleteContactAction
 } from '@/app/actions/research';
 import { 
-  triggerAuditAction, 
   manualOverrideScoreAction 
 } from '@/app/actions/audits';
+import { jobRuns } from '@/db/schema/research';
+import { and, eq, or } from 'drizzle-orm';
 import ClientActivityList from "./ClientActivityList";
 import ClientNotesForm from './ClientNotesForm';
 import ClientTaskForm from './ClientTaskForm';
@@ -41,8 +42,9 @@ import { OutreachService } from '@/services/outreach';
 
 
 
-export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function LeadDetailPage({ params, searchParams }: { params: Promise<{ id: string }>, searchParams: Promise<{ autoEnrich?: string }> }) {
   const { id } = await params;
+  const { autoEnrich } = await searchParams;
   const env = (process as any).env;
   const db = getDb();
   const service = new LeadService(db);
@@ -55,7 +57,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   const scoringService = new ScoringService(db);
   const outreachService = new OutreachService(db);
 
-  const [notes, tasks, activities, latestSnapshot, contactsList, latestAudit, currentScore, outreachDrafts] = await Promise.all([
+  const [notes, tasks, activities, latestSnapshot, contactsList, latestAudit, currentScore, outreachDrafts, activeResearchJob] = await Promise.all([
     service.getNotes(id),
     service.getTasks(id),
     service.getActivities(id),
@@ -64,6 +66,21 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
     auditService.getLatestAudit(id),
     scoringService.getCurrentScore(id),
     outreachService.getDraftsForLead(id),
+    db
+      .select({ id: jobRuns.id, status: jobRuns.status })
+      .from(jobRuns)
+      .where(
+        and(
+          eq(jobRuns.targetLeadId, id),
+          eq(jobRuns.jobType, 'RESEARCH_GENERATION'),
+          or(
+            eq(jobRuns.status, 'QUEUED'),
+            eq(jobRuns.status, 'RUNNING')
+          )
+        )
+      )
+      .limit(1)
+      .then(rows => rows[0] || null),
   ]);
 
   const STAGE_MAP: Record<string, string> = {
@@ -138,13 +155,14 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
             leadId={lead.id}
             initialSnapshot={latestSnapshot}
             saveResearchSnapshotAction={saveResearchSnapshotAction}
+            autoEnrich={autoEnrich === 'true'}
+            activeJobId={activeResearchJob?.id ?? null}
           />
 
           <ClientAuditView
             leadId={lead.id}
             initialAudit={latestAudit}
             initialScore={currentScore}
-            triggerAuditAction={triggerAuditAction}
             manualOverrideScoreAction={manualOverrideScoreAction}
           />
 
