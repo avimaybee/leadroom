@@ -1,12 +1,14 @@
 'use client';
 
-import { Loader2, Check } from 'lucide-react';
+import { Loader2, Check, XCircle } from 'lucide-react';
 
 interface ResearchLoadingStateProps {
   jobStatus: string | null;
+  leadId: string;
+  onCancel: () => void;
 }
 
-export function ResearchLoadingState({ jobStatus }: ResearchLoadingStateProps) {
+export function ResearchLoadingState({ jobStatus, leadId, onCancel }: ResearchLoadingStateProps) {
   return (
     <div className="bg-card p-8 rounded-2xl border border-border shadow-md max-w-xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
@@ -77,6 +79,21 @@ export function ResearchLoadingState({ jobStatus }: ResearchLoadingStateProps) {
             </div>
           );
         })}
+      </div>
+
+      <div className="pt-2 flex justify-center">
+        <button
+          onClick={async () => {
+            try {
+              await fetch(`/api/leads/${leadId}/research/cancel`, { method: 'POST' });
+            } catch (_) {}
+            onCancel();
+          }}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-destructive hover:bg-destructive/10 border border-destructive/30 hover:border-destructive/50 transition"
+        >
+          <XCircle className="w-3.5 h-3.5" />
+          Cancel Research
+        </button>
       </div>
     </div>
   );

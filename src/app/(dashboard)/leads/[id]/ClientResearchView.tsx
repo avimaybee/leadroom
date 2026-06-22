@@ -115,9 +115,17 @@ export default function ClientResearchView({
     }
   }, [autoEnrich, initialSnapshot, handleEnrich]);
 
+  const handleCancelResearch = useCallback(() => {
+    setPollingJobId(null);
+    setJobStatus(null);
+    setIsEnriching(false);
+    setJobError(null);
+    router.refresh();
+  }, [router]);
+
   // 1. Loading/Triggering State
   if (pollingJobId || jobStatus === 'QUEUED' || jobStatus === 'RUNNING') {
-    return <ResearchLoadingState jobStatus={jobStatus} />;
+    return <ResearchLoadingState jobStatus={jobStatus} leadId={leadId} onCancel={handleCancelResearch} />;
   }
 
   // 2. Empty State

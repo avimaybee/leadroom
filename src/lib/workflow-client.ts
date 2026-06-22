@@ -9,6 +9,17 @@ import { createNotification } from '@/lib/notifications';
 
 const logger = getLogger('WorkflowClient');
 
+export async function checkResearchCancelled(db: Db, jobId: string): Promise<void> {
+  const [job] = await db
+    .select({ status: jobRuns.status })
+    .from(jobRuns)
+    .where(eq(jobRuns.id, jobId))
+    .limit(1);
+  if (job?.status === 'CANCELLED') {
+    throw new Error('CANCELLED_BY_USER');
+  }
+}
+
 export interface CloudflareWorkflow {
   create(options: { id?: string; params: Record<string, unknown> }): Promise<unknown>;
 }
@@ -44,13 +55,22 @@ export async function triggerResearchWorkflow(
   const runSimulation = async () => {
     const workflowService = new ResearchWorkflowService(db);
     try {
+      // Check cancelled before starting
+      await checkResearchCancelled(db, jobId);
+
       // Step 1: Fetch Lead Info
       const lead = await workflowService.fetchLead(leadId);
+
+      // Check cancelled after fetch
+      await checkResearchCancelled(db, jobId);
 
       // Update job run status to RUNNING
       await db.update(jobRuns)
         .set({ status: 'RUNNING', startedAt: new Date() })
         .where(eq(jobRuns.id, jobId));
+
+      // Check cancelled after status update
+      await checkResearchCancelled(db, jobId);
 
       // Step 2: Fetch and scrape website
       let scraped = null;
@@ -67,11 +87,20 @@ export async function triggerResearchWorkflow(
         };
       }
 
+      // Check cancelled after scrape
+      await checkResearchCancelled(db, jobId);
+
       // Save any contacts extracted from the website scrape
       await workflowService.saveContacts(leadId, scraped, userId);
 
+      // Check cancelled before LLM
+      await checkResearchCancelled(db, jobId);
+
       // Step 3: LLM Inference & Persist Snapshot/Audit/Score/Activity
       await workflowService.generateSnapshots(lead, scraped, userId || null, jobId);
+
+      // Check cancelled after generate
+      await checkResearchCancelled(db, jobId);
 
       // Step 4: Mark Job Complete
       await db.update(jobRuns)
@@ -95,37 +124,46 @@ export async function triggerResearchWorkflow(
 
     } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : 'Unknown error occurred during simulation';
-      logger.error('Research workflow failed during simulation', error, { leadId, jobId });
+      const isCancelled = errMsg === 'CANCELLED_BY_USER';
+      logger.info('Research simulation cancelled', { leadId, jobId });
 
-      // Update job run to FAILED in DB
+      // Update job run to CANCELLED or FAILED
       try {
         await db.update(jobRuns)
           .set({
-            status: 'FAILED',
-            errorSummary: errMsg,
+            status: isCancelled ? 'CANCELLED' : 'FAILED',
+            errorSummary: isCancelled ? 'Cancelled by user' : errMsg,
             finishedAt: new Date(),
           })
           .where(eq(jobRuns.id, jobId));
 
-        await new LoggingService(db).log({
-          leadId,
-          type: 'Enrichment failed',
-          summary: `AI research generation failed: ${errMsg}`,
-          metadata: {
-            error: {
-              message: errMsg,
-              stack: error instanceof Error ? error.stack : undefined,
+        if (isCancelled) {
+          await new LoggingService(db).log({
+            leadId,
+            type: 'Research cancelled',
+            summary: 'Research workflow cancelled by operator',
+          });
+        } else {
+          await new LoggingService(db).log({
+            leadId,
+            type: 'Enrichment failed',
+            summary: `AI research generation failed: ${errMsg}`,
+            metadata: {
+              error: {
+                message: errMsg,
+                stack: error instanceof Error ? error.stack : undefined,
+              }
             }
-          }
-        });
+          });
+        }
 
         if (userId) {
           await createNotification(
             db,
             userId,
             jobId,
-            'Research Failed',
-            `AI research generation failed: ${errMsg}`,
+            isCancelled ? 'Research Cancelled' : 'Research Failed',
+            isCancelled ? 'Research workflow was cancelled by operator.' : `AI research generation failed: ${errMsg}`,
             'ERROR',
             `/dashboard/leads/${leadId}/research`
           );
