@@ -18,8 +18,8 @@ export default function ClientAuditView({
   manualOverrideScoreAction,
 }: ClientAuditViewProps) {
   return (
-    <div className="bg-muted/50 p-6 rounded-2xl border border-border/50 space-y-4">
-      <h3 className="text-base font-bold text-card-foreground">
+    <div className="space-y-4">
+      <h3 className="text-lg font-bold text-card-foreground">
         Digital Presence Audit &amp; Lead Scoring
       </h3>
 

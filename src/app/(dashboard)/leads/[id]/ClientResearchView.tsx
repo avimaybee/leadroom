@@ -8,70 +8,50 @@ import { ResearchLoadingState } from './components/research/ResearchLoadingState
 import { ResearchEmptyState } from './components/research/ResearchEmptyState';
 import { ResearchEditForm } from './components/research/ResearchEditForm';
 import { ResearchDisplay } from './components/research/ResearchDisplay';
-import { useNotifications } from '@/components/NotificationProvider';
 
 interface ClientResearchViewProps {
   leadId: string;
   initialSnapshot: ResearchSnapshot | null;
   autoEnrich?: boolean;
-  activeJobId?: string | null;
   saveResearchSnapshotAction: (
     prevState: { error?: string | null; success?: boolean } | null | undefined,
     formData: FormData
   ) => Promise<{ error?: string | null; success?: boolean } | null | undefined>;
+  pollingJobId: string | null;
+  setPollingJobId: (id: string | null) => void;
+  jobStatus: string | null;
+  setJobStatus: (status: string | null) => void;
+  isEnriching: boolean;
+  setIsEnriching: (enriching: boolean) => void;
+  jobError: string | null;
+  setJobError: (err: string | null) => void;
+  handleCancelResearch: () => void;
 }
 
 export default function ClientResearchView({
   leadId,
   initialSnapshot,
   autoEnrich,
-  activeJobId,
   saveResearchSnapshotAction,
+  pollingJobId,
+  setPollingJobId,
+  jobStatus,
+  setJobStatus,
+  isEnriching,
+  setIsEnriching,
+  jobError,
+  setJobError,
+  handleCancelResearch,
 }: ClientResearchViewProps) {
   const router = useRouter();
-  const { recentJobUpdates } = useNotifications();
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'audit' | 'opportunity'>('overview');
   const [state, formAction] = useActionState(saveResearchSnapshotAction, undefined);
 
   const [enrichError, setEnrichError] = useState<string | null>(null);
-  // Guard to prevent duplicate trigger clicks before pollingJobId is set
-  const [isEnriching, setIsEnriching] = useState(false);
-
-  // Job state
-  const [pollingJobId, setPollingJobId] = useState<string | null>(null);
-  const [jobStatus, setJobStatus] = useState<string | null>(null);
-  const [jobError, setJobError] = useState<string | null>(null);
-
-  // Resume polling on mount if an active research job exists
-  useEffect(() => {
-    if (activeJobId && !initialSnapshot) {
-      setPollingJobId(activeJobId);
-      setJobStatus(activeJobId ? 'QUEUED' : null);
-      setIsEnriching(true);
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!pollingJobId) return;
-
-    const status = recentJobUpdates[pollingJobId];
-    if (status === 'SUCCESS') {
-      setPollingJobId(null);
-      setJobStatus(null);
-      setIsEnriching(false);
-      router.refresh();
-    } else if (status === 'ERROR') {
-      setPollingJobId(null);
-      setJobStatus(null);
-      setIsEnriching(false);
-      setJobError('Research enrichment job failed. Please check notifications for details.');
-    }
-  }, [pollingJobId, recentJobUpdates, router]);
 
   const handleEnrich = useCallback(async () => {
     // UI-level guard: prevents duplicate requests before the first pollingJobId is set.
-    // The API route also has a server-side idempotency guard as a second line of defense.
     if (isEnriching) return;
 
     setEnrichError(null);
@@ -104,7 +84,7 @@ export default function ClientResearchView({
       setJobStatus(null);
       setIsEnriching(false);
     }
-  }, [leadId, isEnriching]);
+  }, [leadId, isEnriching, setIsEnriching, setJobStatus, setPollingJobId, setJobError]);
 
   const autoEnrichStarted = useRef(false);
 
@@ -114,14 +94,6 @@ export default function ClientResearchView({
       handleEnrich();
     }
   }, [autoEnrich, initialSnapshot, handleEnrich]);
-
-  const handleCancelResearch = useCallback(() => {
-    setPollingJobId(null);
-    setJobStatus(null);
-    setIsEnriching(false);
-    setJobError(null);
-    router.refresh();
-  }, [router]);
 
   // 1. Loading/Triggering State
   if (pollingJobId || jobStatus === 'QUEUED' || jobStatus === 'RUNNING') {

@@ -45,7 +45,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
     }
 
-    const body = await request.json();
+    const body = (await request.json()) as { id?: string; name?: string };
     const { id, name } = body;
 
     if (!id || !name || typeof name !== 'string' || name.trim().length === 0) {

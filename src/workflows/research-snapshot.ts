@@ -52,7 +52,7 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
       await step.do(
         "check-cancelled-1",
         {
-          retries: { limit: 0 },
+          retries: { limit: 0, delay: 1000 },
           timeout: "30 seconds",
         },
         async () => {
@@ -87,7 +87,7 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
       await step.do(
         "check-cancelled-2",
         {
-          retries: { limit: 0 },
+          retries: { limit: 0, delay: 1000 },
           timeout: "30 seconds",
         },
         async () => {
@@ -109,7 +109,7 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
       await step.do(
         "check-cancelled-3",
         {
-          retries: { limit: 0 },
+          retries: { limit: 0, delay: 1000 },
           timeout: "30 seconds",
         },
         async () => {
@@ -157,7 +157,7 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
       await step.do(
         "check-cancelled-4",
         {
-          retries: { limit: 0 },
+          retries: { limit: 0, delay: 1000 },
           timeout: "30 seconds",
         },
         async () => {
@@ -194,7 +194,7 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
       await step.do(
         "check-cancelled-5",
         {
-          retries: { limit: 0 },
+          retries: { limit: 0, delay: 1000 },
           timeout: "30 seconds",
         },
         async () => {
@@ -229,7 +229,7 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
       await step.do(
         "check-cancelled-6",
         {
-          retries: { limit: 0 },
+          retries: { limit: 0, delay: 1000 },
           timeout: "30 seconds",
         },
         async () => {

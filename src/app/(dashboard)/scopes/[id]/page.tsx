@@ -224,7 +224,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
         body: JSON.stringify({ id: scope.id, name: trimmed }),
       });
       if (!res.ok) {
-        const errData = await res.json();
+        const errData = (await res.json()) as { error?: string };
         throw new Error(errData.error || 'Failed to rename campaign');
       }
       setScope(prev => prev ? { ...prev, name: trimmed } : prev);
