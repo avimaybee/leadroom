@@ -6,7 +6,7 @@
     "build": "next build --webpack && opennextjs-cloudflare build --skipNextBuild",
     "dev": "next dev",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint src/ --max-warnings=10000",
     "test": "node --import tsx --test src/**/*.test.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "wrangler d1 migrations apply leadroom --local",

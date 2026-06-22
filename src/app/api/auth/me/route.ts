@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ user });
   } catch (error: unknown) {
-    const errMsg = error instanceof Error ? error.message : 'Internal server error';
-    return NextResponse.json({ error: errMsg }, { status: 500 });
+    console.error('Auth me error:', error);
+    return NextResponse.json({ error: 'An internal error occurred' }, { status: 500 });
   }
 }

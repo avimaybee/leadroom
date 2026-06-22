@@ -6,23 +6,12 @@ import { getDb } from '@/db';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
-import { decrypt } from '@/lib/auth';
+import { decrypt, getUserId } from '@/lib/auth';
 
 
 async function getService() {
   const db = getDb();
   return new LeadService(db);
-}
-
-async function getUserId() {
-  try {
-    const cookieStore = await cookies();
-    const sessionToken = cookieStore.get('session')?.value;
-    const payload = await decrypt(sessionToken);
-    return payload?.userId || null;
-  } catch (e) {
-    return null;
-  }
 }
 
 export type ActionState = { error?: string | null, success?: boolean, issues?: unknown } | null | undefined;

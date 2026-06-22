@@ -65,7 +65,7 @@ export default function ErrorPage({
           </div>
         ) : (
           <div className="bg-destructive/5 text-destructive p-6 rounded-2xl border border-destructive/15 text-sm font-mono whitespace-pre-wrap max-h-60 overflow-y-auto mb-6">
-            {error.stack || error.message}
+            {error.message}
           </div>
         )}
 

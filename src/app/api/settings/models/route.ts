@@ -105,8 +105,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ models });
   } catch (error: unknown) {
-    const errMsg = error instanceof Error ? error.message : 'Unknown error';
-    console.error(`[Settings Model List API] Error fetching models for ${provider}:`, error);
-    return NextResponse.json({ error: errMsg }, { status: 500 });
+    console.error('Settings models error:', error);
+    return NextResponse.json({ error: 'An internal error occurred' }, { status: 500 });
   }
 }

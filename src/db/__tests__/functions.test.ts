@@ -10,77 +10,18 @@ import { users } from '../schema/core';
 import { GET as getScopes, POST as postScope } from '../../app/api/scopes/route';
 import { GET as getCandidates, POST as postCandidate, PATCH as patchCandidate } from '../../app/api/candidates/route';
 import { DiscoveryService } from '../../services/discovery';
-
-class MockD1Database {
-  constructor(private sqlite: any) {}
-
-  prepare(query: string) {
-    const stmt = this.sqlite.prepare(query);
-    
-    const createPreparedStatement = (boundParams: any[]): any => {
-      return {
-        bind: (...params: any[]) => {
-          return createPreparedStatement(boundParams.concat(params.flat()));
-        },
-        all: async () => {
-          try {
-            const results = stmt.all(...boundParams);
-            return { results, success: true };
-          } catch (e: any) {
-            console.error('SQLite stmt.all error:', e);
-            throw new Error(`Failed query: ${query}\nparams: ${boundParams.join(', ')}\n${e.message}`);
-          }
-        },
-        run: async () => {
-          try {
-            const info = stmt.run(...boundParams);
-            return { success: true, meta: info };
-          } catch (e: any) {
-            console.error('SQLite stmt.run error:', e);
-            throw new Error(`Failed query: ${query}\nparams: ${boundParams.join(', ')}\n${e.message}`);
-          }
-        },
-        first: async () => {
-          try {
-            return stmt.get(...boundParams);
-          } catch (e: any) {
-            console.error('SQLite stmt.get error:', e);
-            throw new Error(`Failed query: ${query}\nparams: ${boundParams.join(', ')}\n${e.message}`);
-          }
-        },
-        raw: async () => {
-          try {
-            stmt.raw(true);
-            const results = stmt.all(...boundParams);
-            stmt.raw(false);
-            return results;
-          } catch (e: any) {
-            console.error('SQLite stmt.raw error:', e);
-            throw new Error(`Failed query (raw): ${query}\nparams: ${boundParams.join(', ')}\n${e.message}`);
-          }
-        }
-      };
-    };
-
-    return createPreparedStatement([]);
-  }
-
-  async exec(query: string) {
-    this.sqlite.exec(query);
-    return { count: 1, duration: 0 };
-  }
-}
+import { MockD1Database } from '@/db/local-mock';
 
 function setupTestDb() {
   const { sqlite } = initTestDb();
   const mockD1 = new MockD1Database(sqlite);
   // Inject mock into process.env.DB for getDb() to fetch
   (process as any).env = { ...process.env, DB: mockD1 };
-  return mockD1;
+  return { mockD1, sqlite };
 }
 
 test('API Endpoint - POST /api/scopes creates a scope successfully', async () => {
-  const mockD1 = setupTestDb();
+  setupTestDb();
   
   const payload = {
     name: 'Real Estate Agents',
@@ -107,7 +48,7 @@ test('API Endpoint - POST /api/scopes creates a scope successfully', async () =>
 });
 
 test('API Endpoint - GET /api/scopes returns empty list initially', async () => {
-  const mockD1 = setupTestDb();
+  setupTestDb();
   
   const request = new Request('https://localhost/api/scopes');
 
@@ -123,7 +64,7 @@ test('API Endpoint - GET /api/scopes returns empty list initially', async () => 
 });
 
 test('API Endpoint - POST /api/candidates creates a candidate successfully', async () => {
-  const mockD1 = setupTestDb();
+  setupTestDb();
 
   const payload = {
     rawName: 'Dream Homes Realty',
@@ -151,8 +92,8 @@ test('API Endpoint - POST /api/candidates creates a candidate successfully', asy
 });
 
 test('API Endpoint - PATCH /api/candidates updates status successfully', async () => {
-  const mockD1 = setupTestDb();
-  const db = drizzle((mockD1 as any).sqlite);
+  const { sqlite } = setupTestDb();
+  const db = drizzle(sqlite);
   const service = new DiscoveryService(db as any);
 
   // Setup candidate
@@ -184,8 +125,8 @@ test('API Endpoint - PATCH /api/candidates updates status successfully', async (
 });
 
 test('API Endpoint - PATCH /api/candidates promotes candidate successfully', async () => {
-  const mockD1 = setupTestDb();
-  const db = drizzle((mockD1 as any).sqlite);
+  const { sqlite } = setupTestDb();
+  const db = drizzle(sqlite);
   const service = new DiscoveryService(db as any);
 
   // Insert user to avoid FK error

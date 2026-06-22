@@ -53,6 +53,7 @@ export const tasks = sqliteTable('tasks', {
   completedAt: integer('completed_at', { mode: 'timestamp' }),
 }, (table) => ({
   statusDueDateIndex: index('tasks_status_due_date_idx').on(table.status, table.dueDate),
+  leadIdIndex: index('tasks_lead_id_idx').on(table.leadId),
 }));
 
 export const notes = sqliteTable('notes', {
@@ -61,7 +62,9 @@ export const notes = sqliteTable('notes', {
   authorId: text('author_id').references(() => users.id),
   body: text('body').notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
-});
+}, (table) => ({
+  leadIdIndex: index('notes_lead_id_idx').on(table.leadId),
+}));
 
 export const activities = sqliteTable('activities', {
   id: text('id').primaryKey(),
@@ -112,4 +115,6 @@ export const notifications = sqliteTable('notifications', {
   isRead: integer('is_read', { mode: 'boolean' }).notNull().default(false),
   link: text('link'),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
-});
+}, (table) => ({
+  userIdCreatedAtIndex: index('notifications_user_id_created_at_idx').on(table.userId, table.createdAt),
+}));

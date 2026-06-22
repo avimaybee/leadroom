@@ -111,7 +111,7 @@ export async function verifyPassword(password: string, hashedPasswordHex: string
  */
 export async function getUserId(): Promise<string | null> {
   if (process.env.NODE_ENV === 'test') {
-    return 'user_123';
+    return (globalThis as any).mockUserId || 'user_123';
   }
   try {
     const cookieStore = await cookies();

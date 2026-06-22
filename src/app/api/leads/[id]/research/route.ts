@@ -15,23 +15,9 @@ import { NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { jobRuns } from '@/db/schema/research';
 import { cookies } from 'next/headers';
-import { decrypt } from '@/lib/auth';
+import { decrypt, getUserId } from '@/lib/auth';
 import { triggerResearchWorkflow } from '@/lib/workflow-client';
 import { and, eq, or } from 'drizzle-orm';
-
-async function getUserId() {
-  if (process.env.NODE_ENV === 'test') {
-    return 'user_123';
-  }
-  try {
-    const cookieStore = await cookies();
-    const sessionToken = cookieStore.get('session')?.value;
-    const payload = await decrypt(sessionToken);
-    return payload?.userId || null;
-  } catch (e) {
-    return null;
-  }
-}
 
 export async function POST(
   _request: Request,
@@ -97,9 +83,8 @@ export async function POST(
 
     return NextResponse.json({ jobId }, { status: 202 });
   } catch (error: unknown) {
-    const errMsg = error instanceof Error ? error.message : 'Internal Server Error';
-    console.error('Failed to trigger research:', error);
-    return NextResponse.json({ error: errMsg }, { status: 500 });
+    console.error('Research start error:', error);
+    return NextResponse.json({ error: 'An internal error occurred' }, { status: 500 });
   }
 }
 

@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
 
 export const discoveryScopes = sqliteTable('discovery_scopes', {
   id: text('id').primaryKey(),
@@ -27,6 +27,9 @@ export const candidateLeads = sqliteTable('candidate_leads', {
   promotedLeadId: text('promoted_lead_id'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
-});
+}, (table) => ({
+  discoveryScopeIdIndex: index('candidate_leads_discovery_scope_id_idx').on(table.discoveryScopeId),
+  promotedLeadIdIndex: index('candidate_leads_promoted_lead_id_idx').on(table.promotedLeadId),
+}));
 
 

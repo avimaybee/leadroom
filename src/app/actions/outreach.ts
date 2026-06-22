@@ -3,26 +3,12 @@
 import { getDb } from '@/db';
 import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
-import { decrypt } from '@/lib/auth';
+import { decrypt, getUserId } from '@/lib/auth';
 import { OutreachService } from '@/services/outreach';
 import { LeadService } from '@/services/lead';
 import { ResearchService } from '@/services/research';
 import { AuditService } from '@/services/audits';
 import { generateOutreachDraft, getModelInfo } from '@/lib/ai';
-
-async function getUserId() {
-  if (process.env.NODE_ENV === 'test' && (globalThis as any).mockUserId) {
-    return (globalThis as any).mockUserId;
-  }
-  try {
-    const cookieStore = await cookies();
-    const sessionToken = cookieStore.get('session')?.value;
-    const payload = await decrypt(sessionToken);
-    return payload?.userId || null;
-  } catch (e) {
-    return null;
-  }
-}
 
 // Module-level cache for model info (5-min TTL)
 let cachedModelInfo: { provider: string; modelName: string; hasVision: boolean } | null = null;

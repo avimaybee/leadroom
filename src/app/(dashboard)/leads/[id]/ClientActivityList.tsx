@@ -76,11 +76,6 @@ export default function ClientActivityList({ activities }: { activities: any[] }
                       <div className="mt-2 bg-destructive/10 border border-destructive/20 rounded-md p-3">
                         <h4 className="text-xs font-bold text-destructive mb-1">Error Details</h4>
                         <p className="text-xs text-destructive/80 mb-2">{act.metadata.error.message}</p>
-                        {act.metadata.error.stack && (
-                          <pre className="text-[10px] text-muted-foreground overflow-x-auto bg-background/50 p-2 rounded border border-border">
-                            {act.metadata.error.stack}
-                          </pre>
-                        )}
                         {act.metadata.error.payload && (
                           <div className="mt-2">
                             <h5 className="text-[10px] font-bold text-foreground">Payload:</h5>

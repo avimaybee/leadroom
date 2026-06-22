@@ -5,21 +5,7 @@ import { getDb } from '@/db';
 import { jobRuns } from '@/db/schema/research';
 import { eq, desc } from 'drizzle-orm';
 import { cookies } from 'next/headers';
-import { decrypt } from '@/lib/auth';
-
-async function getUserId() {
-  if (process.env.NODE_ENV === 'test') {
-    return 'user_123';
-  }
-  try {
-    const cookieStore = await cookies();
-    const sessionToken = cookieStore.get('session')?.value;
-    const payload = await decrypt(sessionToken);
-    return payload?.userId || null;
-  } catch (e) {
-    return null;
-  }
-}
+import { decrypt, getUserId } from '@/lib/auth';
 
 export async function GET(request: Request) {
   const userId = await getUserId();

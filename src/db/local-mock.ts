@@ -48,7 +48,9 @@ class MockD1PreparedStatement {
 
   async raw() {
     try {
-      const rows = this.stmt.raw(...this.params);
+      this.stmt.raw(true);
+      const rows = this.stmt.all(...this.params);
+      this.stmt.raw(false);
       return rows;
     } catch (e: any) {
       console.error('Mock D1 PreparedStatement raw() failed:', e);
@@ -57,7 +59,7 @@ class MockD1PreparedStatement {
   }
 }
 
-class MockD1Database {
+export class MockD1Database {
   constructor(private db: any) {}
 
   prepare(query: string) {

@@ -1,79 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
 import { eq } from 'drizzle-orm';
+import { MockD1Database } from '@/db/local-mock';
 import { setupTestDb as initTestDb } from './test-helpers';
 
 // Setup environment variable so getDb works
 process.env.AUTH_SECRET = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 (process.env as any).NODE_ENV = 'test';
 (globalThis as any).mockUserId = 'user-admin';
-
-class MockD1Database {
-  constructor(private sqlite: any) {}
-
-  prepare(query: string) {
-    const stmt = this.sqlite.prepare(query);
-    
-    const createPreparedStatement = (boundParams: any[]): any => {
-      return {
-        bind: (...params: any[]) => {
-          return createPreparedStatement(boundParams.concat(params.flat()));
-        },
-        all: async () => {
-          try {
-            const results = stmt.all(...boundParams);
-            return { results, success: true };
-          } catch (e: any) {
-            console.error('SQLite stmt.all error:', e);
-            throw new Error(`Failed query: ${query}\nparams: ${boundParams.join(', ')}\n${e.message}`);
-          }
-        },
-        run: async () => {
-          try {
-            const info = stmt.run(...boundParams);
-            return { 
-              success: true, 
-              meta: {
-                changes: info.changes,
-                duration: 0,
-                last_row_id: info.lastInsertRowid,
-              } 
-            };
-          } catch (e: any) {
-            console.error('SQLite stmt.run error:', e);
-            throw new Error(`Failed query: ${query}\nparams: ${boundParams.join(', ')}\n${e.message}`);
-          }
-        },
-        first: async () => {
-          try {
-            return stmt.get(...boundParams);
-          } catch (e: any) {
-            console.error('SQLite stmt.get error:', e);
-            throw new Error(`Failed query: ${query}\nparams: ${boundParams.join(', ')}\n${e.message}`);
-          }
-        },
-        raw: async () => {
-          try {
-            stmt.raw(true);
-            const results = stmt.all(...boundParams);
-            stmt.raw(false);
-            return results;
-          } catch (e: any) {
-            console.error('SQLite stmt.raw error:', e);
-            throw new Error(`Failed query (raw): ${query}\nparams: ${boundParams.join(', ')}\n${e.message}`);
-          }
-        }
-      };
-    };
-
-    return createPreparedStatement([]);
-  }
-
-  async exec(query: string) {
-    this.sqlite.exec(query);
-    return { count: 1, duration: 0 };
-  }
-}
 
 const { sqlite } = initTestDb();
 

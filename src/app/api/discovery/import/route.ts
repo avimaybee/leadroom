@@ -8,21 +8,7 @@ import { leads, activities } from '@/db/schema/core';
 import { discoveryScopes, candidateLeads } from '@/db/schema/discovery';
 import { eq } from 'drizzle-orm';
 import { cookies } from 'next/headers';
-import { decrypt } from '@/lib/auth';
-
-async function getUserId() {
-  if (process.env.NODE_ENV === 'test') {
-    return 'user_123';
-  }
-  try {
-    const cookieStore = await cookies();
-    const sessionToken = cookieStore.get('session')?.value;
-    const payload = await decrypt(sessionToken);
-    return payload?.userId || null;
-  } catch (e) {
-    return null;
-  }
-}
+import { decrypt, getUserId } from '@/lib/auth';
 
 export async function POST(request: Request) {
   const userId = await getUserId();
@@ -121,10 +107,9 @@ export async function POST(request: Request) {
     }, { status: 200 });
 
   } catch (error: unknown) {
-    const errMsg = error instanceof Error ? error.message : 'Failed to import leads';
-    console.error('[Discovery Import API] Error:', error);
+    console.error('Import error:', error);
     return NextResponse.json(
-      { error: errMsg },
+      { error: 'An internal error occurred' },
       { status: 500 }
     );
   }
