@@ -38,6 +38,35 @@ export async function GET(request: NextRequest) {
   }
 }
 
+export async function PATCH(request: NextRequest) {
+  try {
+    const userId = await getUserId();
+    if (!userId) {
+      return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { id, name } = body;
+
+    if (!id || !name || typeof name !== 'string' || name.trim().length === 0) {
+      return NextResponse.json({ success: false, error: 'Scope id and name are required' }, { status: 400 });
+    }
+
+    const db = getDb();
+    const service = new DiscoveryService(db);
+    const scope = await service.updateScopeName(id, name.trim());
+
+    if (!scope) {
+      return NextResponse.json({ success: false, error: 'Scope not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, data: scope });
+  } catch (error: unknown) {
+    console.error('[Scopes API] PATCH error:', error);
+    return NextResponse.json({ success: false, error: 'An internal error occurred' }, { status: 500 });
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const userId = await getUserId();

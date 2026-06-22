@@ -24,3 +24,10 @@ package-lock.json
 .agents
 conductor
 jules-test-sdk
+
+cookies.txt
+constitution.md
+dev-err.txt
+dev-out.txt
+stderr.txt
+stdout.txt

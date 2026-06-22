@@ -1,6 +1,6 @@
 import { LoggingService } from './logging';
 import { Db } from '../db';
-import { eq, sql } from 'drizzle-orm';
+import { eq, sql, desc } from 'drizzle-orm';
 import { discoveryScopes, candidateLeads } from '../db/schema/discovery';
 import { leads, activities } from '../db/schema/core';
 import { CreateDiscoveryScopeInput, CreateCandidateLeadInput } from '../db/models/discovery';
@@ -31,11 +31,22 @@ export class DiscoveryService {
     return results[0] || null;
   }
 
+  async updateScopeName(scopeId: string, name: string) {
+    const now = new Date();
+    await this.db
+      .update(discoveryScopes)
+      .set({ name, updatedAt: now })
+      .where(eq(discoveryScopes.id, scopeId));
+
+    const [scope] = await this.db.select().from(discoveryScopes).where(eq(discoveryScopes.id, scopeId)).limit(1);
+    return scope || null;
+  }
+
   async listScopes(userId?: string) {
     if (userId) {
-      return this.db.select().from(discoveryScopes).where(eq(discoveryScopes.createdByUserId, userId));
+      return this.db.select().from(discoveryScopes).where(eq(discoveryScopes.createdByUserId, userId)).orderBy(desc(discoveryScopes.createdAt));
     }
-    return this.db.select().from(discoveryScopes);
+    return this.db.select().from(discoveryScopes).orderBy(desc(discoveryScopes.createdAt));
   }
 
   async createCandidateLead(id: string, input: CreateCandidateLeadInput) {

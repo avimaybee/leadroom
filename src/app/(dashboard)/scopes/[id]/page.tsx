@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, use } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Loader2, ExternalLink, Search, FileText, Trash2, X, AlertTriangle, Clock, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Loader2, ExternalLink, Search, FileText, Trash2, X, AlertTriangle, Clock, ShieldAlert, Pencil } from 'lucide-react';
 import { formatUTC } from '@/lib/date';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -85,6 +85,10 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
   const [pollingJobId, setPollingJobId] = useState<string | null>(null);
   const [isRecentRunsExpanded, setIsRecentRunsExpanded] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+
+  // Inline rename state
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [newScopeName, setNewScopeName] = useState('');
 
   // Enrichment progress (from discovery jobs)
   const [enrichProgress, setEnrichProgress] = useState<{
@@ -206,6 +210,27 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
       await fetchData();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error updating candidate';
+      alert(msg);
+    }
+  };
+
+  const handleRename = async () => {
+    const trimmed = newScopeName.trim();
+    if (!trimmed || !scope) return;
+    try {
+      const res = await fetch('/api/scopes', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: scope.id, name: trimmed }),
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Failed to rename campaign');
+      }
+      setScope(prev => prev ? { ...prev, name: trimmed } : prev);
+      setIsRenaming(false);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error renaming campaign';
       alert(msg);
     }
   };
@@ -406,7 +431,32 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
       {/* Campaign Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-border pb-5">
         <div>
-          <h1 className="text-3xl font-extrabold text-card-foreground tracking-tight capitalize">{scope.name}</h1>
+          <div className="flex items-center gap-3">
+            {isRenaming ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  value={newScopeName}
+                  onChange={e => setNewScopeName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleRename(); if (e.key === 'Escape') setIsRenaming(false); }}
+                  className="text-3xl font-extrabold h-auto py-0.5 px-2 w-auto min-w-[250px]"
+                  autoFocus
+                />
+                <Button size="sm" onClick={handleRename}>Save</Button>
+                <Button size="sm" variant="ghost" onClick={() => setIsRenaming(false)}>Cancel</Button>
+              </div>
+            ) : (
+              <>
+                <h1 className="text-3xl font-extrabold text-card-foreground tracking-tight capitalize">{scope.name}</h1>
+                <button
+                  onClick={() => { setNewScopeName(scope.name || ''); setIsRenaming(true); }}
+                  className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition"
+                  title="Rename campaign"
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+              </>
+            )}
+          </div>
           <p className="text-sm text-muted-foreground mt-1">Configure and qualify leads within this campaign segment.</p>
         </div>
         <div className="flex items-center gap-3">
