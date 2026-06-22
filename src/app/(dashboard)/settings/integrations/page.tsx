@@ -2,6 +2,7 @@ import { getDb } from '@/db';
 import { IntegrationsService } from '@/services/integrations';
 import { ProviderConfigForm } from '@/components/settings/ProviderConfigForm';
 import { ActiveProviderPicker } from '@/components/settings/ActiveProviderPicker';
+import Link from 'next/link';
 
 
 export const metadata = {
@@ -22,12 +23,30 @@ export default async function IntegrationsPage() {
 
   return (
     <div className="max-w-4xl">
+      {/* Settings sub-nav */}
+      <div className="flex items-center gap-1 mb-6 border-b border-border pb-4">
+        <Link
+          href="/settings/pipeline"
+          className="px-3 py-1.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+        >
+          Preferences
+        </Link>
+        <Link
+          href="/settings/integrations"
+          className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-primary text-primary-foreground"
+          aria-current="page"
+        >
+          Integrations
+        </Link>
+      </div>
+
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-card-foreground tracking-tight">Integrations</h1>
         <p className="text-muted-foreground mt-2 text-sm max-w-2xl">
           Configure your AI providers for lead research and enrichment. Setting an active provider will route all AI requests to that service.
         </p>
       </div>
+
 
       <ActiveProviderPicker
         configs={{

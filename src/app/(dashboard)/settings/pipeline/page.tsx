@@ -1,57 +1,49 @@
 export const dynamic = 'force-dynamic';
+
 import { getDb } from '@/db';
 import { stageThresholds } from '@/db/schema/core';
-import { updateStageThreshold } from '@/app/actions/pipeline';
+import Link from 'next/link';
+import { StageThresholdsTable } from '@/components/settings/StageThresholdsTable';
+
+export const metadata = {
+  title: 'Preferences | Leadroom',
+};
 
 export default async function PipelineSettingsPage() {
   const db = getDb();
-  const thresholdsData = await db.select().from(stageThresholds);
-  
-  const thresholds = thresholdsData.reduce((acc, t) => {
-    acc[t.stage] = t.days;
-    return acc;
-  }, {} as Record<string, number>);
-
-  const stages = ['New', 'In Research', 'Auditing', 'Audited', 'Drafting', 'Ready to Send', 'Outreach Sent', 'Meeting', 'Won', 'Lost'];
+  const rows = await db.select().from(stageThresholds);
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">Preferences</h1>
-      <p className="text-muted-foreground mb-6">Set staleness thresholds (in days) for each pipeline stage. Leads idle longer than these thresholds will appear in the Daily Priority feed.</p>
-      
-      <div className="space-y-4">
-        {stages.map(stage => {
-          const defaultDays = 5;
-          const currentDays = thresholds[stage] ?? defaultDays;
-
-          return (
-            <div key={stage} className="flex items-center justify-between p-4 bg-card border border-border rounded-xl shadow-sm">
-              <div>
-                <h3 className="font-semibold">{stage}</h3>
-                <p className="text-xs text-muted-foreground">Alert after {currentDays} days of inactivity</p>
-              </div>
-              <form action={async (formData: FormData) => {
-                'use server';
-                const days = parseInt(formData.get('days') as string, 10);
-                if (!isNaN(days)) {
-                  await updateStageThreshold(stage, days);
-                }
-              }} className="flex items-center gap-2">
-                <input 
-                  type="number" 
-                  name="days" 
-                  defaultValue={currentDays} 
-                  min="1"
-                  className="w-20 px-3 py-1.5 rounded-md border border-input bg-background text-sm" 
-                />
-                <button type="submit" className="px-4 py-1.5 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90">
-                  Save
-                </button>
-              </form>
-            </div>
-          );
-        })}
+    <div className="max-w-3xl">
+      {/* Settings sub-nav */}
+      <div className="flex items-center gap-1 mb-6 border-b border-border pb-4">
+        <Link
+          href="/settings/pipeline"
+          className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-primary text-primary-foreground"
+          aria-current="page"
+        >
+          Preferences
+        </Link>
+        <Link
+          href="/settings/integrations"
+          className="px-3 py-1.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+        >
+          Integrations
+        </Link>
       </div>
+
+      {/* Page header */}
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-card-foreground tracking-tight">Preferences</h1>
+        <p className="text-muted-foreground mt-2 text-sm max-w-2xl">
+          Staleness thresholds — flag leads idle longer than this many days in each pipeline stage.
+          Edit any row and press <kbd className="px-1 py-0.5 text-xs font-mono bg-muted border border-border rounded">Enter</kbd> to save a single row,
+          or use <span className="font-semibold">Save Changes</span> to batch-save all edits at once.
+        </p>
+      </div>
+
+      {/* The interactive table */}
+      <StageThresholdsTable initialThresholds={rows} />
     </div>
   );
 }
