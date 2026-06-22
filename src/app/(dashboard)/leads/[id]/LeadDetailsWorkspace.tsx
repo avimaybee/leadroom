@@ -95,6 +95,36 @@ export default function LeadDetailsWorkspace({
     }
   }, [activeResearchJob, latestSnapshot]);
 
+  // Verify the job is still actually alive — the server data can be stale
+  useEffect(() => {
+    if (!activeResearchJob) return;
+    let cancelled = false;
+    fetch(`/api/jobs/${activeResearchJob.id}`)
+      .then(res => res.ok ? res.json() as Promise<{ status: string }> : null)
+      .then(data => {
+        if (cancelled) return;
+        if (!data || !data.status) {
+          // Job doesn't exist anymore — clear stale state
+          setPollingJobId(null);
+          setJobStatus(null);
+          setIsEnriching(false);
+          return;
+        }
+        const finalStatuses = ['COMPLETED', 'FAILED', 'CANCELLED'];
+        if (finalStatuses.includes(data.status)) {
+          setPollingJobId(null);
+          setJobStatus(null);
+          setIsEnriching(false);
+          router.refresh();
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        // Network error — leave state as-is, notifications will catch it
+      });
+    return () => { cancelled = true; };
+  }, [activeResearchJob, router]);
+
   // Handle updates from Server Sent Events
   useEffect(() => {
     if (!pollingJobId) return;

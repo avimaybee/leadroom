@@ -52,7 +52,7 @@ export async function POST(
       .limit(1);
 
     if (!activeJob) {
-      return NextResponse.json({ error: 'No active research job found for this lead' }, { status: 404 });
+      return NextResponse.json({ success: true, reason: 'nothing_to_cancel' });
     }
 
     await db.update(jobRuns)

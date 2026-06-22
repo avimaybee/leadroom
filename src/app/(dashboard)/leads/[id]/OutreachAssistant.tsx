@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { toast, Toaster } from 'sonner';
 import ReactMarkdown from 'react-markdown';
 import { ErrorBoundary } from './ErrorBoundary';
+import { formatDateTimeUTC } from '@/lib/date';
 import { 
   generateOutreachDraftAction, 
   updateDraftAction, 
@@ -632,7 +633,7 @@ function OutreachAssistantInner({ leadId, initialDrafts, researchSnapshot, audit
                         <ReactMarkdown>{draft.body}</ReactMarkdown>
                       </div>
                       <p className="text-xs text-muted-foreground font-semibold mt-2">
-                        {draft.createdAt ? new Date(draft.createdAt).toLocaleString() : 'N/A'}
+                        {draft.createdAt ? formatDateTimeUTC(draft.createdAt) : 'N/A'}
                       </p>
                     </CardContent>
                   </Card>
@@ -686,7 +687,7 @@ function OutreachAssistantInner({ leadId, initialDrafts, researchSnapshot, audit
                     {getStatusLabel(activeDraft.status)}
                   </Badge>
                   <span className="text-xs text-muted-foreground font-semibold">
-                    Last updated: {activeDraft.updatedAt ? new Date(activeDraft.updatedAt).toLocaleString() : 'N/A'}
+                    Last updated: {activeDraft.updatedAt ? formatDateTimeUTC(activeDraft.updatedAt) : 'N/A'}
                   </span>
                 </div>
 
@@ -796,7 +797,7 @@ function OutreachAssistantInner({ leadId, initialDrafts, researchSnapshot, audit
                                       {bodyPreview || '(empty)'}
                                     </p>
                                     <p className="text-[10px] text-muted-foreground/60 font-semibold mt-1">
-                                      {d.createdAt ? new Date(d.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
+                                      {d.createdAt ? formatDateTimeUTC(d.createdAt) : ''}
                                       {d.updatedAt && d.updatedAt.getTime() !== d.createdAt?.getTime() ? ' · edited' : ''}
                                     </p>
                                   </div>
