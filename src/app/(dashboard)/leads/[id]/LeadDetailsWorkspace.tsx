@@ -70,6 +70,22 @@ export default function LeadDetailsWorkspace({
   const [jobError, setJobError] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
 
+  // Left rail context accordions expanded/collapsed states
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    profile: true,
+    score: false,
+    contacts: false,
+    tasks: false,
+    activity: false,
+  });
+
+  const toggleSection = (section: string) => {
+    setExpandedSections((prev) => ({
+      ...prev,
+      [section]: !prev[section],
+    }));
+  };
+
   // Resume polling on mount if active job exists
   useEffect(() => {
     if (activeResearchJob && !latestSnapshot) {
@@ -185,11 +201,11 @@ export default function LeadDetailsWorkspace({
         </div>
       </div>
 
-      {/* 3-Column Split-Pane Layout */}
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 items-start">
+      {/* 2-Column Split-Pane Layout */}
+      <div className="flex flex-col xl:flex-row gap-6 items-start">
         
-        {/* Column 1: Left Context Rail (Profile, Contacts, Score drivers, Weaknesses) */}
-        <div className="xl:col-span-1 space-y-6">
+        {/* Left Column: Left Context Rail (Sticky, width ~320px) */}
+        <div className="w-full xl:w-[320px] shrink-0 space-y-4 xl:sticky xl:top-6 max-h-[calc(100vh-140px)] overflow-y-auto pr-1 -mr-1">
           
           {/* Active enrichment / Cancel Banner */}
           {isEnriching && (
@@ -238,21 +254,124 @@ export default function LeadDetailsWorkspace({
             </div>
           )}
 
-          {/* Lead Profile */}
-          <ClientLeadProfile lead={lead} updateLeadAction={updateLeadAction} />
+          {/* Accordion: Contact & Business Profile */}
+          <div className="bg-card rounded-2xl border border-border/80 shadow-sm overflow-hidden">
+            <button
+              type="button"
+              onClick={() => toggleSection('profile')}
+              className="w-full flex items-center justify-between p-4 font-bold text-xs uppercase tracking-wider text-muted-foreground bg-muted/20 hover:bg-muted/30 transition-colors border-b border-border/40"
+            >
+              <span>Business Profile</span>
+              <ChevronRight className={`w-3.5 h-3.5 text-muted-foreground transition-transform duration-200 ${expandedSections.profile ? 'rotate-90' : ''}`} />
+            </button>
+            {expandedSections.profile && (
+              <div className="p-4 bg-card">
+                <ClientLeadProfile lead={lead} updateLeadAction={updateLeadAction} />
+              </div>
+            )}
+          </div>
 
-          {/* Contacts List */}
-          <ClientContactsList
-            leadId={lead.id}
-            initialContacts={contactsList}
-            addContactAction={addContactAction}
-            updateContactAction={updateContactAction}
-            deleteContactAction={deleteContactAction}
-          />
+          {/* Accordion: Lead Priority Score */}
+          <div className="bg-card rounded-2xl border border-border/80 shadow-sm overflow-hidden">
+            <button
+              type="button"
+              onClick={() => toggleSection('score')}
+              className="w-full flex items-center justify-between p-4 font-bold text-xs uppercase tracking-wider text-muted-foreground bg-muted/20 hover:bg-muted/30 transition-colors border-b border-border/40"
+            >
+              <span>Priority Score Drivers</span>
+              <ChevronRight className={`w-3.5 h-3.5 text-muted-foreground transition-transform duration-200 ${expandedSections.score ? 'rotate-90' : ''}`} />
+            </button>
+            {expandedSections.score && (
+              <div className="p-4 bg-card space-y-4">
+                {currentScore ? (
+                  <ClientScoreDrivers
+                    factors={currentScore?.factors ?? null}
+                    scoreValue={currentScore?.scoreValue ?? null}
+                    scoreLabel={currentScore?.scoreLabel ?? null}
+                  />
+                ) : (
+                  <p className="text-xs text-muted-foreground italic text-center py-2">No scoring data available yet.</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Accordion: Contacts & Stakeholders */}
+          <div className="bg-card rounded-2xl border border-border/80 shadow-sm overflow-hidden">
+            <button
+              type="button"
+              onClick={() => toggleSection('contacts')}
+              className="w-full flex items-center justify-between p-4 font-bold text-xs uppercase tracking-wider text-muted-foreground bg-muted/20 hover:bg-muted/30 transition-colors border-b border-border/40"
+            >
+              <span>Contacts &amp; Stakeholders</span>
+              <ChevronRight className={`w-3.5 h-3.5 text-muted-foreground transition-transform duration-200 ${expandedSections.contacts ? 'rotate-90' : ''}`} />
+            </button>
+            {expandedSections.contacts && (
+              <div className="p-4 bg-card">
+                <ClientContactsList
+                  leadId={lead.id}
+                  initialContacts={contactsList}
+                  addContactAction={addContactAction}
+                  updateContactAction={updateContactAction}
+                  deleteContactAction={deleteContactAction}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Accordion: Tasks Checklist */}
+          <div className="bg-card rounded-2xl border border-border/80 shadow-sm overflow-hidden">
+            <button
+              type="button"
+              onClick={() => toggleSection('tasks')}
+              className="w-full flex items-center justify-between p-4 font-bold text-xs uppercase tracking-wider text-muted-foreground bg-muted/20 hover:bg-muted/30 transition-colors border-b border-border/40"
+            >
+              <span>Task Checklist</span>
+              <ChevronRight className={`w-3.5 h-3.5 text-muted-foreground transition-transform duration-200 ${expandedSections.tasks ? 'rotate-90' : ''}`} />
+            </button>
+            {expandedSections.tasks && (
+              <div className="p-4 bg-card space-y-3">
+                <ClientTaskForm leadId={lead.id} createTaskAction={createTaskAction} tasksCount={tasks.length} />
+                {tasks.length > 0 && (
+                  <div className="space-y-2 pt-3 border-t border-border/40">
+                    {tasks.map((task: any) => (
+                      <ClientTaskItem 
+                        key={task.id} 
+                        leadId={lead.id}
+                        task={task} 
+                        toggleTaskStatusAction={toggleTaskStatusAction} 
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Accordion: Notes & Activities */}
+          <div className="bg-card rounded-2xl border border-border/80 shadow-sm overflow-hidden">
+            <button
+              type="button"
+              onClick={() => toggleSection('activity')}
+              className="w-full flex items-center justify-between p-4 font-bold text-xs uppercase tracking-wider text-muted-foreground bg-muted/20 hover:bg-muted/30 transition-colors border-b border-border/40"
+            >
+              <span>Notes &amp; Activities</span>
+              <ChevronRight className={`w-3.5 h-3.5 text-muted-foreground transition-transform duration-200 ${expandedSections.activity ? 'rotate-90' : ''}`} />
+            </button>
+            {expandedSections.activity && (
+              <div className="p-4 bg-card space-y-4">
+                <ClientNotesForm leadId={lead.id} addNoteAction={addNoteAction} />
+                <div className="pt-3 border-t border-border/40">
+                  <ClientActivityList activities={activities} />
+                </div>
+              </div>
+            )}
+          </div>
+
         </div>
 
-        {/* Column 2: Center Tabbed Workspace (Outreach Assistant, Research Snapshot, Audit & Scores) */}
-        <div className="xl:col-span-2 space-y-6">
+        {/* Right Column: Main Tabbed Workspace (Takes remaining width) */}
+        <div className="flex-1 min-w-0 space-y-6">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
             <TabsList className="grid grid-cols-3 bg-muted/50 p-1 rounded-xl">
               <TabsTrigger value="outreach" className="rounded-lg text-xs font-bold">
@@ -314,46 +433,6 @@ export default function LeadDetailsWorkspace({
               />
             </TabsContent>
           </Tabs>
-        </div>
-
-        {/* Column 3: Right Context Rail (Tasks Checklist, Notes & Activity Feed) */}
-        <div className="xl:col-span-1 space-y-6">
-          {/* Task Checklist Card */}
-          <div className="bg-card p-6 rounded-2xl border border-border/80 shadow-sm space-y-6">
-            <div className="flex justify-between items-center border-b border-border pb-3">
-              <h3 className="text-base font-bold text-foreground">Task Checklist</h3>
-            </div>
-            
-            <ClientTaskForm leadId={lead.id} createTaskAction={createTaskAction} tasksCount={tasks.length} />
-
-            <div className="space-y-3 pt-2">
-              {tasks.length > 0 ? (
-                tasks.map((task: any) => (
-                  <ClientTaskItem 
-                    key={task.id} 
-                    leadId={lead.id}
-                    task={task} 
-                    toggleTaskStatusAction={toggleTaskStatusAction} 
-                  />
-                ))
-              ) : (
-                <p className="text-xs text-muted-foreground italic text-center py-4">No tasks found. Add a checklist item above.</p>
-              )}
-            </div>
-          </div>
-
-          {/* Notes & Activity History */}
-          <div className="bg-card p-6 rounded-2xl border border-border/80 shadow-sm space-y-6">
-            <div className="flex justify-between items-center border-b border-border pb-3">
-              <h3 className="text-base font-bold text-foreground">Notes & Activities</h3>
-            </div>
-            
-            <ClientNotesForm leadId={lead.id} addNoteAction={addNoteAction} />
-
-            <div className="pt-2">
-              <ClientActivityList activities={activities} />
-            </div>
-          </div>
         </div>
 
       </div>

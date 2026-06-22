@@ -72,13 +72,10 @@ export default function ClientContactsList({
   };
 
   return (
-    <div className="bg-card p-6 rounded-2xl border border-border/80 shadow-sm space-y-5">
-      <div className="flex justify-between items-center border-b border-border pb-3">
-        <h3 className="text-base font-bold text-foreground">
-          Contacts & Stakeholders
-        </h3>
+    <div className="space-y-4 animate-fade-in">
+      <div className="flex justify-end pb-2 border-b border-border/40">
         <Button
-          variant="link"
+          variant="outline"
           size="xs"
           onClick={() => {
             setShowAddForm(!showAddForm);

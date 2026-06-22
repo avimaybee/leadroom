@@ -109,6 +109,7 @@ function OutreachAssistantInner({ leadId, initialDrafts, researchSnapshot, audit
   const [showPreview, setShowPreview] = useState(false);
   const [compareMode, setCompareMode] = useState(false);
   const [compareDraftId, setCompareDraftId] = useState<string | null>(null);
+  const [showVersions, setShowVersions] = useState(false);
 
   const [confirmDialog, setConfirmDialog] = useState<{
     message: string;
@@ -327,6 +328,7 @@ function OutreachAssistantInner({ leadId, initialDrafts, researchSnapshot, audit
     setBodyInput(draft.body || '');
     setFeedbackInput('');
     setErrorMsg(null);
+    setShowVersions(false);
   };
 
   const handleGenerate = async () => {
@@ -505,12 +507,7 @@ function OutreachAssistantInner({ leadId, initialDrafts, researchSnapshot, audit
 
   return (
     <div className="bg-card p-6 rounded-2xl border border-border shadow-sm space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-4">
-        <div>
-          <h3 className="text-base font-bold text-card-foreground">Outreach Assistant</h3>
-          <p className="text-xs text-muted-foreground font-semibold mt-0.5">Prepare, edit, and approve personalized outreach messages.</p>
-        </div>
-
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-4">
         <Tabs value={selectedChannel} onValueChange={handleChannelChange}>
           <TabsList>
             <TabsTrigger value="EMAIL">Email</TabsTrigger>
@@ -595,9 +592,7 @@ function OutreachAssistantInner({ leadId, initialDrafts, researchSnapshot, audit
         </DialogContent>
       </Dialog>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        
-        <div className="lg:col-span-3 space-y-4">
+      <div className="space-y-4">
           {compareMode && channelDrafts.length >= 2 && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -696,6 +691,124 @@ function OutreachAssistantInner({ leadId, initialDrafts, researchSnapshot, audit
                 </div>
 
                 <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <Button
+                      variant={showVersions ? 'default' : 'outline'}
+                      size="xs"
+                      onClick={() => setShowVersions(!showVersions)}
+                    >
+                      <History className="w-3.5 h-3.5" />
+                      Versions ({channelDrafts.length})
+                    </Button>
+                    
+                    {showVersions && (
+                      <div className="absolute right-0 top-full mt-2 w-80 bg-popover text-popover-foreground border border-border rounded-xl shadow-lg z-50 p-4 space-y-4 max-h-[450px] overflow-y-auto">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-bold text-foreground">Versions</h4>
+                          <span className="text-xs font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-lg">{channelDrafts.length}</span>
+                        </div>
+
+                        <div className="space-y-2">
+                          {channelDrafts.length === 0 ? (
+                            <div className="text-xs text-muted-foreground font-semibold italic text-center py-8">
+                              No drafts generated yet.
+                            </div>
+                          ) : (
+                            channelDrafts.map((d, idx) => {
+                              const versionNum = channelDrafts.length - idx;
+                              const isActive = activeDraftId === d.id;
+                              const snippet = d.body
+                                .replace(/^\[Tone:[^\]]+\]\n\n/, '')
+                                .substring(0, 120)
+                                .replace(/\n/g, ' ')
+                                .trim();
+                              const bodyPreview = snippet.length < d.body.replace(/^\[Tone:[^\]]+\]\n\n/, '').length
+                                ? snippet + '...'
+                                : snippet;
+
+                              return (
+                                <button
+                                  key={d.id}
+                                  type="button"
+                                  onClick={() => handleSelectDraft(d)}
+                                  className={`w-full text-left rounded-xl border text-xs transition-all duration-150 ${
+                                    isActive
+                                      ? 'bg-primary/[0.04] border-primary/25 ring-1 ring-primary/20 shadow-sm'
+                                      : 'bg-card hover:bg-muted/50 border-border/70 hover:border-border'
+                                  }`}
+                                >
+                                  {/* Header row: version + status + actions */}
+                                  <div className="flex items-center justify-between gap-1.5 px-3 pt-2.5 pb-1.5">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <span className="flex items-center justify-center w-5 h-5 rounded-md bg-muted text-[10px] font-bold text-muted-foreground shrink-0">
+                                        v{versionNum}
+                                      </span>
+                                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase leading-tight ${
+                                        d.status === 'APPROVED' ? 'bg-chart-2/10 text-chart-2 border border-chart-2/20' :
+                                        d.status === 'REJECTED' ? 'bg-destructive/10 text-destructive border border-destructive/20' :
+                                        d.status === 'SENT' ? 'bg-primary/10 text-primary border border-primary/20' :
+                                        'bg-muted text-muted-foreground border border-border'
+                                      }`}>
+                                        <span className={`w-1 h-1 rounded-full ${
+                                          d.status === 'APPROVED' ? 'bg-chart-2' :
+                                          d.status === 'REJECTED' ? 'bg-destructive' :
+                                          d.status === 'SENT' ? 'bg-primary' :
+                                          'bg-muted-foreground'
+                                        }`} />
+                                        {getStatusLabel(d.status)}
+                                      </span>
+                                      {d.origin === 'MANUAL' && (
+                                        <span className="text-[10px] font-semibold text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded">Edited</span>
+                                      )}
+                                    </div>
+
+                                    <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                      <button
+                                        type="button"
+                                        onClick={async () => {
+                                          const res = await duplicateDraftAction(d.id);
+                                          if (res.error) { toast.error(res.error); return; }
+                                          if (res.draft) {
+                                            const parsed = { ...res.draft, createdAt: res.draft.createdAt ? new Date(res.draft.createdAt) : null, updatedAt: res.draft.updatedAt ? new Date(res.draft.updatedAt) : null };
+                                            setDrafts([parsed, ...drafts]);
+                                            setActiveDraftId(parsed.id);
+                                            setSubjectInput(parsed.subject || '');
+                                            setBodyInput(parsed.body || '');
+                                            setShowVersions(false);
+                                            router.refresh();
+                                          }
+                                        }}
+                                        className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors mr-1"
+                                        title="Duplicate draft"
+                                      >
+                                        <Copy className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {/* Preview snippet */}
+                                  <div className="px-3 pb-2.5">
+                                    <p className="text-[11px] text-muted-foreground font-medium leading-relaxed line-clamp-2">
+                                      {d.subject && (
+                                        <span className="font-bold text-foreground">{d.subject}</span>
+                                      )}
+                                      {d.subject && <br />}
+                                      {bodyPreview || '(empty)'}
+                                    </p>
+                                    <p className="text-[10px] text-muted-foreground/60 font-semibold mt-1">
+                                      {d.createdAt ? new Date(d.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
+                                      {d.updatedAt && d.updatedAt.getTime() !== d.createdAt?.getTime() ? ' · edited' : ''}
+                                    </p>
+                                  </div>
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   <Button
                     variant="outline"
                     size="xs"
@@ -936,119 +1049,7 @@ function OutreachAssistantInner({ leadId, initialDrafts, researchSnapshot, audit
           )}
         </div>
 
-        <div className="border-t lg:border-t-0 lg:border-l border-border pt-6 lg:pt-0 lg:pl-6 space-y-4 min-w-0">
-          <div className="flex items-center justify-between">
-            <h4 className="text-xs font-bold text-foreground">Versions</h4>
-            <span className="text-xs font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-lg">{channelDrafts.length}</span>
-          </div>
 
-          <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1 -mr-1">
-            {channelDrafts.length === 0 ? (
-              <div className="text-xs text-muted-foreground font-semibold italic text-center py-8">
-                No drafts generated yet.
-              </div>
-            ) : (
-              channelDrafts.map((d, idx) => {
-                const versionNum = channelDrafts.length - idx;
-                const isActive = activeDraftId === d.id;
-                const snippet = d.body
-                  .replace(/^\[Tone:[^\]]+\]\n\n/, '')
-                  .substring(0, 120)
-                  .replace(/\n/g, ' ')
-                  .trim();
-                const bodyPreview = snippet.length < d.body.replace(/^\[Tone:[^\]]+\]\n\n/, '').length
-                  ? snippet + '...'
-                  : snippet;
-
-                return (
-                  <button
-                    key={d.id}
-                    type="button"
-                    onClick={() => handleSelectDraft(d)}
-                    className={`w-full text-left rounded-xl border text-xs transition-all duration-150 ${
-                      isActive
-                        ? 'bg-primary/[0.04] border-primary/25 ring-1 ring-primary/20 shadow-sm'
-                        : 'bg-card hover:bg-muted/50 border-border/70 hover:border-border'
-                    }`}
-                  >
-                    {/* Header row: version + status + actions */}
-                    <div className="flex items-center justify-between gap-1.5 px-3 pt-2.5 pb-1.5">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="flex items-center justify-center w-5 h-5 rounded-md bg-muted text-[10px] font-bold text-muted-foreground shrink-0">
-                          v{versionNum}
-                        </span>
-                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase leading-tight ${
-                          d.status === 'APPROVED' ? 'bg-chart-2/10 text-chart-2 border border-chart-2/20' :
-                          d.status === 'REJECTED' ? 'bg-destructive/10 text-destructive border border-destructive/20' :
-                          d.status === 'SENT' ? 'bg-primary/10 text-primary border border-primary/20' :
-                          'bg-muted text-muted-foreground border border-border'
-                        }`}>
-                          <span className={`w-1 h-1 rounded-full ${
-                            d.status === 'APPROVED' ? 'bg-chart-2' :
-                            d.status === 'REJECTED' ? 'bg-destructive' :
-                            d.status === 'SENT' ? 'bg-primary' :
-                            'bg-muted-foreground'
-                          }`} />
-                          {getStatusLabel(d.status)}
-                        </span>
-                        {d.origin === 'MANUAL' && (
-                          <span className="text-[10px] font-semibold text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded">Edited</span>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          type="button"
-                          onClick={() => { handleSelectDraft(d); }}
-                          className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                          title="View draft"
-                        >
-                          <Eye className="w-3 h-3" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            const res = await duplicateDraftAction(d.id);
-                            if (res.error) { toast.error(res.error); return; }
-                            if (res.draft) {
-                              const parsed = { ...res.draft, createdAt: res.draft.createdAt ? new Date(res.draft.createdAt) : null, updatedAt: res.draft.updatedAt ? new Date(res.draft.updatedAt) : null };
-                              setDrafts([parsed, ...drafts]);
-                              setActiveDraftId(parsed.id);
-                              setSubjectInput(parsed.subject || '');
-                              setBodyInput(parsed.body || '');
-                              router.refresh();
-                            }
-                          }}
-                          className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                          title="Duplicate draft"
-                        >
-                          <Copy className="w-3 h-3" />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Preview snippet */}
-                    <div className="px-3 pb-2.5">
-                      <p className="text-[11px] text-muted-foreground font-medium leading-relaxed line-clamp-2">
-                        {d.subject && (
-                          <span className="font-bold text-foreground">{d.subject}</span>
-                        )}
-                        {d.subject && <br />}
-                        {bodyPreview || '(empty)'}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground/60 font-semibold mt-1">
-                        {d.createdAt ? new Date(d.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
-                        {d.updatedAt && d.updatedAt.getTime() !== d.createdAt?.getTime() ? ' · edited' : ''}
-                      </p>
-                    </div>
-                  </button>
-                );
-              })
-            )}
-          </div>
-        </div>
-
-      </div>
       <Toaster
         position="bottom-right"
         toastOptions={{

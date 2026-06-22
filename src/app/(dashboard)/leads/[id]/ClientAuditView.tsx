@@ -19,10 +19,6 @@ export default function ClientAuditView({
 }: ClientAuditViewProps) {
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-bold text-card-foreground">
-        Digital Presence Audit &amp; Lead Scoring
-      </h3>
-
       <AuditDisplay
         leadId={leadId}
         audit={initialAudit}

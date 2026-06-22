@@ -35,39 +35,32 @@ export default function ClientTaskForm({ leadId, createTaskAction, tasksCount = 
   }, [state]);
 
   if (!showForm) {
-    return (
-      <div className="space-y-4">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => setShowForm(true)}
-          className="w-full"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Add Task
-        </Button>
+    if (tasksCount === 0) {
+      return (
+        <div className="flex items-center justify-center gap-2 py-4 px-3 text-xs text-muted-foreground bg-muted/20 border border-dashed border-border/80 rounded-xl">
+          <ClipboardCheck className="w-4 h-4 text-muted-foreground/80 shrink-0" />
+          <span>No tasks yet.</span>
+          <button
+            type="button"
+            onClick={() => setShowForm(true)}
+            className="text-primary font-bold hover:underline"
+          >
+            + Add
+          </button>
+        </div>
+      );
+    }
 
-        {tasksCount === 0 && (
-          <div className="bg-muted/30 border border-dashed border-border rounded-xl p-6 text-center space-y-3 animate-fade-in">
-            <div className="w-10 h-10 bg-card rounded-lg flex items-center justify-center text-muted-foreground mx-auto shadow-sm">
-              <ClipboardCheck className="w-5 h-5" />
-            </div>
-            <div className="space-y-1">
-              <h4 className="text-xs font-bold text-foreground">No Tasks Configured</h4>
-              <p className="text-xs text-muted-foreground max-w-xs mx-auto leading-relaxed">
-                Keep track of outreach plans, follow-ups, audits, and meetings for this lead.
-              </p>
-            </div>
-            <Button
-              type="button"
-              variant="link"
-              onClick={() => setShowForm(true)}
-            >
-              Create First Task &rarr;
-            </Button>
-          </div>
-        )}
-      </div>
+    return (
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => setShowForm(true)}
+        className="w-full"
+      >
+        <Plus className="w-3.5 h-3.5" />
+        Add Task
+      </Button>
     );
   }
 

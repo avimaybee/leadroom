@@ -26,42 +26,46 @@ export default function ClientActivityList({ activities }: { activities: any[] }
             <div key={act.id} className={`${isNote ? 'bg-chart-5/[0.02]' : ''}`}>
               {isNote ? (
                 <div className="px-4 py-3">
-                  <div className="flex justify-between items-start gap-3">
-                    <div className="min-w-0">
-                      <span className="inline-block px-2 py-0.5 rounded text-[11px] font-bold uppercase bg-chart-5/10 text-chart-5">
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-chart-5/10 text-chart-5">
                         {act.type}
                       </span>
-                      <p className="text-sm font-semibold text-foreground mt-1.5 leading-relaxed">
-                        {act.summary}
-                      </p>
+                      <span className="text-[10px] text-muted-foreground font-semibold shrink-0 whitespace-nowrap">
+                        {formatDateTimeUTC(act.timestamp)}
+                      </span>
                     </div>
-                    <span className="text-[11px] text-muted-foreground font-semibold shrink-0 mt-0.5">
-                      {formatDateTimeUTC(act.timestamp)}
-                    </span>
+                    <p className="text-xs font-semibold text-foreground leading-relaxed mt-1">
+                      {act.summary}
+                    </p>
                   </div>
                 </div>
               ) : (
                 <details className="group">
-                  <summary className="flex justify-between items-center gap-3 px-4 py-2.5 list-none marker:content-none cursor-pointer hover:bg-muted/30 transition-colors">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <svg className="w-3 h-3 text-muted-foreground shrink-0 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                      </svg>
-                      <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-muted text-muted-foreground leading-tight shrink-0">
-                        {act.type}
+                  <summary className="flex flex-col gap-1.5 px-4 py-2.5 list-none marker:content-none cursor-pointer hover:bg-muted/30 transition-colors">
+                    <div className="flex items-start justify-between gap-3 w-full">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <svg className="w-3 h-3 text-muted-foreground shrink-0 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                        <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-muted text-muted-foreground leading-tight shrink-0">
+                          {act.type}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground font-semibold shrink-0 whitespace-nowrap">
+                        {formatDateTimeUTC(act.timestamp)}
                       </span>
+                    </div>
+                    <div className="pl-[22px] flex items-center justify-between gap-2">
                       <span className="text-xs text-muted-foreground font-medium truncate">
                         {act.summary}
                       </span>
                       {(hasError || hasBatch) && (
-                        <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-secondary text-secondary-foreground leading-tight shrink-0 ml-2">
+                        <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold bg-secondary text-secondary-foreground leading-tight shrink-0">
                           Has Metadata
                         </span>
                       )}
                     </div>
-                    <span className="text-[11px] text-muted-foreground font-semibold shrink-0">
-                      {formatDateTimeUTC(act.timestamp)}
-                    </span>
                   </summary>
                   <div className="px-4 pb-3 pl-[37px]">
                     <p className="text-xs text-muted-foreground font-medium leading-relaxed mb-2">

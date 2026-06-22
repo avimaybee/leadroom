@@ -47,11 +47,9 @@ export default function ClientLeadProfile({ lead, updateLeadAction }: ClientLead
 
   if (isEditing) {
     return (
-      <form action={formAction} className="bg-card p-6 rounded-2xl border border-border/80 shadow-sm space-y-5 animate-fade-in">
-        <div className="flex justify-between items-center border-b border-border pb-3">
-          <h3 className="text-base font-bold text-foreground">
-            Edit Contact & Business Profile
-          </h3>
+      <form action={formAction} className="space-y-4 animate-fade-in">
+        <div className="flex justify-between items-center pb-2 border-b border-border/40">
+          <span className="text-xs font-bold text-muted-foreground uppercase">Editing Profile</span>
           <Button type="button" variant="ghost" size="xs" onClick={() => setIsEditing(false)}>
             Cancel
           </Button>
@@ -107,16 +105,13 @@ export default function ClientLeadProfile({ lead, updateLeadAction }: ClientLead
   }
 
   return (
-    <div className="bg-card p-6 rounded-2xl border border-border/80 shadow-sm space-y-6 animate-fade-in relative group">
-      <div className="flex justify-between items-center border-b border-border pb-3">
-        <h3 className="text-base font-bold text-foreground">
-          Contact & Business Profile
-        </h3>
-        <Button variant="link" size="xs" onClick={() => setIsEditing(true)}>
-          Edit
+    <div className="space-y-4 animate-fade-in relative group">
+      <div className="flex justify-end pb-2 border-b border-border/40">
+        <Button variant="outline" size="xs" onClick={() => setIsEditing(true)}>
+          Edit Profile
         </Button>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-4">
         <div>
           <span className="block text-xs font-bold text-muted-foreground uppercase">Lead Name</span>
           <span className="text-sm text-foreground font-semibold mt-1 block">{lead.name}</span>
