@@ -391,9 +391,12 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
       return c.status === 'DISCARDED';
     })
     .sort((a, b) => {
+      // Sort by triage priority first (HIGH > MEDIUM > SKIP > UNASSESSED)
       const orderA = priorityMap[a.triagePriority || 'UNASSESSED'] ?? 3;
       const orderB = priorityMap[b.triagePriority || 'UNASSESSED'] ?? 3;
-      return orderA - orderB;
+      if (orderA !== orderB) return orderA - orderB;
+      // Then by most recently created
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
 
   if (loading && !scope) {
@@ -608,7 +611,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
               key={tab}
               onClick={() => setActiveTab(tab)}
               variant="ghost"
-              className={`pb-4 px-6 font-semibold text-sm border-b-2 transition-all duration-200 rounded-none ${
+              className={`pb-4 px-6 font-semibold text-sm border-b-2 transition-all duration-200 rounded-none focus-visible:outline-none focus-visible:ring-0 ${
                 activeTab === tab
                   ? 'border-primary text-primary font-bold'
                   : 'border-transparent text-muted-foreground hover:text-foreground'
