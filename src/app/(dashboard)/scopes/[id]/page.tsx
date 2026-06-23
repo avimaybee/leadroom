@@ -517,18 +517,18 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                   </Button>
                 }
               />
-              <SheetContent className="space-y-6">
+              <SheetContent className="space-y-0 overflow-hidden">
                 <SheetHeader>
-                  <SheetTitle>Campaign Settings</SheetTitle>
-                  <SheetDescription>
+                  <SheetTitle className="text-heading-lg">Campaign Settings</SheetTitle>
+                  <SheetDescription className="text-copy-14">
                     Configure specifications and metadata for outreach discovery.
                   </SheetDescription>
                 </SheetHeader>
 
-                <div className="space-y-5 pt-4 border-t border-border/50 text-label-12 font-semibold">
+                <div className="space-y-3 border-t border-border/50 pt-3 text-label-12">
                   {/* Rename Form */}
-                  <div className="space-y-2">
-                    <Label htmlFor="sheet-rename-input" className="text-label-12 font-semibold text-muted-foreground">Rename Campaign</Label>
+                  <div className="space-y-1">
+                    <Label htmlFor="sheet-rename-input" className="text-label-12 text-muted-foreground">Rename Campaign</Label>
                     <div className="flex gap-2">
                         <Input
                           id="sheet-rename-input"
@@ -543,31 +543,31 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                   </div>
 
                   {/* Specifications (Read-Only context details) */}
-                  <div className="space-y-4 pt-3 border-t border-border/40">
-                    <h4 className="text-label-14 uppercase text-muted-foreground">Campaign Specifications</h4>
+                  <div className="space-y-2 pt-2 border-t border-border/40">
+                    <h4 className="text-label-12 uppercase text-muted-foreground">Campaign Specifications</h4>
                     
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1">
                       <div>
-                        <span className="block text-label-12 font-semibold text-muted-foreground">Target Industry</span>
-                        <span className="text-copy-14 font-semibold text-foreground">{scope.industryFilter || 'All'}</span>
+                        <span className="block text-label-12 text-muted-foreground">Industry</span>
+                        <span className="text-copy-14 text-foreground">{scope.industryFilter || 'All'}</span>
                       </div>
                       <div>
-                        <span className="block text-label-12 font-semibold text-muted-foreground">Target Geography</span>
-                        <span className="text-copy-14 font-semibold text-foreground">{scope.geographyFilter || 'All'}</span>
+                        <span className="block text-label-12 text-muted-foreground">Geography</span>
+                        <span className="text-copy-14 text-foreground">{scope.geographyFilter || 'All'}</span>
                       </div>
                     </div>
 
                     <div>
-                      <span className="block text-label-12 font-semibold text-muted-foreground">Description</span>
-                      <p className="text-label-12 font-medium text-foreground bg-muted/40 p-2.5 rounded-md mt-1 leading-relaxed">
+                      <span className="block text-label-12 text-muted-foreground">Description</span>
+                      <p className="text-copy-13 text-foreground bg-muted/40 p-2 rounded-md leading-relaxed">
                         {scope.description || 'No description provided.'}
                       </p>
                     </div>
 
                     {scope.notes && (
                       <div>
-                        <span className="block text-label-12 font-semibold text-muted-foreground">Internal Notes</span>
-                        <p className="text-label-12 font-medium text-foreground bg-muted/40 p-3 rounded-md mt-1 whitespace-pre-wrap leading-relaxed">
+                        <span className="block text-label-12 text-muted-foreground">Internal Notes</span>
+                        <p className="text-copy-13 text-foreground bg-muted/40 p-2 rounded-md whitespace-pre-wrap leading-relaxed">
                           {scope.notes}
                         </p>
                       </div>
@@ -723,23 +723,17 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                         Start an automated scan with this campaign's target niche keywords to scan local maps and crawl candidate prospects.
                       </p>
                     </div>
-                    <div className="flex justify-center items-center gap-3 pt-2">
-                      <Button
-                        onClick={() => {
-                          setRefineForm({
-                            niche: scope.industryFilter || '',
-                            location: scope.geographyFilter || '',
-                            limit: 20,
-                          });
-                          setIsRefineModalOpen(true);
-                        }}
-                      >
+                    <div className="flex flex-wrap justify-center items-center gap-2 pt-2">
+                      <Button size="sm" onClick={() => { setRefineForm({ niche: scope.industryFilter || '', location: scope.geographyFilter || '', limit: 1 }); setIsRefineModalOpen(true); }}>
+                        Scan 1 Lead
+                      </Button>
+                      <Button size="sm" onClick={() => { setRefineForm({ niche: scope.industryFilter || '', location: scope.geographyFilter || '', limit: 5 }); setIsRefineModalOpen(true); }}>
+                        Scan 5 Leads
+                      </Button>
+                      <Button onClick={() => { setRefineForm({ niche: scope.industryFilter || '', location: scope.geographyFilter || '', limit: 20 }); setIsRefineModalOpen(true); }}>
                         Run Scan
                       </Button>
-                      <Button
-                        onClick={() => setIsModalOpen(true)}
-                        variant="outline"
-                      >
+                      <Button onClick={() => setIsModalOpen(true)} variant="outline">
                         Add Candidate
                       </Button>
                     </div>

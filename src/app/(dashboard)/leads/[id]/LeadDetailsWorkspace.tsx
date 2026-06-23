@@ -413,9 +413,9 @@ export default function LeadDetailsWorkspace({
               {/* 1. Next Action */}
               <section className="rounded-xl border border-foreground/10 bg-foreground px-5 py-5 text-background sm:px-6">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-label-12 uppercase text-background/60">Next action</p>
+                  <p className="text-label-12 uppercase text-background">Next action</p>
                   {nextTaskDueState && (
-                    <span className={`inline-flex items-center rounded-md px-2.5 py-0.5 text-label-12 font-semibold ${nextTaskDueState.isOverdue ? 'bg-destructive/20 text-red-300' : 'bg-background/25 text-background/80'}`}>
+                    <span className={`inline-flex items-center rounded-md px-2.5 py-0.5 text-label-12 font-semibold ${nextTaskDueState.isOverdue ? 'bg-destructive/20 text-background' : 'bg-background/25 text-background'}`}>
                       {nextTaskDueState.text}
                     </span>
                   )}
@@ -423,7 +423,7 @@ export default function LeadDetailsWorkspace({
                 <h2 className="mt-3 text-heading-xl">
                   {nextTask?.title || (latestSnapshot ? 'Review evidence and prepare outreach' : 'Start lead research')}
                 </h2>
-                <p className="mt-2 text-copy-14 leading-6 text-background/65">
+                <p className="mt-2 text-copy-14 leading-6 text-background/80">
                   {nextTask?.description || (latestSnapshot ? 'The lead has research context ready for a human decision.' : 'Build a traceable research snapshot before drafting outreach.')}
                 </p>
                 <Button 
