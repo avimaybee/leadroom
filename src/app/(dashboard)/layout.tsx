@@ -78,7 +78,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <NotificationProvider>
-      <div className="min-h-screen bg-background flex">
+      <div className="h-screen bg-background flex">
         {/* Skip to Main Content Link */}
         <a
           href="#main-content"
@@ -97,22 +97,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <button
           type="button"
           onClick={() => setCollapsed(!collapsed)}
-          className={`flex items-center border-b border-sidebar-border w-full text-left hover:bg-sidebar-accent transition-colors cursor-pointer ${collapsed ? 'justify-center p-3' : 'p-6 gap-3'}`}
+          className={`flex items-center border-b border-sidebar-border w-full text-left hover:bg-sidebar-accent transition-colors cursor-pointer ${collapsed ? 'justify-center p-3' : 'p-3 gap-2'}`}
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
-          <div className="w-8 h-8 rounded-md bg-primary flex items-center justify-center text-primary-foreground font-black shadow-sm shrink-0">
+          <div className="w-7 h-7 rounded-md bg-primary flex items-center justify-center text-primary-foreground font-bold shadow-sm shrink-0">
             L
           </div>
           {!collapsed && (
-            <div className="truncate flex-1">
-              <h1 className="heading-xl font-semibold text-sidebar-foreground leading-tight">Leadroom</h1>
-              <span className="text-label-12 font-semibold text-muted-foreground uppercase tracking-widest">Internal OS</span>
-            </div>
+            <span className="text-copy-14 font-semibold text-sidebar-foreground truncate">Leadroom</span>
           )}
         </button>
 
         {/* Nav */}
-        <nav className={`mt-8 space-y-1.5 flex-1 ${collapsed ? 'px-2' : 'px-4'}`}>
+        <nav className={`mt-1 space-y-0.5 flex-1 ${collapsed ? 'px-2' : 'px-2'}`}>
           {navItems.map((item) => {
             const active = isTabActive(item.href);
             const Icon = item.icon;
@@ -120,8 +117,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center rounded-md font-medium text-label-14 transition-all duration-200 ${
-                  collapsed ? 'justify-center p-3' : 'px-4 py-3 gap-3'
+                className={`flex items-center rounded-md font-medium text-label-12 transition-all duration-200 ${
+                  collapsed ? 'justify-center p-2' : 'px-2 py-1.5 gap-2'
                 } ${
                   active
                     ? 'text-sidebar-primary-foreground bg-sidebar-primary shadow-sm font-semibold'
@@ -129,7 +126,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 }`}
                 title={collapsed ? item.name : undefined}
               >
-                <Icon className="w-5 h-5 shrink-0" />
+                <Icon className="w-4 h-4 shrink-0" />
                 {!collapsed && <span className="truncate">{item.name}</span>}
               </Link>
             );
@@ -138,8 +135,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Footer */}
         {!collapsed && (
-          <div className="p-6 border-t border-sidebar-border text-label-12 font-medium text-muted-foreground">
-            Logged in as Agency Admin
+          <div className="px-3 pb-3 pt-1 text-label-12 text-muted-foreground/60">
+            Agency Admin
           </div>
         )}
 

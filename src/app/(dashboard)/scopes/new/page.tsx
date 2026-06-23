@@ -222,6 +222,8 @@ export default function NewScopePage() {
                 onChange={(e) => setLimit(Number(e.target.value))}
                 className="flex h-10 w-full min-w-0 rounded-md border border-input bg-card px-3 py-2 text-copy-14 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring text-foreground hover:bg-muted/40 cursor-pointer"
               >
+                <option value={1}>1 prospect</option>
+                <option value={5}>5 prospects</option>
                 <option value={10}>10 prospects</option>
                 <option value={20}>20 prospects (Recommended)</option>
                 <option value={30}>30 prospects</option>
