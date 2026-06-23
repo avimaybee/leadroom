@@ -19,34 +19,34 @@ export function ChannelSwitcher({ selectedChannel, onChange, draftCounts }: Chan
         className="w-full"
       >
         <TabsList className="grid grid-cols-4 w-full max-w-md">
-          <TabsTrigger value="EMAIL" className="text-xs font-bold relative">
+          <TabsTrigger value="EMAIL" className="text-label-12 relative">
             Email
             {draftCounts.EMAIL > 0 && (
-              <span className="ml-1.5 px-1.5 py-0.2 bg-muted text-[10px] text-muted-foreground font-semibold rounded-full border border-border/60">
+              <span className="ml-1.5 px-1.5 py-0.2 bg-muted text-label-12 text-muted-foreground rounded-full border border-border/60">
                 {draftCounts.EMAIL}
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="LINKEDIN" className="text-xs font-bold relative">
+          <TabsTrigger value="LINKEDIN" className="text-label-12 relative">
             LinkedIn
             {draftCounts.LINKEDIN > 0 && (
-              <span className="ml-1.5 px-1.5 py-0.2 bg-muted text-[10px] text-muted-foreground font-semibold rounded-full border border-border/60">
+              <span className="ml-1.5 px-1.5 py-0.2 bg-muted text-label-12 text-muted-foreground rounded-full border border-border/60">
                 {draftCounts.LINKEDIN}
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="CALL" className="text-xs font-bold relative">
+          <TabsTrigger value="CALL" className="text-label-12 relative">
             Call Prep
             {draftCounts.CALL > 0 && (
-              <span className="ml-1.5 px-1.5 py-0.2 bg-muted text-[10px] text-muted-foreground font-semibold rounded-full border border-border/60">
+              <span className="ml-1.5 px-1.5 py-0.2 bg-muted text-label-12 text-muted-foreground rounded-full border border-border/60">
                 {draftCounts.CALL}
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="MEETING" className="text-xs font-bold relative">
+          <TabsTrigger value="MEETING" className="text-label-12 relative">
             Meeting Prep
             {draftCounts.MEETING > 0 && (
-              <span className="ml-1.5 px-1.5 py-0.2 bg-muted text-[10px] text-muted-foreground font-semibold rounded-full border border-border/60">
+              <span className="ml-1.5 px-1.5 py-0.2 bg-muted text-label-12 text-muted-foreground rounded-full border border-border/60">
                 {draftCounts.MEETING}
               </span>
             )}

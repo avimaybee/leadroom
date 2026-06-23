@@ -47,7 +47,7 @@ export default function DashboardTaskList({ tasks, toggleTaskStatusAction }: Das
 
   if (tasks.length === 0) {
     return (
-      <div className="text-center text-sm font-semibold text-muted-foreground py-6">
+      <div className="text-center text-copy-14 font-semibold text-muted-foreground py-6">
         No open tasks.
       </div>
     );
@@ -71,11 +71,11 @@ export default function DashboardTaskList({ tasks, toggleTaskStatusAction }: Das
           />
           
           <div className="flex-1 min-w-0 space-y-1">
-            <span className="text-sm font-semibold block leading-tight text-card-foreground">
+            <span className="text-copy-14 font-semibold block leading-tight text-card-foreground">
               {task.title}
             </span>
             {task.leadName && (
-              <p className="text-xs text-muted-foreground leading-normal line-clamp-1">
+              <p className="text-copy-13 text-muted-foreground leading-normal line-clamp-1">
                 For: <Link href={`/leads/${task.leadId}`} className="hover:underline text-primary font-medium">{task.leadName}</Link>
               </p>
             )}
@@ -85,7 +85,7 @@ export default function DashboardTaskList({ tasks, toggleTaskStatusAction }: Das
                 {task.priority}
               </Badge>
               {task.dueDate && (
-                <span className={`text-xs font-semibold flex items-center gap-1 ${
+                <span className={`text-label-12 flex items-center gap-1 ${
                   new Date(task.dueDate) < new Date() ? 'text-destructive' : 'text-muted-foreground'
                 }`}>
                   <Calendar className={`w-3.5 h-3.5 ${new Date(task.dueDate) < new Date() ? 'text-destructive' : 'text-muted-foreground'}`} />

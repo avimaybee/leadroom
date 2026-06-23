@@ -33,9 +33,13 @@ import { OutreachService } from '@/services/outreach';
 
 
 
-export default async function LeadDetailPage({ params, searchParams }: { params: Promise<{ id: string }>, searchParams: Promise<{ autoEnrich?: string }> }) {
+type LeadWorkspaceView = 'overview' | 'research' | 'audit' | 'outreach' | 'activity';
+
+const WORKSPACE_VIEWS = new Set<LeadWorkspaceView>(['overview', 'research', 'audit', 'outreach', 'activity']);
+
+export default async function LeadDetailPage({ params, searchParams }: { params: Promise<{ id: string }>, searchParams: Promise<{ autoEnrich?: string; view?: string; channel?: string }> }) {
   const { id } = await params;
-  const { autoEnrich } = await searchParams;
+  const { view, channel } = await searchParams;
   const env = (process as any).env;
   const db = getDb();
   const service = new LeadService(db);
@@ -97,6 +101,8 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
       activeResearchJob={activeResearchJob}
       displayStage={displayStage}
       stages={stages}
+      initialView={WORKSPACE_VIEWS.has(view as LeadWorkspaceView) ? view as LeadWorkspaceView : 'overview'}
+      initialChannel={channel}
     />
   );
 }

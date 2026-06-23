@@ -45,7 +45,7 @@ function formatRelativeTime(date: Date): string {
 function StatusBadge({ dbRow, isDirty }: { dbRow: StageThresholdDbRow | null; isDirty: boolean }) {
   if (isDirty) {
     return (
-      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-chart-5 bg-chart-5/10 border border-chart-5/20 rounded-full px-2.5 py-0.5">
+      <span className="inline-flex items-center gap-1.5 text-label-12 font-semibold text-chart-5 bg-chart-5/10 border border-chart-5/20 rounded-full px-2.5 py-0.5">
         <span className="h-1.5 w-1.5 rounded-full bg-chart-5 animate-pulse" />
         Unsaved
       </span>
@@ -54,7 +54,7 @@ function StatusBadge({ dbRow, isDirty }: { dbRow: StageThresholdDbRow | null; is
 
   if (!dbRow) {
     return (
-      <span className="text-xs font-medium text-muted-foreground bg-muted/50 border border-border rounded-full px-2.5 py-0.5">
+      <span className="text-label-12 font-medium text-muted-foreground bg-muted/50 border border-border rounded-full px-2.5 py-0.5">
         Default
       </span>
     );
@@ -66,7 +66,7 @@ function StatusBadge({ dbRow, isDirty }: { dbRow: StageThresholdDbRow | null; is
   return (
     <span
       title={exact ?? undefined}
-      className="inline-flex items-center gap-1.5 text-xs font-medium text-primary bg-primary/10 border border-primary/20 rounded-full px-2.5 py-0.5 cursor-default"
+      className="inline-flex items-center gap-1.5 text-label-12 font-medium text-primary bg-primary/10 border border-primary/20 rounded-full px-2.5 py-0.5 cursor-default"
     >
       <span className="h-1.5 w-1.5 rounded-full bg-primary" />
       Custom{relative ? ` · ${relative}` : ''}
@@ -117,7 +117,7 @@ export const StageThresholdRow = memo(function StageThresholdRow({
       }`}
     >
       {/* Stage name */}
-      <span className="flex-1 text-sm font-semibold text-foreground truncate">{stage}</span>
+      <span className="flex-1 text-label-14 font-semibold text-foreground truncate">{stage}</span>
 
       {/* Status badge */}
       <div className="hidden sm:flex w-40 justify-start">
@@ -139,12 +139,12 @@ export const StageThresholdRow = memo(function StageThresholdRow({
               disabled={isSaving}
               aria-invalid={isInvalid && isDirty}
               aria-label={`Staleness threshold for ${stage} stage`}
-              className="w-20 text-center text-sm font-medium tabular-nums"
+              className="w-20 text-center text-copy-14 font-medium tabular-nums"
             />
-            <span className="text-sm text-muted-foreground font-medium whitespace-nowrap">days</span>
+            <span className="text-copy-14 text-muted-foreground font-medium whitespace-nowrap">days</span>
           </div>
           {isInvalid && isDirty && (
-            <p className="text-[11px] text-destructive font-medium">Must be at least 1 day</p>
+            <p className="text-label-12 text-destructive font-medium">Must be at least 1 day</p>
           )}
         </div>
 

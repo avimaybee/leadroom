@@ -2,13 +2,31 @@
 
 import { useState, useEffect, useCallback, use } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Loader2, ExternalLink, Search, FileText, Trash2, X, AlertTriangle, Clock, ShieldAlert, Pencil } from 'lucide-react';
+import { ArrowLeft, Loader2, ExternalLink, Search, FileText, Trash2, X, AlertTriangle, Clock, ShieldAlert, Settings, Info } from 'lucide-react';
 import { formatUTC } from '@/lib/date';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useNotifications } from '@/components/NotificationProvider';
+import { useRouter, useSearchParams } from 'next/navigation';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+  SheetFooter,
+  SheetClose,
+} from '@/components/ui/sheet';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 interface Scope {
   id: string;
@@ -50,14 +68,23 @@ interface RecentRun {
 
 export default function ScopeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
+  const searchParams = useSearchParams();
   
   const [scope, setScope] = useState<Scope | null>(null);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   
-  // Tab control: 'pending', 'promoted', 'discarded'
-  const [activeTab, setActiveTab] = useState<'pending' | 'promoted' | 'discarded'>('pending');
+  // Tab control: 'pending' (Review), 'promoted', 'discarded', 'history' (Run History) synced to URL
+  const rawTab = searchParams.get('tab');
+  const activeTab = (rawTab === 'promoted' || rawTab === 'discarded' || rawTab === 'pending' || rawTab === 'history') ? rawTab : 'pending';
+  
+  const setActiveTab = useCallback((tab: 'pending' | 'promoted' | 'discarded' | 'history') => {
+    const next = new URLSearchParams(searchParams.toString());
+    next.set('tab', tab);
+    router.replace(`?${next.toString()}`, { scroll: false });
+  }, [router, searchParams]);
   
   // Modal state for manual candidate
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -83,12 +110,16 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
   const [recentRuns, setRecentRuns] = useState<RecentRun[]>([]);
   const [activeJobRun, setActiveJobRun] = useState<RecentRun | null>(null);
   const [pollingJobId, setPollingJobId] = useState<string | null>(null);
-  const [isRecentRunsExpanded, setIsRecentRunsExpanded] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
 
-  // Inline rename state
-  const [isRenaming, setIsRenaming] = useState(false);
+  // Settings sheet states
+  const [isSettingsSheetOpen, setIsSettingsSheetOpen] = useState(false);
   const [newScopeName, setNewScopeName] = useState('');
+  const [isRenaming, setIsRenaming] = useState(false);
+
+  // Custom Alert Dialog for Bulk Discard
+  const [isBulkDiscardOpen, setIsBulkDiscardOpen] = useState(false);
+  const [discardProgress, setDiscardProgress] = useState(false);
 
   // Enrichment progress (from discovery jobs)
   const [enrichProgress, setEnrichProgress] = useState<{
@@ -99,7 +130,6 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
 
   // Current logged in user ID
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string } | null>(null);
-  const [isSpecsExpanded, setIsSpecsExpanded] = useState(false);
 
   const fetchRecentRuns = useCallback(async () => {
     try {
@@ -143,6 +173,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
       const candidatesData = (await candidatesRes.json()) as { data: Candidate[] };
 
       setScope(scopeData.data);
+      setNewScopeName(scopeData.data.name);
       setCandidates(candidatesData.data);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'An error occurred while fetching data';
@@ -171,7 +202,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
     // Fetch Campaign and Candidates
     fetchData();
     fetchRecentRuns();
-  }, [id, fetchRecentRuns]);
+  }, [id, fetchRecentRuns, fetchData]);
 
   useEffect(() => {
     if (!pollingJobId) return;
@@ -217,6 +248,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
   const handleRename = async () => {
     const trimmed = newScopeName.trim();
     if (!trimmed || !scope) return;
+    setIsRenaming(true);
     try {
       const res = await fetch('/api/scopes', {
         method: 'PATCH',
@@ -228,10 +260,12 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
         throw new Error(errData.error || 'Failed to rename campaign');
       }
       setScope(prev => prev ? { ...prev, name: trimmed } : prev);
-      setIsRenaming(false);
+      setIsSettingsSheetOpen(false);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error renaming campaign';
       alert(msg);
+    } finally {
+      setIsRenaming(false);
     }
   };
 
@@ -354,10 +388,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
     );
     if (skipCandidates.length === 0) return;
 
-    if (!confirm(`Are you sure you want to discard all ${skipCandidates.length} low-priority (SKIP) candidates?`)) {
-      return;
-    }
-
+    setDiscardProgress(true);
     try {
       setLoading(true);
       await Promise.all(
@@ -369,11 +400,13 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
           })
         )
       );
+      setIsBulkDiscardOpen(false);
       await fetchData();
     } catch (err: unknown) {
       alert('Failed to discard some candidates.');
     } finally {
       setLoading(false);
+      setDiscardProgress(false);
     }
   };
 
@@ -391,7 +424,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
       return c.status === 'DISCARDED';
     })
     .sort((a, b) => {
-      // Sort by triage priority first (HIGH > MEDIUM > SKIP > UNASSESSED)
+      // Sort by triage priority first (HIGH > MEDIUM > UNASSESSED > SKIP)
       const orderA = priorityMap[a.triagePriority || 'UNASSESSED'] ?? 3;
       const orderB = priorityMap[b.triagePriority || 'UNASSESSED'] ?? 3;
       if (orderA !== orderB) return orderA - orderB;
@@ -409,101 +442,171 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
 
   if (error || !scope) {
     return (
-      <div className="bg-destructive/10 text-destructive p-6 rounded-2xl border border-destructive/20 max-w-xl mx-auto mt-10">
-        <h3 className="font-bold text-lg">Error loading campaign</h3>
-        <p className="mt-1 text-sm">{error || 'Campaign not found.'}</p>
-        <Link href="/scopes" className="mt-4 inline-block font-semibold text-sm underline">
+      <div className="bg-destructive/10 text-destructive p-6 rounded-2xl border border-destructive/20 max-w-xl mx-auto mt-10 text-left">
+        <h3 className="text-heading-lg">Error loading campaign</h3>
+        <p className="mt-1 text-copy-14">{error || 'Campaign not found.'}</p>
+        <Link href="/scopes" className="mt-4 inline-block text-label-14 underline">
           &larr; Back to Campaigns
         </Link>
       </div>
     );
   }
 
+  const specSummaryParts = [];
+  if (scope.industryFilter) specSummaryParts.push(`Industry: ${scope.industryFilter}`);
+  if (scope.geographyFilter) specSummaryParts.push(`Location: ${scope.geographyFilter}`);
+  specSummaryParts.push(`Total Prospects: ${candidates.length}`);
+  const specsHeaderSummary = specSummaryParts.join(' \u2022 ');
+
   return (
-    <div className="space-y-8 animate-fade-in relative text-left">
-      {/* Back and Breadcrumbs */}
-      <div className="space-y-1.5 text-left">
-        <Link
-          href="/scopes"
-          className="text-xs font-bold text-muted-foreground hover:text-primary flex items-center gap-1 transition w-fit py-2.5 pr-4 -my-2.5 -ml-1"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" /> Back to Campaigns
-        </Link>
-      </div>
+    <div className="space-y-6 animate-fade-in relative text-left">
+      {/* Standard Identity/Breadcrumb Header */}
+      <header className="space-y-4 border-b border-border/70 pb-6">
+        <nav className="flex items-center gap-2 text-label-14 text-muted-foreground">
+          <Link href="/scopes" className="hover:text-foreground transition-colors">Campaigns</Link>
+          <span className="text-muted-foreground/30">/</span>
+          <span className="font-medium text-foreground">{scope.name}</span>
+        </nav>
 
-      {/* Campaign Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-border pb-5">
-        <div>
-          <div className="flex items-center gap-3">
-            {isRenaming ? (
-              <div className="flex items-center gap-2">
-                <Input
-                  value={newScopeName}
-                  onChange={e => setNewScopeName(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') handleRename(); if (e.key === 'Escape') setIsRenaming(false); }}
-                  className="text-3xl font-extrabold h-auto py-0.5 px-2 w-auto min-w-[250px]"
-                  autoFocus
-                />
-                <Button size="sm" onClick={handleRename}>Save</Button>
-                <Button size="sm" variant="ghost" onClick={() => setIsRenaming(false)}>Cancel</Button>
-              </div>
-            ) : (
-              <>
-                <h1 className="text-3xl font-extrabold text-card-foreground tracking-tight capitalize">{scope.name}</h1>
-                <button
-                  onClick={() => { setNewScopeName(scope.name || ''); setIsRenaming(true); }}
-                  className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition"
-                  title="Rename campaign"
-                >
-                  <Pencil className="w-4 h-4" />
-                </button>
-              </>
-            )}
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-heading-3xl text-card-foreground capitalize">{scope.name}</h1>
+            <p className="text-copy-14 text-muted-foreground mt-1.5 leading-relaxed">
+              {specsHeaderSummary}
+            </p>
           </div>
-          <p className="text-sm text-muted-foreground mt-1">Configure and qualify leads within this campaign segment.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button
-            onClick={() => {
-              setRefineForm({
-                niche: scope.industryFilter || '',
-                location: scope.geographyFilter || '',
-                limit: 1,
-              });
-              setIsRefineModalOpen(true);
-            }}
-            disabled={!!activeJobRun}
-          >
-            Find More Leads
-          </Button>
-          <Button
-            onClick={() => setIsModalOpen(true)}
-            variant="outline"
-          >
-            + Add Candidate Manually
-          </Button>
-        </div>
-      </div>
 
-      {/* Enrichment Progress Card */}
+          <div className="flex shrink-0 items-center gap-3 lg:mt-1">
+            {activeJobRun ? (
+              <Button
+                onClick={handleCancelSearch}
+                variant="destructive"
+                disabled={isCancelling}
+                className="font-semibold text-label-12"
+              >
+                {isCancelling ? 'Cancelling...' : 'Cancel Running Scan'}
+              </Button>
+            ) : (
+              <Button
+                onClick={() => {
+                  setRefineForm({
+                    niche: scope.industryFilter || '',
+                    location: scope.geographyFilter || '',
+                    limit: 20,
+                  });
+                  setIsRefineModalOpen(true);
+                }}
+              >
+                Find More Leads
+              </Button>
+            )}
+            
+            <Button
+              onClick={() => setIsModalOpen(true)}
+              variant="outline"
+            >
+              Add Candidate
+            </Button>
+
+            {/* Campaign Specifications settings sheet trigger */}
+            <Sheet open={isSettingsSheetOpen} onOpenChange={setIsSettingsSheetOpen}>
+              <SheetTrigger
+                render={
+                  <Button variant="outline" size="icon" title="Campaign Settings" aria-label="Campaign Settings">
+                    <Settings className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
+                  </Button>
+                }
+              />
+              <SheetContent className="space-y-6">
+                <SheetHeader>
+                  <SheetTitle>Campaign Settings</SheetTitle>
+                  <SheetDescription>
+                    Configure specifications and metadata for outreach discovery.
+                  </SheetDescription>
+                </SheetHeader>
+
+                <div className="space-y-5 pt-4 border-t border-border/50 text-label-12 font-semibold">
+                  {/* Rename Form */}
+                  <div className="space-y-2">
+                    <Label htmlFor="sheet-rename-input" className="text-label-12 font-semibold text-muted-foreground">Rename Campaign</Label>
+                    <div className="flex gap-2">
+                        <Input
+                          id="sheet-rename-input"
+                          value={newScopeName}
+                          onChange={e => setNewScopeName(e.target.value)}
+                          className="text-copy-14"
+                      />
+                      <Button size="sm" onClick={handleRename} disabled={isRenaming}>
+                        {isRenaming ? 'Saving...' : 'Rename'}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Specifications (Read-Only context details) */}
+                  <div className="space-y-4 pt-3 border-t border-border/40">
+                    <h4 className="text-label-14 uppercase text-muted-foreground">Campaign Specifications</h4>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <span className="block text-label-12 font-semibold text-muted-foreground">Target Industry</span>
+                        <span className="text-copy-14 font-semibold text-foreground">{scope.industryFilter || 'All'}</span>
+                      </div>
+                      <div>
+                        <span className="block text-label-12 font-semibold text-muted-foreground">Target Geography</span>
+                        <span className="text-copy-14 font-semibold text-foreground">{scope.geographyFilter || 'All'}</span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <span className="block text-label-12 font-semibold text-muted-foreground">Description</span>
+                      <p className="text-label-12 font-medium text-foreground bg-muted/40 p-2.5 rounded-md mt-1 leading-relaxed">
+                        {scope.description || 'No description provided.'}
+                      </p>
+                    </div>
+
+                    {scope.notes && (
+                      <div>
+                        <span className="block text-label-12 font-semibold text-muted-foreground">Internal Notes</span>
+                        <p className="text-label-12 font-medium text-foreground bg-muted/40 p-3 rounded-md mt-1 whitespace-pre-wrap leading-relaxed">
+                          {scope.notes}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <SheetFooter>
+                  <SheetClose
+                    render={
+                      <Button variant="outline" className="w-full">Close Panel</Button>
+                    }
+                  />
+                </SheetFooter>
+              </SheetContent>
+            </Sheet>
+          </div>
+        </div>
+      </header>
+
+      {/* Enrichment Progress Card when scan is active */}
       {activeJobRun && (
-        <div className="bg-card p-6 rounded-2xl border border-primary/20 shadow-md space-y-4">
+        <div className="bg-card p-5 rounded-md border border-primary/20 space-y-4">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center text-primary shrink-0">
+            <div className="w-8 h-8 bg-primary/10 rounded-md flex items-center justify-center text-primary shrink-0">
               <Loader2 className="w-4 h-4 animate-spin" />
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="text-sm font-bold text-card-foreground">
+              <h3 className="text-label-14 font-semibold text-card-foreground">
                 {enrichProgress?.totalItems
                   ? `Enriching ${enrichProgress.itemsProcessed} of ${enrichProgress.totalItems} candidates`
                   : `Scanning for "${activeJobRun.niche}" in "${activeJobRun.location}"`}
               </h3>
-              <p className="text-xs text-muted-foreground mt-0.5 truncate leading-relaxed">
+              <p className="text-label-12 text-muted-foreground mt-0.5 truncate leading-relaxed">
                 {enrichProgress?.currentStage || `Discovering businesses from Google Maps...`}
               </p>
             </div>
             {enrichProgress && enrichProgress.totalItems > 0 && (
-              <span className="text-xs font-bold text-muted-foreground shrink-0">
+              <span className="text-label-12 font-semibold text-muted-foreground shrink-0">
                 {Math.round((enrichProgress.itemsProcessed / enrichProgress.totalItems) * 100)}%
               </span>
             )}
@@ -519,401 +622,349 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
               />
             </div>
           )}
-
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2 border-t border-border/40">
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Candidates appear as they are discovered. Priority badges populate as enrichment completes.
-            </p>
-            {activeJobRun.id !== 'starting' && (
-              <Button
-                onClick={handleCancelSearch}
-                variant="outline"
-                size="sm"
-                disabled={isCancelling}
-                className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 hover:border-destructive/20 shrink-0 w-fit"
-              >
-                {isCancelling ? 'Cancelling...' : 'Cancel Search'}
-              </Button>
-            )}
-          </div>
         </div>
       )}
 
-      {/* Campaign Specifications Panel (Collapsible Row) */}
-      <div className="bg-card border border-border/80 rounded-2xl p-5 shadow-sm space-y-4 transition-all duration-200">
-        <div className="flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-card-foreground">Campaign Specifications</span>
-            <span className="text-xs text-muted-foreground font-bold uppercase">•</span>
-            <span className="text-xs text-muted-foreground font-bold capitalize">
-              {scope.industryFilter || 'All Industries'} &middot; {scope.geographyFilter || 'All Locations'}
-            </span>
-          </div>
-          <Button
-            onClick={() => setIsSpecsExpanded(!isSpecsExpanded)}
-            variant="link"
-            size="sm"
-          >
-            {isSpecsExpanded ? 'Collapse Details' : 'Show Full Details'}
-          </Button>
-        </div>
-
-        {isSpecsExpanded ? (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 pt-4 border-t border-border animate-fade-in">
-            <div className="space-y-1">
-              <span className="block text-xs font-bold text-card-foreground">Description</span>
-              <span className="text-sm text-foreground font-semibold block leading-relaxed">
-                {scope.description || 'No description provided.'}
-              </span>
-            </div>
-            {scope.industryFilter && (
-              <div className="space-y-1">
-                <span className="block text-xs font-bold text-card-foreground">Target Industry</span>
-                <span className="text-sm text-foreground font-semibold block">{scope.industryFilter}</span>
-              </div>
-            )}
-            {scope.geographyFilter && (
-              <div className="space-y-1">
-                <span className="block text-xs font-bold text-card-foreground">Geography</span>
-                <span className="text-sm text-foreground font-semibold block">{scope.geographyFilter}</span>
-              </div>
-            )}
-            {scope.companySizeFilter && (
-              <div className="space-y-1">
-                <span className="block text-xs font-bold text-card-foreground">Company Size</span>
-                <span className="text-sm text-foreground font-semibold block">{scope.companySizeFilter}</span>
-              </div>
-            )}
-            {scope.notes && (
-              <div className="md:col-span-4 pt-3 border-t border-border space-y-1">
-                <span className="block text-xs font-bold text-card-foreground">Campaign Notes</span>
-                <p className="text-sm text-muted-foreground bg-muted p-4 rounded-xl leading-relaxed whitespace-pre-wrap font-semibold">
-                  {scope.notes}
-                </p>
-              </div>
-            )}
-          </div>
-        ) : (
-          scope.description && (
-            <p className="text-sm text-muted-foreground font-medium truncate pt-3 border-t border-border/60">
-              {scope.description}
-            </p>
-          )
-        )}
-      </div>
-
-      {/* Main Candidate list */}
+      {/* Sub-workspace navigation: linked tabs synced to URL */}
       <div className="space-y-6">
-        {/* Tabs */}
         <div className="flex border-b border-border">
-          {(['pending', 'promoted', 'discarded'] as const).map((tab) => (
-            <Button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              variant="ghost"
-              className={`pb-4 px-6 font-semibold text-sm border-b-2 transition-all duration-200 rounded-none focus-visible:outline-none focus-visible:ring-0 ${
-                activeTab === tab
-                  ? 'border-primary text-primary font-bold'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {tab === 'pending' ? 'Pending Review' : tab === 'promoted' ? 'Promoted' : 'Discarded'} ({candidates.filter((c) => {
-                if (tab === 'pending') return c.status === 'NEW' || c.status === 'REVIEWED';
-                if (tab === 'promoted') return c.status === 'PROMOTED';
-                return c.status === 'DISCARDED';
-              }).length})
-            </Button>
-          ))}
+          {([
+            { key: 'pending', label: 'Pending Review' },
+            { key: 'promoted', label: 'Promoted' },
+            { key: 'discarded', label: 'Discarded' },
+            { key: 'history', label: 'Run History' }
+          ] as const).map((tab) => {
+            let countLabel = '';
+            if (tab.key === 'pending') {
+              countLabel = ` (${candidates.filter(c => c.status === 'NEW' || c.status === 'REVIEWED').length})`;
+            } else if (tab.key === 'promoted') {
+              countLabel = ` (${candidates.filter(c => c.status === 'PROMOTED').length})`;
+            } else if (tab.key === 'discarded') {
+              countLabel = ` (${candidates.filter(c => c.status === 'DISCARDED').length})`;
+            } else {
+              countLabel = ` (${recentRuns.length})`;
+            }
+
+            return (
+              <Button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                variant="ghost"
+                className={`pb-4 px-6 font-semibold text-label-14 border-b-2 transition-all duration-200 rounded-none focus-visible:outline-none focus-visible:ring-0 ${
+                  activeTab === tab.key
+                    ? 'border-primary text-primary font-semibold'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {tab.label}{countLabel}
+              </Button>
+            );
+          })}
         </div>
 
-        {/* List display */}
+        {/* Tab Workspace content */}
         <div className="space-y-4">
-          {filteredCandidates.length === 0 ? (
-            candidates.length === 0 ? (
-              /* True Empty State - 0 prospects overall */
-              <div className="bg-card border border-border/80 rounded-2xl p-12 text-center max-w-2xl mx-auto space-y-6 shadow-sm my-4 animate-fade-in">
-                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center text-primary mx-auto">
-                  <Search className="w-8 h-8" />
-                </div>
-                <div className="space-y-2">
-                  <h3 className="text-lg font-bold text-card-foreground">No prospects found in this campaign yet</h3>
-                  <p className="text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
-                    Run an automated Google Maps scan with this campaign's specifications to crawl local businesses and populate your candidate list.
-                  </p>
-                </div>
-                <div className="flex justify-center items-center gap-3 pt-2">
-                  <Button
-                    onClick={() => {
-                      setRefineForm({
-                        niche: scope.industryFilter || '',
-                        location: scope.geographyFilter || '',
-                        limit: 20,
-                      });
-                      setIsRefineModalOpen(true);
-                    }}
-                  >
-                    Find Leads
-                  </Button>
-                  <Button
-                    onClick={() => setIsModalOpen(true)}
-                    variant="outline"
-                  >
-                    Add Manually
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              /* Tab Empty State - some prospects exist but none in activeTab */
-              <div className="bg-card border border-border/80 rounded-2xl p-10 text-center max-w-xl mx-auto space-y-4 shadow-sm my-4 animate-fade-in">
-                <div className="w-12 h-12 bg-muted rounded-xl flex items-center justify-center text-muted-foreground mx-auto">
-                  <FileText className="w-6 h-6" />
-                </div>
-                <div className="space-y-1">
-                  <h3 className="text-sm font-bold text-card-foreground capitalize">No prospects in {activeTab}</h3>
-                  <p className="text-xs text-muted-foreground max-w-xs mx-auto leading-relaxed">
-                    There are no prospects qualified under the "{activeTab}" filter for this campaign.
-                  </p>
-                </div>
-                {activeTab !== 'pending' && (
-                  <Button onClick={() => setActiveTab('pending')} variant="link" size="sm">
-                    View Pending Review
-                  </Button>
-                )}
-              </div>
-            )
-          ) : (
-            <>
-              {activeTab === 'pending' && candidates.some(c => (c.status === 'NEW' || c.status === 'REVIEWED') && c.triagePriority === 'SKIP') && (
-                <div className="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center bg-muted border border-border/60 p-4 rounded-2xl shadow-sm mb-4 text-left">
-                  <div className="text-xs text-muted-foreground font-semibold leading-relaxed">
-                    Sorted by priority: outdated or offline websites are pushed to the top; modern sites are greyed out at the bottom.
-                  </div>
-                  <Button
-                    onClick={handleBulkDiscardSkip}
-                    variant="outline"
-                    size="sm"
-                    className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 hover:border-destructive/20"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    Discard all low-priority (SKIP) candidates
-                  </Button>
+          {activeTab === 'history' ? (
+            /* Run History view */
+            <div className="bg-card border border-border rounded-xl p-5 space-y-4">
+              {recentRuns.length === 0 ? (
+                  <p className="text-label-12 text-muted-foreground font-semibold py-6 text-center">
+                  No recent discovery runs have been triggered for this campaign.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-copy-14">
+                    <thead className="bg-muted/50 text-muted-foreground text-label-12 uppercase border-b border-border">
+                      <tr>
+                        <th className="px-4 py-3">Keyword/Niche</th>
+                        <th className="px-4 py-3">Location</th>
+                        <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border text-foreground font-medium">
+                      {recentRuns.map((run) => (
+                        <tr key={run.id} className="hover:bg-muted/50 transition">
+                          <td className="px-4 py-3 font-semibold text-card-foreground">{run.niche}</td>
+                          <td className="px-4 py-3">{run.location}</td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-label-12 font-semibold uppercase border ${
+                              run.status === 'COMPLETED' ? 'bg-chart-2/10 text-chart-2 border-chart-2/20' :
+                              run.status === 'FAILED' ? 'bg-destructive/10 text-destructive border-destructive/20' :
+                              run.status === 'RUNNING' || run.status === 'QUEUED' ? 'bg-chart-5/10 text-chart-5 border-chart-5/20 animate-pulse' :
+                              'bg-muted text-muted-foreground border-border'
+                            }`}>
+                              {run.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-label-12 text-muted-foreground">
+                            {formatUTC(run.createdAt)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
-              {filteredCandidates.map((candidate) => (
-                <div
-                  key={candidate.id}
-                  className={`bg-card border border-border/80 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row justify-between md:items-start gap-6 transition-all duration-200 border-l-4 ${
-                    candidate.triagePriority === 'HIGH' ? 'border-l-destructive shadow-sm' :
-                    candidate.triagePriority === 'MEDIUM' ? 'border-l-chart-3' :
-                    candidate.triagePriority === 'SKIP' ? 'opacity-65 bg-muted/30 border-l-muted' :
-                    'border-l-blue-400/50'
-                  }`}
-                >
-                  <div className="space-y-3 flex-1 min-w-0">                    <div className="flex flex-wrap items-center gap-2">
-                      {candidate.status === 'PROMOTED' && candidate.promotedLeadId ? (
-                        <Link href={`/leads/${candidate.promotedLeadId}`} className="hover:underline group block">
-                          <h4 className="font-extrabold text-primary text-lg leading-snug mr-1 group-hover:text-primary/80 transition-colors">
-                            {candidate.rawName}
-                          </h4>
-                        </Link>
-                      ) : (
-                        <h4 className="font-extrabold text-card-foreground text-lg leading-snug mr-1">
-                          {candidate.rawName}
-                        </h4>
-                      )}
-                      
-                      {/* Priority Tag */}
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wide border ${
-                        candidate.triagePriority === 'HIGH' ? 'bg-destructive/10 text-destructive border-destructive/20' :
-                        candidate.triagePriority === 'MEDIUM' ? 'bg-chart-3/15 text-chart-3 border-chart-3/30' :
-                        candidate.triagePriority === 'SKIP' ? 'bg-muted text-muted-foreground border-border' :
-                        'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
-                      }`}>
-                        {candidate.triagePriority === 'HIGH' && <ShieldAlert className="w-3 h-3 shrink-0" />}
-                        {candidate.triagePriority === 'MEDIUM' && <AlertTriangle className="w-3 h-3 shrink-0" />}
-                        {candidate.triagePriority === 'UNASSESSED' && <Clock className="w-3 h-3 shrink-0 animate-pulse text-blue-500" />}
-                        {candidate.triagePriority === 'UNASSESSED' ? 'Pending Triage' : `${candidate.triagePriority} Priority`}
-                      </span>
-
-                      {/* Location Tag */}
-                      {candidate.rawLocation && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-muted text-muted-foreground border border-border/30">
-                          {candidate.rawLocation}
-                        </span>
-                      )}
-
-                      {/* Industry Tag parsed from notes */}
-                      {candidate.notes && candidate.notes.startsWith('Industry: ') && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
-                          {candidate.notes.replace('Industry: ', '')}
-                        </span>
-                      )}
+            </div>
+          ) : (
+            /* Candidate rows views (pending | promoted | discarded) */
+            <>
+              {filteredCandidates.length === 0 ? (
+                candidates.length === 0 ? (
+                  /* True empty state */
+                  <div className="bg-card border border-border rounded-xl p-12 text-center max-w-2xl mx-auto space-y-6 my-4">
+                    <div className="w-16 h-16 bg-primary/10 rounded-md flex items-center justify-center text-primary mx-auto">
+                      <Search className="w-8 h-8" />
                     </div>
-                    
-                    {candidate.rawWebsiteUrl && (
-                      <a
-                        href={candidate.rawWebsiteUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-primary hover:underline text-sm font-semibold flex items-center gap-1.5 w-fit"
+                    <div className="space-y-2">
+                      <h3 className="text-heading-lg text-card-foreground">No prospects found in this campaign</h3>
+                      <p className="text-copy-14 text-muted-foreground max-w-md mx-auto leading-relaxed">
+                        Start an automated scan with this campaign's target niche keywords to scan local maps and crawl candidate prospects.
+                      </p>
+                    </div>
+                    <div className="flex justify-center items-center gap-3 pt-2">
+                      <Button
+                        onClick={() => {
+                          setRefineForm({
+                            niche: scope.industryFilter || '',
+                            location: scope.geographyFilter || '',
+                            limit: 20,
+                          });
+                          setIsRefineModalOpen(true);
+                        }}
                       >
-                        <ExternalLink className="w-4 h-4 shrink-0" />
-                        <span className="truncate max-w-[220px] sm:max-w-md md:max-w-lg block">
-                          {candidate.rawWebsiteUrl}
-                        </span>
-                      </a>
-                    )}
-
-                    {candidate.triageReason && (
-                      <p className="text-xs font-semibold text-muted-foreground bg-muted/40 p-2.5 rounded-xl border border-border/50 leading-relaxed text-left w-fit max-w-full">
-                        <span className="font-bold text-foreground">Triage:</span> {candidate.triageReason}
+                        Run Scan
+                      </Button>
+                      <Button
+                        onClick={() => setIsModalOpen(true)}
+                        variant="outline"
+                      >
+                        Add Candidate
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  /* Tab empty state */
+                  <div className="bg-card border border-border rounded-xl p-10 text-center max-w-xl mx-auto space-y-4 my-4">
+                    <div className="w-12 h-12 bg-muted rounded-md flex items-center justify-center text-muted-foreground mx-auto">
+                      <FileText className="w-6 h-6" />
+                    </div>
+                    <div className="space-y-1">
+                      <h3 className="text-label-14 text-card-foreground capitalize">No prospects in {activeTab}</h3>
+                      <p className="text-label-12 text-muted-foreground max-w-xs mx-auto leading-relaxed">
+                        There are no qualified candidate prospects categorized under the active "{activeTab}" filter.
                       </p>
-                    )}
-
-                    {candidate.rawContactInfo && (
-                      <div className="text-xs font-semibold text-muted-foreground">
-                        <span className="font-bold text-foreground">Contact:</span> {candidate.rawContactInfo}
-                      </div>
-                    )}
-
-                    {candidate.notes && !candidate.notes.startsWith('Industry: ') && (
-                      <p className="text-sm text-muted-foreground bg-muted/30 p-3 rounded-xl border border-border whitespace-pre-wrap leading-relaxed">
-                        <span className="font-bold text-foreground">Notes:</span> {candidate.notes}
-                      </p>
+                    </div>
+                    {activeTab !== 'pending' && (
+                      <Button onClick={() => setActiveTab('pending')} variant="link" size="sm">
+                        View Pending Review
+                      </Button>
                     )}
                   </div>
-
-                  {/* Right hand Actions */}
-                  <div className="flex md:flex-col gap-2 shrink-0 md:items-stretch justify-end md:min-w-[130px]">
-                    {candidate.status !== 'PROMOTED' && candidate.status !== 'DISCARDED' && (
-                      <>
+                )
+              ) : (
+                <>
+                  {/* Skip candidates cleanup notice and Action button */}
+                  {activeTab === 'pending' && candidates.some(c => (c.status === 'NEW' || c.status === 'REVIEWED') && c.triagePriority === 'SKIP') && (
+                    <div className="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center bg-muted border border-border/60 p-4 rounded-2xl shadow-sm mb-4">
+                      <div className="text-label-12 text-muted-foreground font-semibold leading-relaxed flex items-center gap-1.5">
+                        <Info className="w-4 h-4 text-muted-foreground/80 shrink-0" />
+                        <span>Low-priority prospects (outdated sites or offline) are pushed to the bottom. Discard them in bulk to clear.</span>
+                      </div>
+                      <Dialog open={isBulkDiscardOpen} onOpenChange={setIsBulkDiscardOpen}>
                         <Button
-                          onClick={() => handleUpdateStatus(candidate.id, 'PROMOTED')}
-                          size="sm"
-                          className="w-full justify-center font-bold"
-                        >
-                          Promote to Lead
-                        </Button>
-                        <Button
-                          onClick={() => handleUpdateStatus(candidate.id, 'DISCARDED')}
+                          onClick={() => setIsBulkDiscardOpen(true)}
                           variant="outline"
                           size="sm"
-                          className="w-full justify-center font-bold"
+                          className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 hover:border-destructive/20 font-semibold flex items-center gap-1"
                         >
-                          Discard
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Discard all low-priority (SKIP)
                         </Button>
-                      </>
-                    )}
-                    {candidate.status === 'PROMOTED' && candidate.promotedLeadId && (
-                      <Link
-                        href={`/leads/${candidate.promotedLeadId}?autoEnrich=true`}
-                        className="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-bold bg-chart-2/20 text-chart-2 border border-chart-2/30 hover:bg-chart-2/30 hover:text-chart-2/95 transition-colors text-center"
-                      >
-                        Research Lead &rarr;
-                      </Link>
-                    )}
+                        <DialogContent className="sm:max-w-md bg-card border border-border rounded-2xl p-6 space-y-4">
+                          <DialogHeader>
+                            <DialogTitle className="font-semibold text-foreground">Confirm Bulk Discard</DialogTitle>
+                            <DialogDescription className="text-copy-14 leading-relaxed text-muted-foreground pt-1.5">
+                              Are you sure you want to discard all candidate prospects marked as "SKIP" priority? This will clear them from your pending review backlog.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="flex justify-end gap-3 pt-2">
+                            <Button variant="outline" size="sm" onClick={() => setIsBulkDiscardOpen(false)} disabled={discardProgress}>Keep Candidates</Button>
+                            <Button variant="destructive" size="sm" onClick={handleBulkDiscardSkip} disabled={discardProgress}>
+                              {discardProgress ? 'Discarding...' : 'Discard Candidates'}
+                            </Button>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                  )}
 
-                    {candidate.status === 'DISCARDED' && (
-                      <span className="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-bold bg-muted text-muted-foreground border border-border">
-                        Discarded
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
+                  {/* Candidate list items */}
+                  {filteredCandidates.map((candidate) => (
+                    <div
+                      key={candidate.id}
+                      className={`bg-card border border-border rounded-xl p-5 flex flex-col md:flex-row justify-between md:items-start gap-5 transition-all duration-200 border-l-4 ${
+                        candidate.triagePriority === 'HIGH' ? 'border-l-destructive/80' :
+                        candidate.triagePriority === 'MEDIUM' ? 'border-l-chart-3/80' :
+                        candidate.triagePriority === 'SKIP' ? 'opacity-60 bg-muted/20 border-l-muted' :
+                        'border-l-blue-400/40'
+                      }`}
+                    >
+                      <div className="space-y-2.5 flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {candidate.status === 'PROMOTED' && candidate.promotedLeadId ? (
+                            <Link href={`/leads/${candidate.promotedLeadId}`} className="hover:underline group block">
+                              <h4 className="font-semibold text-primary heading-lg leading-snug mr-1 group-hover:text-primary/80 transition-colors">
+                                {candidate.rawName}
+                              </h4>
+                            </Link>
+                          ) : (
+                            <h4 className="font-semibold text-card-foreground heading-lg leading-snug mr-1">
+                              {candidate.rawName}
+                            </h4>
+                          )}
+                          
+                          {/* Priority Tag */}
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-label-12 font-semibold uppercase tracking-wide border ${
+                            candidate.triagePriority === 'HIGH' ? 'bg-destructive/10 text-destructive border-destructive/20' :
+                            candidate.triagePriority === 'MEDIUM' ? 'bg-chart-3/15 text-chart-3 border-chart-3/30' :
+                            candidate.triagePriority === 'SKIP' ? 'bg-muted text-muted-foreground border-border' :
+                            'bg-primary/10 text-primary border-primary/20'
+                          }`}>
+                            {candidate.triagePriority === 'HIGH' && <ShieldAlert className="w-3 h-3 shrink-0" />}
+                            {candidate.triagePriority === 'MEDIUM' && <AlertTriangle className="w-3 h-3 shrink-0" />}
+                            {candidate.triagePriority === 'UNASSESSED' && <Clock className="w-3 h-3 shrink-0 animate-pulse text-chart-5" />}
+                            {candidate.triagePriority === 'UNASSESSED' ? 'Pending Triage' : `${candidate.triagePriority} Priority`}
+                          </span>
+
+                          {/* Location Tag */}
+                          {candidate.rawLocation && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-label-12 font-semibold bg-muted text-muted-foreground border border-border/30">
+                              {candidate.rawLocation}
+                            </span>
+                          )}
+
+                          {/* Industry parsed notes */}
+                          {candidate.notes && candidate.notes.startsWith('Industry: ') && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-label-12 font-semibold bg-primary/10 text-primary border border-primary/20">
+                              {candidate.notes.replace('Industry: ', '')}
+                            </span>
+                          )}
+                        </div>
+                        
+                        {candidate.rawWebsiteUrl && (
+                          <a
+                            href={candidate.rawWebsiteUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-primary hover:underline text-label-12 font-semibold flex items-center gap-1.5 w-fit"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                            <span className="truncate max-w-[200px] sm:max-w-md md:max-w-lg block">
+                              {candidate.rawWebsiteUrl}
+                            </span>
+                          </a>
+                        )}
+
+                        {candidate.triageReason && (
+                          <p className="text-label-12 font-semibold text-muted-foreground bg-muted/40 p-2.5 rounded-md leading-relaxed text-left w-fit max-w-full">
+                            <span className="font-semibold text-foreground">Triage:</span> {candidate.triageReason}
+                          </p>
+                        )}
+
+                        {candidate.rawContactInfo && (
+                          <div className="text-label-12 font-semibold text-muted-foreground">
+                            <span className="font-semibold text-foreground">Contact:</span> {candidate.rawContactInfo}
+                          </div>
+                        )}
+
+                        {candidate.notes && !candidate.notes.startsWith('Industry: ') && (
+                          <p className="text-label-12 text-muted-foreground bg-muted/30 p-3 rounded-md whitespace-pre-wrap leading-relaxed">
+                            <span className="font-semibold text-foreground">Notes:</span> {candidate.notes}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Right hand actions */}
+                      <div className="flex md:flex-col gap-2 shrink-0 md:items-stretch justify-end md:min-w-[130px] pt-2 md:pt-0">
+                        {candidate.status !== 'PROMOTED' && candidate.status !== 'DISCARDED' && (
+                          <>
+                            <Button
+                              onClick={() => handleUpdateStatus(candidate.id, 'PROMOTED')}
+                              size="sm"
+                              className="w-full justify-center font-semibold"
+                            >
+                              Promote to Lead
+                            </Button>
+                            <Button
+                              onClick={() => handleUpdateStatus(candidate.id, 'DISCARDED')}
+                              variant="outline"
+                              size="sm"
+                              className="w-full justify-center font-semibold"
+                            >
+                              Discard
+                            </Button>
+                          </>
+                        )}
+                        {candidate.status === 'PROMOTED' && candidate.promotedLeadId && (
+                          <Link
+                            href={`/leads/${candidate.promotedLeadId}?autoEnrich=true`}
+                            className="inline-flex items-center justify-center px-3 py-1.5 rounded-md text-label-12 font-semibold bg-chart-2/10 text-chart-2 border border-chart-2/20 hover:bg-chart-2/15 transition-colors text-center"
+                          >
+                            Research Lead &rarr;
+                          </Link>
+                        )}
+
+                        {candidate.status === 'DISCARDED' && (
+                          <span className="inline-flex items-center justify-center px-3 py-1 rounded-md text-label-12 font-semibold bg-muted text-muted-foreground border border-border">
+                            Discarded
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
             </>
           )}
         </div>
       </div>
 
-      {/* Collapsible Recent Crawls Section */}
-      <div className="bg-card border border-border/80 rounded-2xl p-5 shadow-sm space-y-4 transition-all duration-200">
-        <div className="flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-card-foreground">Campaign Discovery History</span>
-            <span className="text-xs text-muted-foreground font-bold uppercase">•</span>
-            <span className="text-xs text-muted-foreground font-bold">
-              {recentRuns.length} recent runs
-            </span>
-          </div>
-          <Button
-            onClick={() => setIsRecentRunsExpanded(!isRecentRunsExpanded)}
-            variant="link"
-            size="sm"
-          >
-            {isRecentRunsExpanded ? 'Hide History' : 'Show History'}
-          </Button>
-        </div>
-
-        {isRecentRunsExpanded && (
-          <div className="pt-4 border-t border-border animate-fade-in">
-            {recentRuns.length === 0 ? (
-              <p className="text-xs text-muted-foreground font-medium py-2">No recent discovery runs have been triggered for this campaign.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-muted text-muted-foreground font-bold uppercase text-xs tracking-wider border-b border-border">
-                    <tr>
-                      <th className="px-4 py-3">Keyword/Niche</th>
-                      <th className="px-4 py-3">Location</th>
-                      <th className="px-4 py-3">Status</th>
-                      <th className="px-4 py-3">Date</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border text-foreground font-medium">
-                    {recentRuns.map((run) => (
-                      <tr key={run.id} className="hover:bg-muted/50 transition">
-                        <td className="px-4 py-3 font-bold text-card-foreground">{run.niche}</td>
-                        <td className="px-4 py-3">{run.location}</td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase ${
-                            run.status === 'COMPLETED' ? 'bg-chart-2/10 text-chart-2 border border-chart-2/20' :
-                            run.status === 'FAILED' ? 'bg-destructive/10 text-destructive border border-destructive/20' :
-                            run.status === 'RUNNING' || run.status === 'QUEUED' ? 'bg-chart-5/10 text-chart-5 border border-chart-5/20 animate-pulse' :
-                            'bg-muted text-muted-foreground'
-                          }`}>
-                            {run.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-xs text-muted-foreground">
-                          {formatUTC(run.createdAt)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Manual Candidate Intake Modal */}
+      {/* Manual Candidate Intake Modal (Dialog) */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-foreground/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-card rounded-2xl border border-border w-full max-w-lg shadow-xl p-6 space-y-6">
-            <div className="flex justify-between items-center border-b border-border pb-4">
-              <h3 className="font-extrabold text-card-foreground text-lg">Add Prospect Candidate</h3>
+        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+          <DialogContent className="sm:max-w-lg bg-card border border-border rounded-2xl p-6 space-y-5">
+            <DialogHeader className="border-b border-border pb-3 flex flex-row items-center justify-between">
+              <div>
+                <DialogTitle className="font-semibold text-card-foreground">Add Prospect Candidate</DialogTitle>
+                <DialogDescription className="text-copy-14 text-muted-foreground mt-1">
+                  Add a candidate prospect to triage for promotion.
+                </DialogDescription>
+              </div>
               <Button
                 onClick={() => setIsModalOpen(false)}
                 variant="ghost"
-                size="icon-xs"
+                size="icon"
+                className="w-7 h-7"
+                aria-label="Close dialog"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" aria-hidden="true" />
               </Button>
-            </div>
+            </DialogHeader>
 
             <form onSubmit={handleAddCandidate} className="space-y-4">
               {modalError && (
-                <div className="bg-destructive/10 text-destructive p-3.5 rounded-xl text-xs font-semibold border border-destructive/20">
+                <div className="bg-destructive/10 text-destructive p-3.5 rounded-xl text-label-12 font-semibold border border-destructive/20">
                   {modalError}
                 </div>
               )}
 
-              <div>
-                <Label className="mb-1.5 block">Business Name *</Label>
+              <div className="space-y-1">
+                <Label htmlFor="candidate-name" className="text-label-12 font-semibold">Business Name *</Label>
                 <Input
                   required
+                  id="candidate-name"
                   type="text"
                   placeholder="e.g. Austin Smiles Dentistry"
                   value={newCandidate.rawName}
@@ -921,9 +972,10 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                 />
               </div>
 
-              <div>
-                <Label className="mb-1.5 block">Website URL</Label>
+              <div className="space-y-1">
+                <Label htmlFor="candidate-url" className="text-label-12 font-semibold">Website URL</Label>
                 <Input
+                  id="candidate-url"
                   type="url"
                   placeholder="e.g. https://austinsmiles.com"
                   value={newCandidate.rawWebsiteUrl}
@@ -932,18 +984,20 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="mb-1.5 block">Location</Label>
+                <div className="space-y-1">
+                  <Label htmlFor="candidate-loc" className="text-label-12 font-semibold">Location</Label>
                   <Input
+                    id="candidate-loc"
                     type="text"
                     placeholder="e.g. Austin, TX"
                     value={newCandidate.rawLocation}
                     onChange={(e) => setNewCandidate({ ...newCandidate, rawLocation: e.target.value })}
                   />
                 </div>
-                <div>
-                  <Label className="mb-1.5 block">Contact Info</Label>
+                <div className="space-y-1">
+                  <Label htmlFor="candidate-contact" className="text-label-12 font-semibold">Contact Info</Label>
                   <Input
+                    id="candidate-contact"
                     type="text"
                     placeholder="e.g. hello@website.com"
                     value={newCandidate.rawContactInfo}
@@ -952,10 +1006,11 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                 </div>
               </div>
 
-              <div>
-                <Label className="mb-1.5 block">Internal Prospect Notes</Label>
+              <div className="space-y-1">
+                <Label htmlFor="candidate-notes" className="text-label-12 font-semibold">Internal Prospect Notes</Label>
                 <Textarea
-                  placeholder="e.g. Website has poor SEO; no live chat system implemented..."
+                  id="candidate-notes"
+                  placeholder="e.g. Website has poor SEO; no live chat system..."
                   rows={3}
                   value={newCandidate.notes}
                   onChange={(e) => setNewCandidate({ ...newCandidate, notes: e.target.value })}
@@ -971,38 +1026,46 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                 </Button>
               </div>
             </form>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Refine Search / Find More Leads Modal (Credit Protection) */}
       {isRefineModalOpen && (
-        <div className="fixed inset-0 bg-foreground/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-card rounded-2xl border border-border w-full max-w-lg shadow-xl p-6 space-y-6">
-            <div className="flex justify-between items-center border-b border-border pb-4">
-              <h3 className="font-extrabold text-card-foreground text-lg">Find More Leads</h3>
+        <Dialog open={isRefineModalOpen} onOpenChange={setIsRefineModalOpen}>
+          <DialogContent className="sm:max-w-lg bg-card border border-border rounded-2xl p-6 space-y-5">
+            <DialogHeader className="border-b border-border pb-3 flex flex-row items-center justify-between">
+              <div>
+                <DialogTitle className="font-semibold text-card-foreground">Find More Leads</DialogTitle>
+                <DialogDescription className="text-copy-14 text-muted-foreground mt-1">
+                  Re-scan Google Maps to discover new prospect candidate businesses.
+                </DialogDescription>
+              </div>
               <Button
                 onClick={() => setIsRefineModalOpen(false)}
                 variant="ghost"
-                size="icon-xs"
+                size="icon"
+                className="w-7 h-7"
+                aria-label="Close dialog"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" aria-hidden="true" />
               </Button>
-            </div>
+            </DialogHeader>
 
-            <div className="bg-chart-5/10 border border-chart-5/20 text-chart-5 p-4 rounded-xl text-xs font-semibold leading-relaxed flex gap-3">
-              <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
+            <div className="bg-chart-5/10 border border-chart-5/20 text-chart-5 p-4 rounded-xl text-label-12 font-semibold leading-relaxed flex gap-3">
+              <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-chart-5" />
               <div>
-                <span className="font-bold block mb-1">Credit Allocation Warning</span>
-                Apify restarts from scratch on every run. To avoid paying for duplicate results, refine your search criteria by entering a specific Zip code, suburb, or a keyword variation.
+                <span className="font-semibold block mb-1">Credit Allocation Warning</span>
+                Apify starts crawlers from scratch. To avoid paying for duplicate results, refine your search criteria by zip codes, suburbs, or niche variations.
               </div>
             </div>
 
             <form onSubmit={handleRefineSearchSubmit} className="space-y-4">
-              <div>
-                <Label className="mb-1.5 block">Niche / Keyword</Label>
+              <div className="space-y-1">
+                <Label htmlFor="refine-niche" className="text-label-12 font-semibold">Niche / Keyword</Label>
                 <Input
                   required
+                  id="refine-niche"
                   type="text"
                   placeholder="e.g. Roofers, Dentists"
                   value={refineForm.niche}
@@ -1010,10 +1073,11 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                 />
               </div>
 
-              <div>
-                <Label className="mb-1.5 block">Refined Location (City, Zip Code, Suburb)</Label>
+              <div className="space-y-1">
+                <Label htmlFor="refine-loc" className="text-label-12 font-semibold">Refined Location (Suburbs, Zip Codes)</Label>
                 <Input
                   required
+                  id="refine-loc"
                   type="text"
                   placeholder="e.g. Austin TX 78701, Plano"
                   value={refineForm.location}
@@ -1021,12 +1085,13 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                 />
               </div>
 
-              <div>
-                <Label className="mb-1.5 block">Limit</Label>
+              <div className="space-y-1">
+                <Label htmlFor="refine-limit" className="text-label-12 font-semibold">Limit</Label>
                 <select
+                  id="refine-limit"
                   value={refineForm.limit}
                   onChange={(e) => setRefineForm({ ...refineForm, limit: Number(e.target.value) })}
-                  className="flex h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  className="flex h-10 w-full min-w-0 rounded-md border border-input bg-card px-3 py-2 text-copy-14 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring text-foreground hover:bg-muted/40 cursor-pointer"
                 >
                   <option value={1}>1 Lead</option>
                   <option value={5}>5 Leads</option>
@@ -1046,8 +1111,8 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                 </Button>
               </div>
             </form>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

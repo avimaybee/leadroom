@@ -2,11 +2,9 @@ import { getDb } from '@/db';
 import { IntegrationsService } from '@/services/integrations';
 import { ProviderConfigForm } from '@/components/settings/ProviderConfigForm';
 import { ActiveProviderPicker } from '@/components/settings/ActiveProviderPicker';
-import Link from 'next/link';
-
 
 export const metadata = {
-  title: 'Integrations | Agency OS',
+  title: 'AI Integrations | Leadroom',
 };
 
 export const dynamic = 'force-dynamic';
@@ -22,32 +20,8 @@ export default async function IntegrationsPage() {
   const aimlConfig = await service.getProviderConfig('aiml');
 
   return (
-    <div className="max-w-4xl">
-      {/* Settings sub-nav */}
-      <div className="flex items-center gap-1 mb-6 border-b border-border pb-4">
-        <Link
-          href="/settings/pipeline"
-          className="px-3 py-1.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-        >
-          Preferences
-        </Link>
-        <Link
-          href="/settings/integrations"
-          className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-primary text-primary-foreground"
-          aria-current="page"
-        >
-          Integrations
-        </Link>
-      </div>
-
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-card-foreground tracking-tight">Integrations</h1>
-        <p className="text-muted-foreground mt-2 text-sm max-w-2xl">
-          Configure your AI providers for lead research and enrichment. Setting an active provider will route all AI requests to that service.
-        </p>
-      </div>
-
-
+    <div className="space-y-8 max-w-4xl">
+      {/* Routing Controller */}
       <ActiveProviderPicker
         configs={{
           gemini: geminiConfig,
@@ -58,41 +32,51 @@ export default async function IntegrationsPage() {
         }}
       />
 
-      <div className="space-y-6">
-        <ProviderConfigForm
-          provider="openrouter"
-          displayName="OpenRouter"
-          defaultModel="google/gemini-2.5-flash"
-          config={openrouterConfig}
-        />
+      {/* Provider Details Section */}
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-heading-xl text-foreground">AI Providers</h2>
+          <p className="text-muted-foreground mt-1 text-copy-14">
+            Manage credentials, models, and options for each integrated provider below.
+          </p>
+        </div>
 
-        <ProviderConfigForm
-          provider="gemini"
-          displayName="Google Gemini"
-          defaultModel="gemini-2.5-flash"
-          config={geminiConfig}
-        />
+        <div className="space-y-3">
+          <ProviderConfigForm
+            provider="openrouter"
+            displayName="OpenRouter"
+            defaultModel="google/gemini-2.5-flash"
+            config={openrouterConfig}
+          />
 
-        <ProviderConfigForm
-          provider="nvidia"
-          displayName="NVIDIA NIM (OpenAI Compatible)"
-          defaultModel="meta/llama-3.1-70b-instruct"
-          config={nvidiaConfig}
-        />
+          <ProviderConfigForm
+            provider="gemini"
+            displayName="Google Gemini"
+            defaultModel="gemini-2.5-flash"
+            config={geminiConfig}
+          />
 
-        <ProviderConfigForm
-          provider="groq"
-          displayName="Groq (OpenAI Compatible)"
-          defaultModel="llama3-70b-8192"
-          config={groqConfig}
-        />
+          <ProviderConfigForm
+            provider="nvidia"
+            displayName="NVIDIA NIM (OpenAI Compatible)"
+            defaultModel="meta/llama-3.1-70b-instruct"
+            config={nvidiaConfig}
+          />
 
-        <ProviderConfigForm
-          provider="aiml"
-          displayName="AI/ML API (OpenAI Compatible)"
-          defaultModel="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
-          config={aimlConfig}
-        />
+          <ProviderConfigForm
+            provider="groq"
+            displayName="Groq (OpenAI Compatible)"
+            defaultModel="llama3-70b-8192"
+            config={groqConfig}
+          />
+
+          <ProviderConfigForm
+            provider="aiml"
+            displayName="AI/ML API (OpenAI Compatible)"
+            defaultModel="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+            config={aimlConfig}
+          />
+        </div>
       </div>
     </div>
   );

@@ -36,12 +36,12 @@ export function ResearchEditForm({
         formAction(fd);
         onSave();
       }}
-      className="bg-card p-6 rounded-2xl border border-border shadow-sm space-y-6 animate-fade-in"
+      className="bg-card p-6 rounded-xl border border-border space-y-6 animate-fade-in"
     >
       <div className="flex justify-between items-center border-b border-border pb-4">
         <div>
-          <h4 className="text-base font-bold text-foreground">Edit Research Snapshot</h4>
-          <p className="text-xs text-muted-foreground mt-0.5">Edit research fields or enrich outcomes manually.</p>
+          <h4 className="text-heading-lg text-foreground">Edit Research Snapshot</h4>
+          <p className="text-copy-13 text-muted-foreground mt-0.5">Edit research fields or enrich outcomes manually.</p>
         </div>
         <div className="flex gap-2">
           <Button type="button" onClick={onCancel} variant="outline" size="sm">
@@ -57,7 +57,7 @@ export function ResearchEditForm({
 
       <div className="grid grid-cols-1 gap-5">
         <div>
-          <Label className="text-xs uppercase tracking-wider mb-1.5">Company Summary</Label>
+          <Label className="text-label-12 uppercase mb-1.5">Company Summary</Label>
           <Textarea
             name="companySummary"
             defaultValue={initialSnapshot?.companySummary || ''}
@@ -67,7 +67,7 @@ export function ResearchEditForm({
         </div>
 
         <div>
-          <Label className="text-xs uppercase tracking-wider mb-1.5">Products & Services</Label>
+          <Label className="text-label-12 uppercase mb-1.5">Products & Services</Label>
           <Textarea
             name="productsServicesSummary"
             defaultValue={initialSnapshot?.productsServicesSummary || ''}
@@ -78,7 +78,7 @@ export function ResearchEditForm({
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <Label className="text-xs uppercase tracking-wider mb-1.5">Digital Footprint Notes</Label>
+            <Label className="text-label-12 uppercase mb-1.5">Digital Footprint Notes</Label>
             <Textarea
               name="digitalPresenceNotes"
               defaultValue={initialSnapshot?.digitalPresenceNotes || ''}
@@ -87,7 +87,7 @@ export function ResearchEditForm({
             />
           </div>
           <div>
-            <Label className="text-xs uppercase tracking-wider mb-1.5">Website Critique</Label>
+            <Label className="text-label-12 uppercase mb-1.5">Website Critique</Label>
             <Textarea
               name="websiteNotes"
               defaultValue={initialSnapshot?.websiteNotes || ''}
@@ -96,7 +96,7 @@ export function ResearchEditForm({
             />
           </div>
           <div>
-            <Label className="text-xs uppercase tracking-wider mb-1.5">Branding Observations</Label>
+            <Label className="text-label-12 uppercase mb-1.5">Branding Observations</Label>
             <Textarea
               name="brandingNotes"
               defaultValue={initialSnapshot?.brandingNotes || ''}
@@ -108,7 +108,7 @@ export function ResearchEditForm({
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <Label className="text-xs uppercase tracking-wider mb-1.5">Pain Points Hypotheses</Label>
+            <Label className="text-label-12 uppercase mb-1.5">Pain Points Hypotheses</Label>
             <Textarea
               name="painPointsHypotheses"
               defaultValue={initialSnapshot?.painPointsHypotheses || ''}
@@ -117,7 +117,7 @@ export function ResearchEditForm({
             />
           </div>
           <div>
-            <Label className="text-xs uppercase tracking-wider mb-1.5">Agency Growth Opportunities</Label>
+            <Label className="text-label-12 uppercase mb-1.5">Agency Growth Opportunities</Label>
             <Textarea
               name="opportunityHypotheses"
               defaultValue={initialSnapshot?.opportunityHypotheses || ''}
@@ -129,7 +129,7 @@ export function ResearchEditForm({
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <Label className="text-xs uppercase tracking-wider mb-1.5">Sources (one URL per line)</Label>
+            <Label className="text-label-12 uppercase mb-1.5">Sources (one URL per line)</Label>
             <Textarea
               name="sources"
               defaultValue={sourcesList.join('\n')}
@@ -139,11 +139,11 @@ export function ResearchEditForm({
             />
           </div>
           <div>
-            <Label className="text-xs uppercase tracking-wider mb-1.5">Research Confidence</Label>
+            <Label className="text-label-12 uppercase mb-1.5">Research Confidence</Label>
             <select
               name="confidenceLevel"
               defaultValue={initialSnapshot?.confidenceLevel || 'MEDIUM'}
-              className="flex h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 text-foreground"
+              className="flex h-10 w-full min-w-0 rounded-md border border-input bg-card px-3 py-2 text-copy-14 transition-colors outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring text-foreground cursor-pointer"
             >
               <option value="HIGH" className="bg-card text-foreground">High Confidence</option>
               <option value="MEDIUM" className="bg-card text-foreground">Medium Confidence</option>

@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { ChevronDown, ChevronUp, KeyRound, AlertTriangle } from 'lucide-react';
 import { saveIntegrationConfigAction, deleteIntegrationConfigAction } from '@/app/(dashboard)/settings/integrations/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 
 interface ProviderConfig {
   provider: string;
@@ -73,8 +73,8 @@ function ApiKeySection({
   loadingModels: boolean;
 }) {
   return (
-    <div>
-      <Label htmlFor={`${provider}-apiKey`}>API Key</Label>
+    <div className="space-y-1.5">
+      <Label htmlFor={`${provider}-apiKey`} className="text-label-12 uppercase text-muted-foreground">API Key</Label>
       <div className="flex gap-2">
         <Input
           type="password"
@@ -82,11 +82,12 @@ function ApiKeySection({
           name="apiKey"
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
-          placeholder="Enter your API key"
+          placeholder="Enter API key"
           required
+          className="text-copy-14"
         />
         {apiKey && (
-          <Button type="button" variant="outline" size="sm" onClick={() => onFetchModels(apiKey)} disabled={loadingModels}>
+          <Button type="button" variant="outline" size="sm" onClick={() => onFetchModels(apiKey)} disabled={loadingModels} className="shrink-0">
             {loadingModels ? 'Fetching...' : 'Fetch Models'}
           </Button>
         )}
@@ -115,8 +116,8 @@ function ModelSelectSection({
   setCustomModelName: (val: string) => void;
 }) {
   return (
-    <div>
-      <Label htmlFor={`${provider}-modelName`}>Model Name</Label>
+    <div className="space-y-1.5">
+      <Label htmlFor={`${provider}-modelName`} className="text-label-12 uppercase text-muted-foreground">Model Name</Label>
       <select
         id={`${provider}-modelName`}
         value={isCustomModel ? 'custom' : selectedModel}
@@ -128,7 +129,7 @@ function ModelSelectSection({
             setSelectedModel(e.target.value);
           }
         }}
-        className="w-full rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 text-foreground"
+        className="w-full rounded-md border border-input bg-transparent px-2.5 py-1.5 text-copy-14 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 text-foreground"
       >
         {models.map((model) => (
           <option key={model.id} value={model.id} className="bg-card text-foreground">
@@ -139,15 +140,16 @@ function ModelSelectSection({
       </select>
 
       {isCustomModel && (
-        <div className="mt-3">
+        <div className="mt-3 animate-fade-in">
           <Input
             type="text"
             value={customModelName}
             onChange={(e) => setCustomModelName(e.target.value)}
             placeholder="Enter custom model ID (e.g. google/gemini-2.5-pro)"
             required
+            className="text-copy-14"
           />
-          <p className="mt-1.5 text-xs text-muted-foreground">
+          <p className="mt-1.5 text-label-12 text-muted-foreground font-medium">
             Type the exact ID required by the API provider.
           </p>
         </div>
@@ -166,6 +168,8 @@ export function ProviderConfigForm({ provider, displayName, defaultModel, config
   const [selectedModel, setSelectedModel] = useState(config?.modelName || defaultModel);
   const [isCustomModel, setIsCustomModel] = useState(false);
   const [customModelName, setCustomModelName] = useState('');
+  
+  const [isExpanded, setIsExpanded] = useState(!config?.apiKey);
 
   async function loadLiveModels(keyToUse: string) {
     if (!keyToUse || keyToUse === 'placeholder' || keyToUse.trim() === '') {
@@ -231,7 +235,7 @@ export function ProviderConfigForm({ provider, displayName, defaultModel, config
     if (res.error) {
       setMessage({ type: 'error', text: res.error });
     } else {
-      setMessage({ type: 'success', text: 'Configuration saved successfully.' });
+      setMessage({ type: 'success', text: 'Configuration saved.' });
     }
     
     setLoading(false);
@@ -259,66 +263,118 @@ export function ProviderConfigForm({ provider, displayName, defaultModel, config
     setLoading(false);
   }
 
+  const isConfigured = !!config?.apiKey;
+  const isActive = !!config?.isActive;
+
   return (
-    <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden mb-6">
-      <div className="px-6 py-5 border-b border-border flex justify-between items-center bg-muted/30">
-        <h3 className="text-lg font-semibold text-foreground">{displayName}</h3>
-        {config?.isActive && (
-          <Badge variant="secondary" className="bg-chart-2/10 text-chart-2">Active</Badge>
-        )}
+    <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden transition-all duration-200">
+      {/* Collapsed view toggle header */}
+      <div 
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 cursor-pointer hover:bg-muted/20 transition-colors select-none"
+      >
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-muted rounded-xl text-muted-foreground shrink-0">
+            <KeyRound className="h-4.5 w-4.5" />
+          </div>
+          <div>
+            <h3 className="text-label-14 font-semibold text-foreground leading-none">{displayName}</h3>
+            {isConfigured ? (
+              <span className="text-label-12 text-muted-foreground mt-1.5 font-medium block">
+                Model: <code className="bg-muted px-1.5 py-0.5 rounded text-mono-12 text-foreground font-semibold">{selectedModel}</code>
+              </span>
+            ) : (
+              <span className="text-label-12 text-muted-foreground mt-1.5 font-medium block">
+                Not configured
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 self-end sm:self-auto shrink-0">
+          {isActive ? (
+            <span className="inline-flex items-center gap-1.5 text-label-12 font-semibold text-chart-2 bg-chart-2/10 border border-chart-2/20 px-2.5 py-0.5 rounded-full">
+              <span className="h-1.5 w-1.5 rounded-full bg-chart-2 animate-pulse" />
+              Active Routing
+            </span>
+          ) : isConfigured ? (
+            <span className="inline-flex items-center gap-1.5 text-label-12 font-semibold text-muted-foreground bg-muted border border-border px-2.5 py-0.5 rounded-full">
+              <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60" />
+              Configured
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 text-label-12 font-semibold text-destructive/80 bg-destructive/10 border border-destructive/20 px-2.5 py-0.5 rounded-full">
+              Not Configured
+            </span>
+          )}
+          
+          <Button 
+            type="button" 
+            variant="ghost" 
+            size="icon-sm"
+            className="text-muted-foreground hover:bg-muted"
+            aria-label={isExpanded ? "Collapse settings" : "Expand settings"}
+          >
+            {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </Button>
+        </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="p-6 space-y-5">
-        {message && (
-          <div className={`p-4 rounded-xl text-sm font-medium ${message.type === 'error' ? 'bg-destructive/10 text-destructive border border-destructive/20' : 'bg-chart-2/10 text-chart-2 border border-chart-2/20'}`}>
-            {message.text}
-          </div>
-        )}
-
-        <ApiKeySection 
-          provider={provider} 
-          apiKey={apiKey} 
-          setApiKey={setApiKey} 
-          onFetchModels={loadLiveModels} 
-          loadingModels={loadingModels} 
-        />
-
-        <ModelSelectSection 
-          provider={provider} 
-          models={models} 
-          selectedModel={selectedModel} 
-          setSelectedModel={setSelectedModel} 
-          isCustomModel={isCustomModel} 
-          setIsCustomModel={setIsCustomModel} 
-          customModelName={customModelName} 
-          setCustomModelName={setCustomModelName} 
-        />
-
-        <div className="flex items-center gap-3 pt-2">
-          <input
-            type="checkbox"
-            id={`${provider}-isActive`}
-            name="isActive"
-            defaultChecked={config ? (config.isActive ?? true) : true}
-            className="w-4 h-4 text-primary border-input rounded focus:ring-primary"
-          />
-          <Label htmlFor={`${provider}-isActive`}>
-            Set as active provider for AI tasks
-          </Label>
-        </div>
-
-        <div className="flex gap-3 pt-4 border-t border-border">
-          <Button type="submit" disabled={loading}>
-            {loading ? 'Saving...' : 'Save Configuration'}
-          </Button>
-          
-          {config && (
-            <Button type="button" variant="destructive" onClick={handleDelete} disabled={loading}>
-              Remove
-            </Button>
+      {/* Expanded config form */}
+      {isExpanded && (
+        <form onSubmit={handleSubmit} className="px-6 pb-6 pt-3 border-t border-border space-y-5 animate-fade-in bg-muted/5">
+          {message && (
+            <div className={`p-4 rounded-xl text-label-12 font-semibold flex items-start gap-2 ${message.type === 'error' ? 'bg-destructive/10 text-destructive border border-destructive/20' : 'bg-chart-2/10 text-chart-2 border border-chart-2/20'}`}>
+              {message.type === 'error' && <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />}
+              <span>{message.text}</span>
+            </div>
           )}
-        </div>
-      </form>
+
+          <ApiKeySection 
+            provider={provider} 
+            apiKey={apiKey} 
+            setApiKey={setApiKey} 
+            onFetchModels={loadLiveModels} 
+            loadingModels={loadingModels} 
+          />
+
+          <ModelSelectSection 
+            provider={provider} 
+            models={models} 
+            selectedModel={selectedModel} 
+            setSelectedModel={setSelectedModel} 
+            isCustomModel={isCustomModel} 
+            setIsCustomModel={setIsCustomModel} 
+            customModelName={customModelName} 
+            setCustomModelName={setCustomModelName} 
+          />
+
+          <div className="flex items-center gap-2.5 pt-2">
+            <input
+              type="checkbox"
+              id={`${provider}-isActive`}
+              name="isActive"
+              defaultChecked={config ? (config.isActive ?? true) : true}
+              className="w-4 h-4 text-primary border-input rounded focus:ring-primary focus:ring-offset-2"
+            />
+            <Label htmlFor={`${provider}-isActive`} className="text-label-14 font-semibold text-foreground cursor-pointer">
+              Set as active provider for AI tasks
+            </Label>
+          </div>
+
+          <div className="flex gap-2.5 pt-4 border-t border-border">
+            <Button type="submit" disabled={loading} size="sm">
+              {loading ? 'Saving...' : 'Save Configuration'}
+            </Button>
+            
+            {config && (
+              <Button type="button" variant="destructive" size="sm" onClick={handleDelete} disabled={loading}>
+                Remove Configuration
+              </Button>
+            )}
+          </div>
+        </form>
+      )}
     </div>
   );
 }

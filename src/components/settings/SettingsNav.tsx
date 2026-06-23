@@ -34,21 +34,21 @@ export function SettingsNav() {
             key={item.href}
             href={item.href}
             className={cn(
-              'flex flex-col md:flex-row md:items-center gap-1.5 md:gap-3 px-3 py-2.5 md:px-4 md:py-3.5 rounded-lg text-left transition-all duration-200 w-full',
+              'flex flex-col md:flex-row md:items-center gap-1.5 md:gap-3 px-3 py-2.5 md:px-4 md:py-3 rounded-md text-left transition-all duration-200 w-full border border-transparent',
               isActive
-                ? 'bg-card text-foreground border border-border shadow-sm font-semibold md:bg-primary md:text-primary-foreground md:border-transparent md:shadow-md'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted/50 font-medium'
+                ? 'bg-muted text-foreground border-border/50 shadow-xs font-semibold'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/30 font-medium'
             )}
           >
-            <Icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-foreground md:text-primary-foreground' : 'text-muted-foreground')} />
+            <Icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-primary' : 'text-muted-foreground')} />
             <div className="flex flex-col text-left">
-              <span className="text-xs md:text-sm font-semibold truncate leading-none">
+              <span className="text-label-12 md:text-label-14 truncate leading-none">
                 {item.name}
               </span>
               <span
                 className={cn(
-                  'hidden md:inline-block text-[11px] mt-0.5 font-normal leading-normal max-w-[180px] truncate',
-                  isActive ? 'text-foreground/80 md:text-primary-foreground/80' : 'text-muted-foreground'
+                  'hidden md:inline-block text-label-12 mt-1 font-normal leading-normal max-w-[180px] truncate',
+                  isActive ? 'text-muted-foreground/90' : 'text-muted-foreground'
                 )}
               >
                 {item.description}

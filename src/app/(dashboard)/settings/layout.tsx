@@ -6,7 +6,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       {/* Breadcrumbs */}
-      <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground tracking-wide uppercase">
+      <div className="flex items-center gap-1.5 text-label-12 text-muted-foreground tracking-wide uppercase">
         <Link href="/" className="hover:text-foreground transition-colors">
           Dashboard
         </Link>
@@ -16,10 +16,10 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
 
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
+        <h1 className="text-heading-3xl">
           System Settings
         </h1>
-        <p className="text-muted-foreground mt-2 text-sm max-w-2xl font-medium">
+        <p className="text-muted-foreground mt-2 text-copy-14 max-w-2xl">
           Manage pipeline timing rules, active routing rules, and credentials for AI providers.
         </p>
       </div>

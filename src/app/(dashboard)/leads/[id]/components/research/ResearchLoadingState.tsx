@@ -10,18 +10,18 @@ interface ResearchLoadingStateProps {
 
 export function ResearchLoadingState({ jobStatus, leadId, onCancel }: ResearchLoadingStateProps) {
   return (
-    <div className="bg-card p-8 rounded-2xl border border-border shadow-md max-w-xl mx-auto space-y-6">
+    <div className="bg-card p-8 rounded-2xl border border-border max-w-xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-primary/10 text-primary rounded-xl">
             <Loader2 className="h-5 w-5 animate-spin" />
           </div>
           <div>
-            <h4 className="text-sm font-bold text-foreground uppercase tracking-wider">Research Pipeline Executing</h4>
-            <p className="text-xs text-muted-foreground font-semibold mt-0.5">Cloudflare Workflows durable agent run</p>
+            <h4 className="text-label-14 text-foreground uppercase">Research Pipeline Executing</h4>
+            <p className="text-label-12 text-muted-foreground mt-0.5">Cloudflare Workflows durable agent run</p>
           </div>
         </div>
-        <span className="px-2 py-0.5 rounded-lg text-xs font-bold uppercase bg-chart-5/10 text-chart-5 border border-chart-5/20 animate-pulse">
+        <span className="px-2 py-0.5 rounded-lg text-label-12 uppercase bg-chart-5/10 text-chart-5 border border-chart-5/20 animate-pulse">
           {jobStatus || 'QUEUED'}
         </span>
       </div>
@@ -71,10 +71,10 @@ export function ResearchLoadingState({ jobStatus, leadId, onCancel }: ResearchLo
                 ) : null}
               </div>
               <div>
-                <p className={`text-xs font-bold ${isCurrentStep ? 'text-primary' : isStepCompleted ? 'text-foreground' : 'text-muted-foreground'}`}>
+                <p className={`text-label-12 ${isCurrentStep ? 'text-primary' : isStepCompleted ? 'text-foreground' : 'text-muted-foreground'}`}>
                   {step.label}
                 </p>
-                <p className="text-xs text-muted-foreground font-medium">{step.desc}</p>
+                <p className="text-label-12 text-muted-foreground">{step.desc}</p>
               </div>
             </div>
           );
@@ -89,7 +89,7 @@ export function ResearchLoadingState({ jobStatus, leadId, onCancel }: ResearchLo
             } catch (_) {}
             onCancel();
           }}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-destructive hover:bg-destructive/10 border border-destructive/30 hover:border-destructive/50 transition"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-label-12 text-destructive hover:bg-destructive/10 border border-destructive/30 hover:border-destructive/50 transition"
         >
           <XCircle className="w-3.5 h-3.5" />
           Cancel Research

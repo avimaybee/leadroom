@@ -213,9 +213,9 @@ export function StageThresholdsTable({ initialThresholds }: Props) {
     <div className="relative">
       {/* Table header */}
       <div className="hidden sm:grid grid-cols-[1fr_160px_auto] gap-4 px-4 pb-2 border-b border-border mb-2">
-        <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Stage</span>
-        <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Status</span>
-        <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Threshold</span>
+        <span className="text-label-12 text-muted-foreground uppercase">Stage</span>
+        <span className="text-label-12 text-muted-foreground uppercase">Status</span>
+        <span className="text-label-12 text-muted-foreground uppercase">Threshold</span>
       </div>
 
       {/* Stage rows */}
@@ -247,7 +247,7 @@ export function StageThresholdsTable({ initialThresholds }: Props) {
       {/* Sticky save bar — appears only when there are dirty rows */}
       {hasDirty && (
         <div className="sticky bottom-0 mt-4 -mx-1 px-4 py-3 rounded-2xl border border-border/80 bg-card/95 backdrop-blur-sm shadow-lg flex items-center justify-between gap-4 z-10">
-          <p className="text-sm font-semibold text-foreground">
+          <p className="text-label-14 font-semibold text-foreground">
             {dirtySet.size === 1
               ? '1 unsaved change'
               : `${dirtySet.size} unsaved changes`}

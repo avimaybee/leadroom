@@ -10,6 +10,62 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
 
+  /* Design tokens — Typography (from DESIGN.md) */
+  --text-heading-4xl: 36px;
+  --text-heading-4xl--line-height: 40px;
+  --text-heading-4xl--font-weight: 700;
+  --text-heading-4xl--letter-spacing: -0.9px;
+
+  --text-heading-3xl: 30px;
+  --text-heading-3xl--line-height: 36px;
+  --text-heading-3xl--font-weight: 700;
+  --text-heading-3xl--letter-spacing: -0.75px;
+
+  --text-heading-2xl: 24px;
+  --text-heading-2xl--line-height: 32px;
+  --text-heading-2xl--font-weight: 700;
+  --text-heading-2xl--letter-spacing: -0.6px;
+
+  --text-heading-xl: 20px;
+  --text-heading-xl--line-height: 28px;
+  --text-heading-xl--font-weight: 600;
+  --text-heading-xl--letter-spacing: -0.4px;
+
+  --text-heading-lg: 18px;
+  --text-heading-lg--line-height: 28px;
+  --text-heading-lg--font-weight: 600;
+  --text-heading-lg--letter-spacing: -0.36px;
+
+  --text-label-14: 14px;
+  --text-label-14--line-height: 20px;
+  --text-label-14--font-weight: 600;
+
+  --text-label-12: 12px;
+  --text-label-12--line-height: 16px;
+  --text-label-12--font-weight: 600;
+
+  --text-copy-16: 16px;
+  --text-copy-16--line-height: 24px;
+  --text-copy-16--font-weight: 400;
+
+  --text-copy-14: 14px;
+  --text-copy-14--line-height: 20px;
+  --text-copy-14--font-weight: 400;
+
+  --text-copy-13: 13px;
+  --text-copy-13--line-height: 18px;
+  --text-copy-13--font-weight: 400;
+
+  --text-mono-14: 14px;
+  --text-mono-14--line-height: 20px;
+  --text-mono-14--font-weight: 500;
+  --text-mono-14--font-family: var(--font-sans);
+
+  --text-mono-12: 12px;
+  --text-mono-12--line-height: 16px;
+  --text-mono-12--font-weight: 500;
+  --text-mono-12--font-family: var(--font-sans);
+
   @keyframes fade-in {
     from {
       opacity: 0;
@@ -178,7 +234,7 @@
   body {
     @apply bg-background text-foreground;
   }
-html {
+  html {
     @apply font-sans;
   }
 }
@@ -205,4 +261,14 @@ html {
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-delay: 0s !important;
+    animation-duration: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0s !important;
+    scroll-behavior: auto !important;
+  }
 }

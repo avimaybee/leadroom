@@ -1,10 +1,11 @@
 # Login Plan
 
-## Priority
+## Status
 
-- Rank: 10
-- Route: `/login`
-- Role: authenticated entry point
+- **Status**: Completed & Verified
+- **Priority Rank**: 10
+- **Route**: `/login`
+- **Role**: Authenticated entry point
 
 ## Current issues
 

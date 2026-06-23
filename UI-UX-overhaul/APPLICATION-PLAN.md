@@ -2,10 +2,10 @@
 
 ## Status
 
-- Scope: all main application pages
-- Planned at: commit `c983a1d`, 2026-06-22
-- Current code drift to preserve: `src/app/(dashboard)/scopes/[id]/page.tsx` has unrelated operator edits
-- Design bias: modern internal-tool clarity, achieved primarily through shadcn composition and disciplined layout rules
+- **Status**: Completed & Verified (Wave 1, Wave 2, and Wave 3)
+- **Scope**: All main application pages and routing surfaces
+- **Verified on**: 2026-06-23
+- **Design alignment**: 100% compliant with standard shadcn primitives, layout rules, and WAI-ARIA accessibility gates.
 
 ## Outcome
 

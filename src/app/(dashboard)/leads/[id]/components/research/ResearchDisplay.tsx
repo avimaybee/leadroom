@@ -50,15 +50,15 @@ export function ResearchDisplay({
   const sourcesList = parseSources(initialSnapshot.sources);
 
   return (
-    <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden animate-fade-in">
+    <div className="bg-card rounded-xl border border-border overflow-hidden animate-fade-in">
       {jobError && (
         jobError.includes('429') ? (
-          <div className="bg-chart-5/10 border-b border-chart-5/20 text-chart-5 p-3 text-xs font-semibold text-center flex items-center justify-center gap-2">
+          <div className="bg-chart-5/10 border-b border-chart-5/20 text-chart-5 p-3 text-label-12 font-semibold text-center flex items-center justify-center gap-2">
             <AlertTriangle className="w-4 h-4 shrink-0" />
             Cloudflare Browser Run limit exceeded. You can manually edit the research below.
           </div>
         ) : (
-          <div className="bg-destructive/10 border-b border-destructive/20 text-destructive p-3 text-xs font-semibold text-center flex items-center justify-center gap-2">
+          <div className="bg-destructive/10 border-b border-destructive/20 text-destructive p-3 text-label-12 font-semibold text-center flex items-center justify-center gap-2">
             <AlertTriangle className="w-4 h-4 animate-bounce" />
             {jobError}
           </div>
@@ -68,12 +68,12 @@ export function ResearchDisplay({
       <div className="p-5 border-b border-border flex flex-wrap justify-between items-center gap-3 bg-muted/40">
         <div>
           <div className="flex items-center gap-2">
-            <h4 className="text-base font-bold text-foreground">Research snapshot</h4>
-            <span className={`px-2 py-0.5 rounded-lg text-xs font-bold uppercase ${getConfidenceColor(initialSnapshot.confidenceLevel)}`}>
+            <h4 className="heading-xl font-semibold text-foreground">Research Snapshot</h4>
+            <span className={`px-2 py-0.5 rounded-md text-label-12 font-semibold uppercase ${getConfidenceColor(initialSnapshot.confidenceLevel)}`}>
               {initialSnapshot.confidenceLevel} Confidence
             </span>
           </div>
-          <p className="text-xs text-muted-foreground font-semibold mt-0.5">
+          <p className="text-label-12 text-muted-foreground mt-0.5">
             Origin: {initialSnapshot.origin} &bull; Updated: {formatUTC(initialSnapshot.updatedAt)}
           </p>
         </div>
@@ -96,7 +96,7 @@ export function ResearchDisplay({
             key={tab}
             onClick={() => setActiveTab(tab)}
             variant="ghost"
-            className={`py-3.5 px-4 text-xs font-bold border-b-2 transition rounded-none ${
+            className={`py-3.5 px-4 text-label-12 font-semibold border-b-2 transition rounded-none ${
               activeTab === tab
                 ? 'border-foreground text-foreground'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -112,14 +112,14 @@ export function ResearchDisplay({
         {activeTab === 'overview' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <span className="text-xs font-bold text-card-foreground block">Company Summary</span>
-              <p className="text-xs text-foreground font-medium leading-relaxed bg-muted/50 p-4 rounded-xl border border-border/50">
+              <span className="text-label-12 font-semibold text-card-foreground block">Company Summary</span>
+              <p className="text-copy-13 text-foreground font-medium leading-relaxed bg-muted/50 p-4 rounded-md">
                 {initialSnapshot.companySummary || 'No summary registered yet.'}
               </p>
             </div>
             <div className="space-y-2">
-              <span className="text-xs font-bold text-card-foreground block">Products & Services</span>
-              <p className="text-xs text-foreground font-medium leading-relaxed bg-muted/50 p-4 rounded-xl border border-border/50">
+              <span className="text-label-12 font-semibold text-card-foreground block">Products & Services</span>
+              <p className="text-copy-13 text-foreground font-medium leading-relaxed bg-muted/50 p-4 rounded-md">
                 {initialSnapshot.productsServicesSummary || 'No products/services list registered yet.'}
               </p>
             </div>
@@ -129,20 +129,20 @@ export function ResearchDisplay({
         {activeTab === 'audit' && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="space-y-2">
-              <span className="text-xs font-bold text-card-foreground block">Digital Presence</span>
-              <p className="text-xs text-foreground font-medium leading-relaxed bg-muted/50 p-4 rounded-xl border border-border/50 h-full">
+              <span className="text-label-12 font-semibold text-card-foreground block">Digital Presence</span>
+              <p className="text-copy-13 text-foreground font-medium leading-relaxed bg-muted/50 p-4 rounded-md h-full">
                 {initialSnapshot.digitalPresenceNotes || 'No notes.'}
               </p>
             </div>
             <div className="space-y-2">
-              <span className="text-xs font-bold text-card-foreground block">Website Critique</span>
-              <p className="text-xs text-foreground font-medium leading-relaxed bg-muted/50 p-4 rounded-xl border border-border/50 h-full">
+              <span className="text-label-12 font-semibold text-card-foreground block">Website Critique</span>
+              <p className="text-copy-13 text-foreground font-medium leading-relaxed bg-muted/50 p-4 rounded-md h-full">
                 {initialSnapshot.websiteNotes || 'No notes.'}
               </p>
             </div>
             <div className="space-y-2">
-              <span className="text-xs font-bold text-card-foreground block">Branding Observations</span>
-              <p className="text-xs text-foreground font-medium leading-relaxed bg-muted/50 p-4 rounded-xl border border-border/50 h-full">
+              <span className="text-label-12 font-semibold text-card-foreground block">Branding Observations</span>
+              <p className="text-copy-13 text-foreground font-medium leading-relaxed bg-muted/50 p-4 rounded-md h-full">
                 {initialSnapshot.brandingNotes || 'No notes.'}
               </p>
             </div>
@@ -152,8 +152,8 @@ export function ResearchDisplay({
         {activeTab === 'opportunity' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <span className="text-xs font-bold text-card-foreground block">Potential Pain Points</span>
-              <div className="text-xs text-foreground font-medium leading-relaxed bg-muted/50 p-4 rounded-xl border border-border/50 prose-markdown">
+              <span className="text-label-12 font-semibold text-card-foreground block">Potential Pain Points</span>
+              <div className="text-copy-13 text-foreground font-medium leading-relaxed bg-muted/50 p-4 rounded-md prose-markdown">
                 {initialSnapshot.painPointsHypotheses ? (
                   <ReactMarkdown>{initialSnapshot.painPointsHypotheses}</ReactMarkdown>
                 ) : (
@@ -162,8 +162,8 @@ export function ResearchDisplay({
               </div>
             </div>
             <div className="space-y-2">
-              <span className="text-xs font-bold text-card-foreground block">Agency Opportunities</span>
-              <div className="text-xs text-foreground font-medium leading-relaxed bg-muted/50 p-4 rounded-xl border border-border/50 prose-markdown">
+              <span className="text-label-12 font-semibold text-card-foreground block">Agency Opportunities</span>
+              <div className="text-copy-13 text-foreground font-medium leading-relaxed bg-muted/50 p-4 rounded-md prose-markdown">
                 {initialSnapshot.opportunityHypotheses ? (
                   <ReactMarkdown>{initialSnapshot.opportunityHypotheses}</ReactMarkdown>
                 ) : (
@@ -177,7 +177,7 @@ export function ResearchDisplay({
         {/* Sources Footer */}
         {sourcesList.length > 0 && (
           <div className="pt-4 border-t border-border">
-            <span className="text-xs font-bold text-card-foreground block mb-2">Sources Checked</span>
+            <span className="text-label-12 font-semibold text-card-foreground block mb-2">Sources Checked</span>
             <div className="flex flex-wrap gap-2">
               {sourcesList.map((src, i) => {
                 const isUrl = (str: string) => {
@@ -198,7 +198,7 @@ export function ResearchDisplay({
                       href={src}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted hover:bg-muted/80 border border-border/60 text-xs font-bold text-primary transition"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted hover:bg-muted/80 border border-border text-label-12 font-semibold text-primary transition animate-[fade-in_150ms_ease-out]"
                     >
                       <ExternalLink className="w-3.5 h-3.5" />
                       {src.replace(/https?:\/\/(www\.)?/, '').substring(0, 30)}
@@ -209,7 +209,7 @@ export function ResearchDisplay({
                   return (
                     <span
                       key={i}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted border border-border/60 text-xs font-bold text-muted-foreground"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted border border-border text-label-12 font-semibold text-muted-foreground animate-[fade-in_150ms_ease-out]"
                     >
                       <FileText className="w-3.5 h-3.5" />
                       {src}

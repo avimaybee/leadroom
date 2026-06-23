@@ -24,10 +24,10 @@ export default function LeadDetailErrorBoundary({
       </div>
 
       <div className="text-center space-y-2 max-w-md">
-        <h2 className="text-xl font-extrabold text-card-foreground tracking-tight">Something went wrong</h2>
-        <p className="text-sm text-muted-foreground font-semibold leading-relaxed">
+        <h2 className="text-heading-xl text-card-foreground">Something went wrong</h2>
+        <p className="text-copy-14 text-muted-foreground font-semibold leading-relaxed">
           An error occurred while loading or displaying the lead profile details.
-          {error.message && <code className="block mt-2 p-2 bg-muted border border-border rounded text-xs text-foreground font-mono text-left max-h-32 overflow-auto">{error.message}</code>}
+          {error.message && <code className="block mt-2 p-2 bg-muted border border-border rounded text-mono-12 text-foreground font-mono text-left max-h-32 overflow-auto">{error.message}</code>}
         </p>
       </div>
 

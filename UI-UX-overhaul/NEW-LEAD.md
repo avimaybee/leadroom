@@ -1,10 +1,11 @@
 # New Lead Plan
 
-## Priority
+## Status
 
-- Rank: 7
-- Route: `/leads/new`
-- Role: manual lead intake
+- **Status**: Completed & Verified
+- **Priority Rank**: 7
+- **Route**: `/leads/new`
+- **Role**: Manual lead intake
 
 ## Current issues
 

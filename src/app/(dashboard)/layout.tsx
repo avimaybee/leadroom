@@ -18,9 +18,9 @@ const navItems = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Leads', href: '/leads', icon: Users },
   { name: 'Campaigns', href: '/scopes', icon: Target },
-  { name: 'Preferences', href: '/settings/pipeline', icon: SlidersHorizontal },
-  { name: 'Integrations', href: '/settings/integrations', icon: Settings },
+  { name: 'Settings', href: '/settings/pipeline', icon: Settings },
 ];
+
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -79,6 +79,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <NotificationProvider>
       <div className="min-h-screen bg-background flex">
+        {/* Skip to Main Content Link */}
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-lg focus:font-semibold focus:shadow-md focus:outline-none"
+        >
+          Skip to main content
+        </a>
+
         {/* Sidebar */}
       <aside
         ref={sidebarRef}
@@ -92,13 +100,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           className={`flex items-center border-b border-sidebar-border w-full text-left hover:bg-sidebar-accent transition-colors cursor-pointer ${collapsed ? 'justify-center p-3' : 'p-6 gap-3'}`}
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-black shadow-md shrink-0">
+          <div className="w-8 h-8 rounded-md bg-primary flex items-center justify-center text-primary-foreground font-black shadow-sm shrink-0">
             L
           </div>
           {!collapsed && (
             <div className="truncate flex-1">
-              <h1 className="text-lg font-bold tracking-tight text-sidebar-foreground leading-tight">Leadroom</h1>
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Internal OS</span>
+              <h1 className="heading-xl font-semibold text-sidebar-foreground leading-tight">Leadroom</h1>
+              <span className="text-label-12 font-semibold text-muted-foreground uppercase tracking-widest">Internal OS</span>
             </div>
           )}
         </button>
@@ -112,11 +120,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center rounded-xl font-medium text-sm transition-all duration-200 ${
+                className={`flex items-center rounded-md font-medium text-label-14 transition-all duration-200 ${
                   collapsed ? 'justify-center p-3' : 'px-4 py-3 gap-3'
                 } ${
                   active
-                    ? 'text-sidebar-primary-foreground bg-sidebar-primary shadow-lg font-semibold'
+                    ? 'text-sidebar-primary-foreground bg-sidebar-primary shadow-sm font-semibold'
                     : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent'
                 }`}
                 title={collapsed ? item.name : undefined}
@@ -130,7 +138,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Footer */}
         {!collapsed && (
-          <div className="p-6 border-t border-sidebar-border text-xs font-medium text-muted-foreground">
+          <div className="p-6 border-t border-sidebar-border text-label-12 font-medium text-muted-foreground">
             Logged in as Agency Admin
           </div>
         )}
@@ -148,11 +156,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </div>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0">
+      <main id="main-content" tabIndex={-1} className="flex-1 flex flex-col min-w-0 outline-none">
         <header className="bg-card border-b border-border px-8 py-4 flex justify-between items-center shrink-0">
           <div className="flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-chart-2 animate-pulse" />
-            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">System Live</span>
+            <span className="text-label-12 text-muted-foreground uppercase">System Live</span>
           </div>
           <div className="flex items-center gap-4">
             <NotificationBell />

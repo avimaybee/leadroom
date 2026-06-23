@@ -1,10 +1,11 @@
 # Campaign Creation Plan
 
-## Priority
+## Status
 
-- Rank: 6
-- Route: `/scopes/new`
-- Role: guided intake for repeatable discovery
+- **Status**: Completed & Verified
+- **Priority Rank**: 6
+- **Route**: `/scopes/new`
+- **Role**: Guided intake for repeatable discovery
 
 ## Current issues
 

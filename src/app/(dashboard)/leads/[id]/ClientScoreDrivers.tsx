@@ -47,16 +47,16 @@ export function ClientScoreDrivers({ factors, scoreValue, scoreLabel }: ClientSc
         className="w-full flex items-center justify-between p-5 hover:bg-muted/30 transition-colors text-left"
       >
         <div className="min-w-0">
-          <span className="text-sm font-bold text-card-foreground flex items-center gap-2">
+          <span className="text-label-14 font-semibold text-card-foreground flex items-center gap-2">
             Priority Score Driver Breakdown
             {!isOpen && (
-              <span className="text-xs font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-lg">
+              <span className="text-label-12 font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-lg">
                 {drivers.length} {drivers.length === 1 ? 'factor' : 'factors'}
               </span>
             )}
           </span>
           {!isOpen && (
-            <p className="text-xs text-muted-foreground font-medium mt-1">
+            <p className="text-label-12 text-muted-foreground font-medium mt-1">
               Click to see how the score breaks down by contributing factors
             </p>
           )}
@@ -79,7 +79,7 @@ export function ClientScoreDrivers({ factors, scoreValue, scoreLabel }: ClientSc
                   className="flex items-center gap-3 py-1 group"
                   title={d.description}
                 >
-                  <span className="text-xs font-semibold text-card-foreground w-48 truncate shrink-0">
+                  <span className="text-label-12 font-semibold text-card-foreground w-48 truncate shrink-0">
                     {d.name}
                   </span>
                   <div className="flex-1 h-5 bg-muted rounded-full overflow-hidden">
@@ -91,7 +91,7 @@ export function ClientScoreDrivers({ factors, scoreValue, scoreLabel }: ClientSc
                     />
                   </div>
                   <span
-                    className={`text-xs font-black w-10 text-right shrink-0 ${
+                    className={`label-12 font-black w-10 text-right shrink-0 ${
                       d.value > 0
                         ? 'text-chart-2'
                         : d.value < 0
@@ -107,18 +107,18 @@ export function ClientScoreDrivers({ factors, scoreValue, scoreLabel }: ClientSc
           </div>
 
           {scoreValue !== null && (
-            <div className="flex items-center justify-between text-xs text-muted-foreground font-semibold border-t border-border pt-3">
+            <div className="flex items-center justify-between text-label-12 text-muted-foreground font-semibold border-t border-border pt-3">
               <span>
                 +{totalPos} from positives &middot; &minus;{totalNeg} from negatives
               </span>
-              <span className="font-bold text-card-foreground">
+              <span className="font-semibold text-card-foreground">
                 Net: +{totalPos - totalNeg} &rarr; {scoreValue}/100
                 {scoreLabel ? ` ${scoreLabel}` : ''}
               </span>
             </div>
           )}
 
-          <p className="text-xs text-muted-foreground italic">
+          <p className="text-label-12 text-muted-foreground italic">
             Hover any row for details on each factor.
           </p>
         </div>

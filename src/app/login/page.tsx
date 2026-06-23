@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Eye, EyeOff, AlertTriangle, Loader2 } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Eye, EyeOff, AlertTriangle, Loader2, ShieldAlert } from 'lucide-react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -33,10 +34,10 @@ export default function LoginPage() {
         router.push('/');
         router.refresh();
       } else {
-        setError(data.error || 'Login failed');
+        setError(data.error || 'Access denied. Invalid credentials.');
       }
     } catch (err) {
-      setError('An unexpected error occurred');
+      setError('An unexpected system error occurred.');
     } finally {
       setLoading(false);
     }
@@ -44,74 +45,109 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12 sm:px-6 lg:px-8 relative overflow-hidden">
-      <div className="w-full max-w-md space-y-8 bg-card p-10 rounded-3xl shadow-xl border border-border relative z-10">
-        <div className="text-center">
-          <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center text-primary-foreground font-black mx-auto mb-6 text-xl">
+      {/* Visual background details */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-transparent to-transparent pointer-events-none" />
+      <div className="absolute -top-40 -left-40 w-80 h-80 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-40 -right-40 w-80 h-80 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
+
+      <div className="w-full max-w-[420px] space-y-6 relative z-10 animate-fade-in">
+        {/* Brand header */}
+        <div className="text-center space-y-2 select-none">
+          <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-black mx-auto">
             L
           </div>
-          <h2 className="text-3xl font-extrabold tracking-tight text-foreground">
-            Leadroom
-          </h2>
-          <p className="mt-2 text-sm font-semibold text-muted-foreground">
-            Internal Agency Access
-          </p>
+          <div>
+            <h2 className="heading-2xl font-extrabold text-foreground leading-none">
+              Leadroom
+            </h2>
+            <p className="mt-2 text-label-12 font-semibold text-muted-foreground uppercase tracking-widest">
+              Internal OS Console
+            </p>
+          </div>
         </div>
         
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="email-address">Email address</Label>
-              <Input
-                id="email-address"
-                name="email"
-                type="email"
-                autoComplete="username"
-                required
-                placeholder="email@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label htmlFor="password">Password</Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  name="password"
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  required
-                  placeholder="Password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="pr-10"
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 my-auto mr-1"
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showPassword ? <EyeOff /> : <Eye />}
-                </Button>
+        {/* Form Card */}
+        <Card className="border border-border">
+          <CardContent className="p-8">
+            <form className="space-y-5" onSubmit={handleSubmit}>
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="email-address" className="text-label-12 uppercase text-muted-foreground">
+                    Email Address
+                  </Label>
+                  <Input
+                    id="email-address"
+                    name="email"
+                    type="email"
+                    autoComplete="username"
+                    required
+                    placeholder="name@agency.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </div>
+                
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password" className="text-label-12 uppercase text-muted-foreground">
+                      Password
+                    </Label>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      name="password"
+                      type={showPassword ? 'text' : 'password'}
+                      autoComplete="current-password"
+                      required
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="pr-10"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 my-auto mr-1 text-muted-foreground hover:bg-transparent"
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+                    </Button>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
 
-          {error && (
-            <div className="bg-destructive/10 text-destructive p-4 rounded-xl text-xs font-semibold border border-destructive/20 animate-fade-in flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
+              {error && (
+                <div className="bg-destructive/10 text-destructive p-3.5 rounded-md text-label-12 font-semibold border border-destructive/20 animate-fade-in flex items-start gap-2.5">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+                  <div className="space-y-0.5">
+                    <span className="block font-semibold">Authentication Failed</span>
+                    <span className="text-muted-foreground font-medium">{error}</span>
+                  </div>
+                </div>
+              )}
 
-          <Button type="submit" disabled={loading} className="w-full">
-            {loading && <Loader2 className="animate-spin" />}
-            {loading ? 'Authenticating...' : 'Sign In'}
-          </Button>
-        </form>
+              <Button type="submit" disabled={loading} className="w-full font-semibold">
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" aria-hidden="true" />
+                    Connecting...
+                  </>
+                ) : (
+                  'Access Console'
+                )}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        {/* Security Trust Note */}
+        <div className="text-center flex items-center justify-center gap-1.5 text-label-12 font-semibold text-muted-foreground select-none">
+          <ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />
+          <span>Restricted to authorized agency operators only.</span>
+        </div>
       </div>
     </div>
   );

@@ -6,6 +6,7 @@ import { formatUTC } from '@/lib/date';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, CheckCircle, Mail, User, Check, EyeOff, Eye } from 'lucide-react';
 import { toggleTriageStatusAction } from '@/app/actions/triage';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 export type UnifiedItemType = 'lead' | 'task' | 'draft';
 
@@ -23,9 +24,22 @@ export interface UnifiedItem {
 }
 
 export default function UnifiedActionFeed({ items }: { items: UnifiedItem[] }) {
-  const [showRead, setShowRead] = useState(false);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const showRead = searchParams.get('seen') === 'true';
+  
   const [pendingItems, setPendingItems] = useState<Record<string, boolean>>({});
   const [isPending, startTransition] = useTransition();
+
+  const setShowRead = (val: boolean) => {
+    const next = new URLSearchParams(searchParams.toString());
+    if (val) {
+      next.set('seen', 'true');
+    } else {
+      next.delete('seen');
+    }
+    router.replace(`?${next.toString()}`, { scroll: false });
+  };
 
   const filteredItems = items.filter(item => showRead || !item.isRead);
 
@@ -44,21 +58,21 @@ export default function UnifiedActionFeed({ items }: { items: UnifiedItem[] }) {
 
   if (filteredItems.length === 0 && items.length === 0) {
     return (
-      <div className="text-center text-sm font-semibold text-muted-foreground py-6">
-        No action needed items.
-      </div>
+<div className="text-center text-copy-14 text-muted-foreground py-6">
+          No action needed items.
+        </div>
     );
   }
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center mb-2">
-        <h3 className="text-sm font-bold text-foreground uppercase tracking-wider border-b border-border pb-1">
+        <h3 className="text-label-14 text-foreground uppercase border-b border-border pb-1">
           Daily Priority ({items.filter(i => !i.isRead).length})
         </h3>
         <button
           onClick={() => setShowRead(!showRead)}
-          className="text-xs font-semibold text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+          className="text-label-12 text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
         >
           {showRead ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
           {showRead ? 'Hide Seen' : 'Show Seen'}
@@ -66,7 +80,7 @@ export default function UnifiedActionFeed({ items }: { items: UnifiedItem[] }) {
       </div>
 
       {filteredItems.length === 0 ? (
-        <div className="text-center text-sm font-semibold text-muted-foreground py-6 border border-dashed rounded-xl border-border">
+        <div className="text-center text-copy-14 text-muted-foreground py-6 border border-dashed rounded-xl border-border">
           All caught up! No unread items.
         </div>
       ) : (
@@ -80,28 +94,28 @@ export default function UnifiedActionFeed({ items }: { items: UnifiedItem[] }) {
             >
               <div className="flex-1 min-w-0 space-y-1">
                 <div className="flex items-center gap-2 mb-1">
-                  {item.type === 'lead' && <Badge variant="secondary" className="text-[10px] uppercase"><User className="w-3 h-3 mr-1" /> Lead</Badge>}
-                  {item.type === 'task' && <Badge variant="outline" className="text-[10px] uppercase"><CheckCircle className="w-3 h-3 mr-1" /> Task</Badge>}
-                  {item.type === 'draft' && <Badge variant="default" className="text-[10px] uppercase"><Mail className="w-3 h-3 mr-1" /> Draft</Badge>}
+                  {item.type === 'lead' && <Badge variant="secondary" className="text-label-12 uppercase"><User className="w-3 h-3 mr-1" /> Lead</Badge>}
+                  {item.type === 'task' && <Badge variant="outline" className="text-label-12 uppercase"><CheckCircle className="w-3 h-3 mr-1" /> Task</Badge>}
+                  {item.type === 'draft' && <Badge variant="default" className="text-label-12 uppercase"><Mail className="w-3 h-3 mr-1" /> Draft</Badge>}
                   
                   {item.priority && (
-                    <Badge variant={item.priority === 'High' ? 'destructive' : 'outline'} className="text-[10px]">
+                    <Badge variant={item.priority === 'High' ? 'destructive' : 'outline'} className="text-label-12">
                       {item.priority}
                     </Badge>
                   )}
                   {item.status && (
-                    <Badge variant="outline" className="text-[10px]">
+                    <Badge variant="outline" className="text-label-12">
                       {item.status}
                     </Badge>
                   )}
                 </div>
 
-                <Link href={item.link} className="text-sm font-semibold block leading-tight text-card-foreground hover:underline hover:text-primary transition-colors">
+                <Link href={item.link} className="text-copy-14 font-semibold block leading-tight text-card-foreground hover:underline hover:text-primary transition-colors">
                   {item.title}
                 </Link>
 
                 {item.subtitle && (
-                  <p className="text-xs text-muted-foreground leading-normal line-clamp-1">
+                  <p className="text-copy-13 text-muted-foreground leading-normal line-clamp-1">
                     {item.type !== 'lead' && 'For: '}
                     {item.type !== 'lead' && item.leadId ? (
                       <Link href={`/leads/${item.leadId}`} className="hover:underline text-primary font-medium">{item.subtitle}</Link>
@@ -113,7 +127,7 @@ export default function UnifiedActionFeed({ items }: { items: UnifiedItem[] }) {
                 
                 {item.date && (
                   <div className="flex flex-wrap gap-2 items-center pt-1.5">
-                    <span className={`text-xs font-semibold flex items-center gap-1 ${
+                    <span className={`text-label-12 flex items-center gap-1 ${
                       item.type === 'task' && new Date(item.date) < new Date() ? 'text-destructive' : 'text-muted-foreground'
                     }`}>
                       <Calendar className={`w-3.5 h-3.5 ${item.type === 'task' && new Date(item.date) < new Date() ? 'text-destructive' : 'text-muted-foreground'}`} />
@@ -127,7 +141,7 @@ export default function UnifiedActionFeed({ items }: { items: UnifiedItem[] }) {
               <div className="shrink-0 pt-1 sm:pt-0">
                 <button
                   onClick={() => handleToggleRead(item)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-label-12 transition-colors ${
                     item.isRead 
                       ? 'bg-muted text-muted-foreground hover:bg-secondary hover:text-secondary-foreground' 
                       : 'bg-primary/10 text-primary hover:bg-primary/20'

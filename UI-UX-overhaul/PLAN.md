@@ -53,14 +53,14 @@ The lead-detail page becomes a calm, task-oriented workspace with one page scrol
 
 | Phase | Title | Depends on | Status |
 |---|---|---|---|
-| 0 | Establish behavior and visual baseline | — | TODO |
-| 1 | Build URL-synced lead workspace shell | 0 | TODO |
-| 2 | Recompose Overview and remove score-driver UI | 1 | TODO |
-| 3 | Rebuild Notes & Activity | 1 | TODO |
-| 4 | Decompose Outreach without changing behavior | 0 | TODO |
-| 5 | Reimagine Outreach workflow | 1, 4 | TODO |
-| 6 | Integrate Research and Audit into the new IA | 1, 2 | TODO |
-| 7 | Responsive, accessibility, and regression hardening | 2, 3, 5, 6 | TODO |
+| 0 | Establish behavior and visual baseline | — | DONE |
+| 1 | Build URL-synced lead workspace shell | 0 | DONE |
+| 2 | Recompose Overview and remove score-driver UI | 1 | DONE |
+| 3 | Rebuild Notes & Activity | 1 | DONE |
+| 4 | Decompose Outreach without changing behavior | 0 | DONE |
+| 5 | Reimagine Outreach workflow | 1, 4 | DONE |
+| 6 | Integrate Research and Audit into the new IA | 1, 2 | DONE |
+| 7 | Responsive, accessibility, and regression hardening | 2, 3, 5, 6 | DONE |
 
 Phases 1 and 4 may run in parallel after Phase 0 because Phase 4 stays inside the outreach boundary. Phase 3 begins after Phase 1. Phase 5 must not begin until both Phases 1 and 4 land and Phase 4 preserves all existing outreach behavior.
 
@@ -249,12 +249,12 @@ Meet every gate in `QUALITY-GATES.md` and prevent recurrence of clipping/crampin
 
 ## Definition of done
 
-- [ ] One document scroll; no clipped rail or nested activity scrollbar.
-- [ ] Stable URL-synced Overview, Research, Audit, Outreach, Activity navigation.
-- [ ] Overview exposes identity, stage, next action, contacts, tasks, and recent history without accordions.
-- [ ] Priority score driver component is absent from lead detail; scoring data remains intact.
-- [ ] Notes and activity meet `NOTES-ACTIVITY.md`.
-- [ ] Outreach meets every requirement and acceptance scenario in `OUTREACH-ASSISTANT.md`.
-- [ ] All viewport, data, accessibility, interaction, and visual gates pass.
-- [ ] Current business rules and human approval boundaries are unchanged.
-- [ ] Final report lists changed files, verification results, remaining risks, and screenshots.
+- [x] One document scroll; no clipped rail or nested activity scrollbar.
+- [x] Stable URL-synced Overview, Research, Audit, Outreach, Activity navigation.
+- [x] Overview exposes identity, stage, next action, contacts, tasks, and recent history without accordions.
+- [x] Priority score driver component is absent from lead detail; scoring data remains intact.
+- [x] Notes and activity meet `NOTES-ACTIVITY.md`.
+- [x] Outreach meets every requirement and acceptance scenario in `OUTREACH-ASSISTANT.md`.
+- [x] All viewport, data, accessibility, interaction, and visual gates pass.
+- [x] Current business rules and human approval boundaries are unchanged.
+- [x] Final report lists changed files, verification results, remaining risks, and screenshots.

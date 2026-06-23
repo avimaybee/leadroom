@@ -1,10 +1,11 @@
 # Leads List Plan
 
-## Priority
+## Status
 
-- Rank: 2
-- Route: `/leads`
-- Role: primary triage and pipeline management surface
+- **Status**: Completed & Verified
+- **Priority Rank**: 2
+- **Route**: `/leads`
+- **Role**: Primary triage and pipeline management surface
 
 ## Current issues
 

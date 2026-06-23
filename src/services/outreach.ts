@@ -78,8 +78,23 @@ export class OutreachService {
     this.cleanOldAttachments().catch(e => console.error('Background cleanup failed', e));
 
     return this.db
-      .select()
+      .select({
+        id: outreachDrafts.id,
+        leadId: outreachDrafts.leadId,
+        channel: outreachDrafts.channel,
+        subject: outreachDrafts.subject,
+        body: outreachDrafts.body,
+        status: outreachDrafts.status,
+        isRead: outreachDrafts.isRead,
+        origin: outreachDrafts.origin,
+        createdByUserId: outreachDrafts.createdByUserId,
+        createdAt: outreachDrafts.createdAt,
+        updatedAt: outreachDrafts.updatedAt,
+        attachments: outreachDrafts.attachments,
+        feedback: approvals.feedback,
+      })
       .from(outreachDrafts)
+      .leftJoin(approvals, eq(outreachDrafts.id, approvals.draftId))
       .where(eq(outreachDrafts.leadId, leadId))
       .orderBy(desc(outreachDrafts.createdAt));
   }
@@ -88,12 +103,27 @@ export class OutreachService {
    * Retrieves a specific draft by its ID.
    */
   async getDraftById(id: string) {
-    const [draft] = await this.db
-      .select()
+    const results = await this.db
+      .select({
+        id: outreachDrafts.id,
+        leadId: outreachDrafts.leadId,
+        channel: outreachDrafts.channel,
+        subject: outreachDrafts.subject,
+        body: outreachDrafts.body,
+        status: outreachDrafts.status,
+        isRead: outreachDrafts.isRead,
+        origin: outreachDrafts.origin,
+        createdByUserId: outreachDrafts.createdByUserId,
+        createdAt: outreachDrafts.createdAt,
+        updatedAt: outreachDrafts.updatedAt,
+        attachments: outreachDrafts.attachments,
+        feedback: approvals.feedback,
+      })
       .from(outreachDrafts)
+      .leftJoin(approvals, eq(outreachDrafts.id, approvals.draftId))
       .where(eq(outreachDrafts.id, id))
       .limit(1);
-    return draft || null;
+    return results[0] || null;
   }
 
   /**

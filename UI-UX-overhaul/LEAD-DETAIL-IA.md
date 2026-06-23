@@ -1,5 +1,12 @@
 # Lead Detail Information Architecture
 
+## Status
+
+- **Status**: Completed & Verified
+- **Priority Rank**: 1
+- **Route**: `/leads/[id]`
+- **Role**: Core operational lead details workspace
+
 ## Primary operator questions
 
 The page must answer these questions in order:

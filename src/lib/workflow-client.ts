@@ -116,7 +116,7 @@ export async function triggerResearchWorkflow(
           userId,
           jobId,
           'Research Completed',
-          `Research workflow for lead has been completed successfully.`,
+          `Research workflow for lead completed.`,
           'SUCCESS',
           `/dashboard/leads/${leadId}/research`
         );

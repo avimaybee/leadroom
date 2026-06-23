@@ -30,8 +30,8 @@ export function DraftStatusPath({ status, feedback }: DraftStatusPathProps) {
 
   if (status === 'REJECTED') {
     return (
-      <div className="bg-destructive/10 border border-destructive/20 text-destructive p-4 rounded-xl space-y-2 text-xs font-medium">
-        <div className="flex items-center gap-1.5 font-bold">
+      <div className="bg-destructive/10 border border-destructive/20 text-destructive p-4 rounded-xl space-y-2 text-label-12">
+        <div className="flex items-center gap-1.5 font-semibold">
           <XCircle className="w-4 h-4 shrink-0" />
           <span>Outreach Draft Rejected</span>
         </div>
@@ -47,8 +47,8 @@ export function DraftStatusPath({ status, feedback }: DraftStatusPathProps) {
   }
 
   return (
-    <div className="bg-muted/30 border border-border/60 p-3.5 rounded-2xl flex flex-wrap items-center gap-3 md:gap-5 text-xs">
-      <span className="font-bold text-muted-foreground uppercase tracking-wider text-[10px] shrink-0">Progress:</span>
+    <div className="bg-muted/30 border border-border/60 p-3.5 rounded-2xl flex flex-wrap items-center gap-3 md:gap-5 text-label-12">
+      <span className="text-label-12 text-muted-foreground uppercase shrink-0">Progress:</span>
       <div className="flex items-center gap-1.5 md:gap-3 flex-wrap">
         {steps.map((step, idx) => {
           // A step is completed if activeIndex is further, active if index matches, otherwise pending.
@@ -75,9 +75,9 @@ export function DraftStatusPath({ status, feedback }: DraftStatusPathProps) {
             <div key={step.key} className="flex items-center gap-1.5 md:gap-3">
               {idx > 0 && <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/40 shrink-0" />}
               <div
-                className={`flex items-center gap-1.5 font-bold transition-colors ${
+                className={`flex items-center gap-1.5 font-semibold transition-colors ${
                   stepStatus === 'completed'
-                    ? 'text-chart-2 font-bold'
+                    ? 'text-chart-2 font-semibold'
                     : stepStatus === 'active'
                     ? 'text-primary font-extrabold'
                     : 'text-muted-foreground font-semibold'
@@ -88,7 +88,7 @@ export function DraftStatusPath({ status, feedback }: DraftStatusPathProps) {
                 ) : stepStatus === 'active' ? (
                   <AlertCircle className="w-3.5 h-3.5 shrink-0 text-primary animate-pulse" />
                 ) : (
-                  <div className="w-3.5 h-3.5 rounded-full border border-muted-foreground/45 flex items-center justify-center text-[8px] font-bold shrink-0">
+                  <div className="w-3.5 h-3.5 rounded-full border border-muted-foreground/45 flex items-center justify-center text-[8px] font-semibold shrink-0">
                     {idx + 1}
                   </div>
                 )}

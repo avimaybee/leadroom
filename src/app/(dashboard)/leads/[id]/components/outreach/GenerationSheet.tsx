@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -39,21 +39,21 @@ export function GenerationSheet({
   errorMsg,
 }: GenerationSheetProps) {
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="sm:max-w-md w-full max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-sm font-bold uppercase tracking-wider text-foreground">
+    <Sheet open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <SheetContent className="sm:max-w-md w-full flex flex-col h-full overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle className="text-label-14 text-foreground uppercase">
             Generate {selectedChannel.toLowerCase()} Draft
-          </DialogTitle>
-          <DialogDescription className="text-xs text-muted-foreground font-semibold">
+          </SheetTitle>
+          <SheetDescription className="text-label-12 text-muted-foreground">
             Tailor the AI prompt for this draft. Existing drafts will remain in the version history.
-          </DialogDescription>
-        </DialogHeader>
+          </SheetDescription>
+        </SheetHeader>
 
-        <div className="space-y-4 py-4 text-xs">
+        <div className="space-y-4 py-4 text-label-12 flex-1">
           {/* Custom Prompt */}
           <div className="space-y-1">
-            <Label htmlFor="generation-custom-prompt" className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+            <Label htmlFor="generation-custom-prompt" className="text-label-12 text-muted-foreground uppercase">
               Custom Instructions (Optional)
             </Label>
             <Textarea
@@ -68,17 +68,17 @@ export function GenerationSheet({
           {/* Attachments Section */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+              <Label className="text-label-12 text-muted-foreground uppercase">
                 Attachments (Images / PDFs)
               </Label>
               {modelInfo && (
-                <span className="text-[10px] text-muted-foreground/80 font-semibold">
+                <span className="text-label-12 text-muted-foreground/80">
                   Active model: {modelInfo.modelName}
                 </span>
               )}
             </div>
 
-            <Label className="flex flex-col items-center justify-center border border-dashed border-border rounded-xl p-4 bg-muted/20 hover:bg-muted/40 cursor-pointer transition text-xs font-bold text-muted-foreground">
+            <Label className="flex flex-col items-center justify-center border border-dashed border-border rounded-xl p-4 bg-muted/20 hover:bg-muted/40 cursor-pointer transition text-label-12 text-muted-foreground">
               <input
                 type="file"
                 multiple
@@ -96,7 +96,7 @@ export function GenerationSheet({
                 <div className="flex flex-col items-center gap-1.5">
                   <Upload className="w-5 h-5 text-muted-foreground/80" />
                   <span>Choose Files</span>
-                  <span className="text-[10px] text-muted-foreground/60 font-semibold">Images &amp; PDFs only</span>
+                  <span className="text-label-12 text-muted-foreground/60">Images &amp; PDFs only</span>
                 </div>
               )}
             </Label>
@@ -104,7 +104,7 @@ export function GenerationSheet({
             {modelInfo && !modelInfo.hasVision && attachments.length > 0 && (
               <div className="bg-chart-5/10 border border-chart-5/20 text-chart-5 p-2.5 rounded-xl flex items-start gap-2 leading-relaxed">
                 <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                <div className="font-semibold text-[11px]">
+                <div className="text-label-12">
                   The active model ({modelInfo.modelName}) lacks vision capability. Uploaded files will be stored, but the model cannot visually analyze them.
                 </div>
               </div>
@@ -113,7 +113,7 @@ export function GenerationSheet({
             {attachments.length > 0 && (
               <div className="flex flex-wrap gap-1.5 pt-1">
                 {attachments.map((att, idx) => (
-                  <span key={idx} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-primary/10 border border-primary/20 text-[11px] font-bold text-primary rounded-lg shrink-0">
+                  <span key={idx} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-primary/10 border border-primary/20 text-label-12 text-primary rounded-lg shrink-0">
                     <span className="truncate max-w-[150px]">{att.name}</span>
                     <button
                       type="button"
@@ -129,17 +129,17 @@ export function GenerationSheet({
           </div>
 
           {errorMsg && (
-            <div className="bg-destructive/10 border border-destructive/20 text-destructive p-3 rounded-xl font-bold leading-normal">
+            <div className="bg-destructive/10 border border-destructive/20 text-destructive p-3 rounded-xl font-semibold leading-normal">
               {errorMsg}
             </div>
           )}
         </div>
 
-        <DialogFooter className="flex flex-row justify-end gap-2 w-full pt-4">
+        <SheetFooter className="flex flex-row justify-end gap-2 w-full pt-4 border-t border-border">
           <Button variant="outline" onClick={onClose} disabled={isGenerating}>
             Cancel
           </Button>
-          <Button onClick={onGenerate} disabled={isGenerating || isUploadingAttachments} className="font-bold">
+          <Button onClick={onGenerate} disabled={isGenerating || isUploadingAttachments} className="font-semibold">
             {isGenerating ? (
               <>
                 <Loader2 className="animate-spin h-3.5 w-3.5 mr-1.5" />
@@ -149,8 +149,8 @@ export function GenerationSheet({
               'Generate Draft'
             )}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }

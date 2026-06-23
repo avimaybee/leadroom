@@ -47,10 +47,10 @@ export function DraftCompareDialog({
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <DialogHeader className="border-b border-border pb-3">
-          <DialogTitle className="text-sm font-bold uppercase tracking-wider text-foreground">
+          <DialogTitle className="text-label-14 text-foreground uppercase">
             Compare Outreach Drafts
           </DialogTitle>
-          <DialogDescription className="text-xs text-muted-foreground font-semibold">
+          <DialogDescription className="text-label-12 text-muted-foreground">
             Evaluate differences between two versions of the outreach template.
           </DialogDescription>
         </DialogHeader>
@@ -61,12 +61,12 @@ export function DraftCompareDialog({
             <CardHeader className="border-b border-border/40 pb-3 flex flex-row items-center justify-between">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-foreground">Version A</span>
-                  <Badge variant={getStatusVariant(draft1.status)} className="text-[10px] uppercase">
+                  <span className="text-label-12 text-foreground">Version A</span>
+                  <Badge variant={getStatusVariant(draft1.status)} className="text-label-12 uppercase">
                     {getStatusLabel(draft1.status)}
                   </Badge>
                 </div>
-                <p className="text-[10px] text-muted-foreground font-semibold">
+                <p className="text-label-12 text-muted-foreground">
                   Created: {draft1.createdAt ? formatDateTimeUTC(draft1.createdAt) : 'N/A'}
                 </p>
               </div>
@@ -74,7 +74,7 @@ export function DraftCompareDialog({
                 variant="outline"
                 size="xs"
                 onClick={() => onUseVersion(draft1)}
-                className="font-bold flex items-center gap-1 shrink-0 h-7"
+                className="font-semibold flex items-center gap-1 shrink-0 h-7"
               >
                 <PenLine className="w-3 h-3" />
                 Use Version A
@@ -83,15 +83,15 @@ export function DraftCompareDialog({
             <CardContent className="flex-1 p-4 space-y-3 overflow-y-auto max-h-[450px]">
               {draft1.subject && (
                 <div className="space-y-0.5">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Subject</span>
-                  <p className="text-xs font-bold text-foreground bg-muted/40 p-2 rounded-lg border border-border/40">
+                  <span className="text-label-12 text-muted-foreground uppercase">Subject</span>
+                  <p className="text-label-12 text-foreground bg-muted/40 p-2 rounded-lg border border-border/40">
                     {draft1.subject}
                   </p>
                 </div>
               )}
               <div className="space-y-0.5">
-                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Body Content</span>
-                <div className="text-xs text-muted-foreground leading-relaxed prose-markdown p-3 bg-muted/20 border border-border/30 rounded-xl overflow-x-hidden font-medium">
+                <span className="text-label-12 text-muted-foreground uppercase">Body Content</span>
+                <div className="text-label-12 text-muted-foreground leading-relaxed prose-markdown p-3 bg-muted/20 border border-border/30 rounded-xl overflow-x-hidden font-medium">
                   <ReactMarkdown>{draft1.body}</ReactMarkdown>
                 </div>
               </div>
@@ -103,12 +103,12 @@ export function DraftCompareDialog({
             <CardHeader className="border-b border-border/40 pb-3 flex flex-row items-center justify-between">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-foreground">Version B</span>
-                  <Badge variant={getStatusVariant(draft2.status)} className="text-[10px] uppercase">
+                  <span className="text-label-12 text-foreground">Version B</span>
+                  <Badge variant={getStatusVariant(draft2.status)} className="text-label-12 uppercase">
                     {getStatusLabel(draft2.status)}
                   </Badge>
                 </div>
-                <p className="text-[10px] text-muted-foreground font-semibold">
+                <p className="text-label-12 text-muted-foreground">
                   Created: {draft2.createdAt ? formatDateTimeUTC(draft2.createdAt) : 'N/A'}
                 </p>
               </div>
@@ -116,7 +116,7 @@ export function DraftCompareDialog({
                 variant="outline"
                 size="xs"
                 onClick={() => onUseVersion(draft2)}
-                className="font-bold flex items-center gap-1 shrink-0 h-7"
+                className="font-semibold flex items-center gap-1 shrink-0 h-7"
               >
                 <PenLine className="w-3 h-3" />
                 Use Version B
@@ -125,15 +125,15 @@ export function DraftCompareDialog({
             <CardContent className="flex-1 p-4 space-y-3 overflow-y-auto max-h-[450px]">
               {draft2.subject && (
                 <div className="space-y-0.5">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Subject</span>
-                  <p className="text-xs font-bold text-foreground bg-muted/40 p-2 rounded-lg border border-border/40">
+                  <span className="text-label-12 text-muted-foreground uppercase">Subject</span>
+                  <p className="text-label-12 text-foreground bg-muted/40 p-2 rounded-lg border border-border/40">
                     {draft2.subject}
                   </p>
                 </div>
               )}
               <div className="space-y-0.5">
-                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Body Content</span>
-                <div className="text-xs text-muted-foreground leading-relaxed prose-markdown p-3 bg-muted/20 border border-border/30 rounded-xl overflow-x-hidden font-medium">
+                <span className="text-label-12 text-muted-foreground uppercase">Body Content</span>
+                <div className="text-label-12 text-muted-foreground leading-relaxed prose-markdown p-3 bg-muted/20 border border-border/30 rounded-xl overflow-x-hidden font-medium">
                   <ReactMarkdown>{draft2.body}</ReactMarkdown>
                 </div>
               </div>
@@ -142,7 +142,7 @@ export function DraftCompareDialog({
         </div>
 
         <DialogFooter className="flex flex-row justify-end pt-3 border-t border-border">
-          <Button variant="outline" onClick={onClose} className="font-bold flex items-center gap-1">
+          <Button variant="outline" onClick={onClose} className="font-semibold flex items-center gap-1">
             <ArrowLeft className="w-3.5 h-3.5" />
             Return to Editor
           </Button>

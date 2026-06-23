@@ -64,37 +64,37 @@ export function VersionDrawer({
       <DialogContent className="sm:max-w-md w-full max-h-[85vh] overflow-y-auto">
         <DialogHeader className="border-b border-border pb-2.5">
           <div className="flex items-center justify-between">
-            <DialogTitle className="text-sm font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+            <DialogTitle className="text-label-14 text-foreground uppercase flex items-center gap-1.5">
               <History className="w-4 h-4 text-muted-foreground" />
               <span>Version History</span>
             </DialogTitle>
-            <span className="text-xs font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-lg">
+            <span className="text-label-12 text-muted-foreground bg-muted px-2 py-0.5 rounded-lg">
               {channelDrafts.length} total
             </span>
           </div>
-          <DialogDescription className="text-xs text-muted-foreground font-semibold pt-1">
+          <DialogDescription className="text-label-12 text-muted-foreground pt-1">
             Browse previous drafts. Select exactly 2 drafts below to compare their changes side-by-side.
           </DialogDescription>
         </DialogHeader>
 
         {selectedIds.length > 0 && (
-          <div className="bg-primary/[0.04] border border-primary/20 p-3 rounded-xl flex items-center justify-between text-xs my-2">
-            <span className="font-bold text-foreground">
+          <div className="bg-primary/[0.04] border border-primary/20 p-3 rounded-xl flex items-center justify-between text-label-12 my-2">
+            <span className="font-semibold text-foreground">
               {selectedIds.length} of 2 selected for compare
             </span>
             {selectedIds.length === 2 ? (
-              <Button size="xs" onClick={handleCompareClick} className="font-bold">
+              <Button size="xs" onClick={handleCompareClick} className="font-semibold">
                 Compare Selected
               </Button>
             ) : (
-              <span className="text-[11px] text-muted-foreground font-semibold">Select 1 more</span>
+              <span className="text-label-12 text-muted-foreground">Select 1 more</span>
             )}
           </div>
         )}
 
         <div className="space-y-2 py-4">
           {channelDrafts.length === 0 ? (
-            <div className="text-xs font-semibold italic text-muted-foreground text-center py-8">
+            <div className="text-label-12 italic text-muted-foreground text-center py-8">
               No drafts generated yet.
             </div>
           ) : (
@@ -115,7 +115,7 @@ export function VersionDrawer({
               return (
                 <div
                   key={d.id}
-                  className={`flex items-start gap-2.5 p-3 rounded-xl border text-xs transition-all duration-150 ${
+                  className={`flex items-start gap-2.5 p-3 rounded-xl border text-label-12 transition-all duration-150 ${
                     isActive
                       ? 'bg-primary/[0.03] border-primary/20 ring-1 ring-primary/10'
                       : 'bg-card border-border/60 hover:bg-muted/30 hover:border-border/80'
@@ -136,10 +136,10 @@ export function VersionDrawer({
                   <div className="flex-1 min-w-0 space-y-1.5 cursor-pointer" onClick={() => onSelectDraft(d)}>
                     <div className="flex items-center justify-between gap-1.5">
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="flex items-center justify-center w-5 h-5 rounded bg-muted text-[10px] font-bold text-muted-foreground shrink-0">
+                        <span className="flex items-center justify-center w-5 h-5 rounded bg-muted text-label-12 text-muted-foreground shrink-0">
                           v{versionNum}
                         </span>
-                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase shrink-0 ${
+                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-label-12 uppercase shrink-0 ${
                           d.status === 'APPROVED' ? 'bg-chart-2/10 text-chart-2 border border-chart-2/20' :
                           d.status === 'REJECTED' ? 'bg-destructive/10 text-destructive border border-destructive/20' :
                           d.status === 'SENT' ? 'bg-primary/10 text-primary border border-primary/20' :
@@ -148,7 +148,7 @@ export function VersionDrawer({
                           {getStatusLabel(d.status)}
                         </span>
                         {d.origin === 'MANUAL' && (
-                          <span className="text-[10px] font-semibold text-muted-foreground bg-muted/60 px-1.5 py-0.2 rounded shrink-0">
+                          <span className="text-label-12 text-muted-foreground bg-muted/60 px-1.5 py-0.2 rounded shrink-0">
                             Edited
                           </span>
                         )}
@@ -167,13 +167,13 @@ export function VersionDrawer({
                       </div>
                     </div>
 
-                    <p className="text-[11px] text-muted-foreground font-medium leading-relaxed line-clamp-2">
-                      {d.subject && <span className="font-bold text-foreground block shrink-0 truncate">{d.subject}</span>}
+                    <p className="text-label-12 text-muted-foreground leading-relaxed line-clamp-2">
+                      {d.subject && <span className="font-semibold text-foreground block shrink-0 truncate">{d.subject}</span>}
                       {bodyPreview || '(empty)'}
                     </p>
-                    <p className="text-[10px] text-muted-foreground/60 font-semibold flex items-center justify-between">
+                    <p className="text-label-12 text-muted-foreground/60 flex items-center justify-between">
                       <span>{d.createdAt ? formatDateTimeUTC(d.createdAt) : ''}</span>
-                      {isActive && <span className="text-primary font-bold">Active in workspace</span>}
+                      {isActive && <span className="text-primary font-semibold">Active in workspace</span>}
                     </p>
                   </div>
                 </div>

@@ -1,8 +1,9 @@
 "use client";
 
 import { useNotifications } from '@/components/NotificationProvider';
-import { Bell, Check, CheckCircle2, AlertCircle, Info } from 'lucide-react';
+import { Bell, Check, CheckCircle2, AlertCircle, Info, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useRef, useEffect } from 'react';
 
@@ -28,18 +29,18 @@ export function NotificationBell() {
         <Bell className="w-5 h-5 text-muted-foreground" />
         {unreadCount > 0 && (
           <span className="absolute top-1 right-1 flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive/50 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-destructive"></span>
           </span>
         )}
       </Button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-80 bg-popover text-popover-foreground border shadow-md rounded-md z-50 overflow-hidden">
+        <div className="absolute right-0 mt-2 w-80 bg-popover text-popover-foreground border shadow-lg rounded-md z-50 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
-            <h4 className="font-semibold text-sm">Notifications</h4>
+            <h4 className="text-label-14">Notifications</h4>
             {unreadCount > 0 && (
-              <button onClick={markAllAsRead} className="flex items-center text-xs font-medium hover:text-primary transition-colors text-muted-foreground">
+              <button onClick={markAllAsRead} className="flex items-center text-label-12 hover:text-primary transition-colors text-muted-foreground">
                 <Check className="w-3 h-3 mr-1" />
                 Mark all read
               </button>
@@ -47,8 +48,11 @@ export function NotificationBell() {
           </div>
           <div className="max-h-[300px] overflow-y-auto">
             {notifications.length === 0 ? (
-              <div className="p-6 text-center text-sm text-muted-foreground">
-                No recent notifications
+              <div className="p-6 text-center space-y-3">
+                <p className="text-copy-14 text-muted-foreground">No recent notifications</p>
+                <Link href="/leads" className="inline-flex items-center gap-1.5 text-label-12 text-primary hover:underline">
+                  <ArrowRight className="h-3 w-3" /> View Active Leads
+                </Link>
               </div>
             ) : (
               <div className="flex flex-col">
@@ -66,14 +70,14 @@ export function NotificationBell() {
                   >
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5 shrink-0">
-                        {n.status === 'SUCCESS' && <CheckCircle2 className="w-4 h-4 text-green-500" />}
-                        {n.status === 'ERROR' && <AlertCircle className="w-4 h-4 text-red-500" />}
-                        {n.status === 'INFO' && <Info className="w-4 h-4 text-blue-500" />}
+                        {n.status === 'SUCCESS' && <CheckCircle2 className="w-4 h-4 text-chart-2" />}
+                        {n.status === 'ERROR' && <AlertCircle className="w-4 h-4 text-destructive" />}
+                        {n.status === 'INFO' && <Info className="w-4 h-4 text-primary" />}
                       </div>
                       <div className="flex-1 min-w-0 space-y-1">
-                        <p className="text-sm font-medium leading-tight truncate">{n.title}</p>
-                        <p className="text-xs text-muted-foreground line-clamp-2">{n.message}</p>
-                        <p className="text-[10px] text-muted-foreground font-mono">{new Date(n.createdAt).toLocaleString()}</p>
+                        <p className="text-copy-14 font-medium leading-tight truncate">{n.title}</p>
+                        <p className="text-label-12 text-muted-foreground line-clamp-2">{n.message}</p>
+                        <p className="text-mono-12 text-muted-foreground">{new Date(n.createdAt).toLocaleString()}</p>
                       </div>
                       {!n.isRead && (
                         <div className="w-2 h-2 rounded-full bg-primary shrink-0 mt-1" />

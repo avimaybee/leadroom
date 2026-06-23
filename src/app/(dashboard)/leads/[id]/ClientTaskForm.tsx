@@ -37,13 +37,13 @@ export default function ClientTaskForm({ leadId, createTaskAction, tasksCount = 
   if (!showForm) {
     if (tasksCount === 0) {
       return (
-        <div className="flex items-center justify-center gap-2 py-4 px-3 text-xs text-muted-foreground bg-muted/20 border border-dashed border-border/80 rounded-xl">
+        <div className="flex items-center justify-center gap-2 py-4 px-3 text-label-12 text-muted-foreground bg-muted/20 border border-dashed border-border/80 rounded-md">
           <ClipboardCheck className="w-4 h-4 text-muted-foreground/80 shrink-0" />
           <span>No tasks yet.</span>
           <button
             type="button"
             onClick={() => setShowForm(true)}
-            className="text-primary font-bold hover:underline"
+            className="text-primary font-semibold hover:underline"
           >
             + Add
           </button>
@@ -65,15 +65,15 @@ export default function ClientTaskForm({ leadId, createTaskAction, tasksCount = 
   }
 
   return (
-    <form ref={formRef} action={formAction} className="space-y-4 bg-muted/30 p-4 rounded-xl border border-border/60 animate-fade-in">
+    <form ref={formRef} action={formAction} className="space-y-4 bg-muted/30 p-4 rounded-md animate-fade-in">
       <div className="flex justify-between items-center pb-1 border-b border-border/40">
-        <h4 className="text-xs font-bold text-foreground">Configure New Task</h4>
+        <h4 className="text-label-12 font-semibold text-foreground">Configure New Task</h4>
         <Button type="button" variant="ghost" size="xs" onClick={() => setShowForm(false)}>
           Cancel
         </Button>
       </div>
       {state?.error && (
-        <div className="bg-destructive/10 text-destructive p-2.5 rounded-lg text-xs border border-destructive/20 font-semibold">
+        <div className="bg-destructive/10 text-destructive p-2.5 rounded-md text-label-12 border border-destructive/20 font-semibold">
           {state.error}
         </div>
       )}
@@ -101,7 +101,7 @@ export default function ClientTaskForm({ leadId, createTaskAction, tasksCount = 
         </div>
         <div className="space-y-3">
           <div>
-            <Label htmlFor="task-due-date" className="block text-xs font-bold text-foreground mb-1">Due Date</Label>
+            <Label htmlFor="task-due-date" className="block text-label-12 font-semibold text-foreground mb-1">Due Date</Label>
             <Input 
               id="task-due-date"
               type="date"
@@ -109,12 +109,12 @@ export default function ClientTaskForm({ leadId, createTaskAction, tasksCount = 
             />
           </div>
           <div>
-            <Label htmlFor="task-priority" className="block text-xs font-bold text-foreground mb-1">Priority</Label>
+            <Label htmlFor="task-priority" className="block text-label-12 font-semibold text-foreground mb-1">Priority</Label>
             <select 
               id="task-priority"
               name="priority"
               defaultValue="Medium"
-              className="block w-full rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-xs focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 text-foreground"
+              className="block w-full rounded-md border border-input bg-card px-2.5 py-1.5 text-label-12 focus-visible:ring-2 focus-visible:ring-ring text-foreground outline-none cursor-pointer"
             >
               <option value="High">High</option>
               <option value="Medium">Medium</option>

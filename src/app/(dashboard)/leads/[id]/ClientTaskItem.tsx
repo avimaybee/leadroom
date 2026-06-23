@@ -48,10 +48,10 @@ export default function ClientTaskItem({ leadId, task, toggleTaskStatusAction }:
 
   return (
     <div 
-      className={`p-3.5 rounded-xl border flex items-start gap-3 transition-all ${
+      className={`py-3.5 flex items-start gap-3 transition-all ${
         isCompleted 
-          ? 'bg-muted/50 border-border/50 opacity-60' 
-          : 'bg-card border-border/80 shadow-sm hover:border-accent'
+          ? 'opacity-60' 
+          : 'hover:bg-muted/10'
       } ${isPending ? 'pointer-events-none opacity-40' : ''}`}
     >
       <input 
@@ -63,13 +63,13 @@ export default function ClientTaskItem({ leadId, task, toggleTaskStatusAction }:
       />
       
       <div className="flex-1 min-w-0 space-y-1">
-        <span className={`text-sm font-semibold block leading-tight ${
+        <span className={`label-14 font-semibold block leading-tight ${
           isCompleted ? 'text-muted-foreground line-through' : 'text-card-foreground'
         }`}>
           {task.title}
         </span>
         {task.description && (
-          <p className="text-xs text-muted-foreground leading-normal line-clamp-1">{task.description}</p>
+          <p className="text-label-12 text-muted-foreground leading-normal line-clamp-1">{task.description}</p>
         )}
         
         <div className="flex flex-wrap gap-2 items-center pt-1.5">
@@ -77,7 +77,7 @@ export default function ClientTaskItem({ leadId, task, toggleTaskStatusAction }:
             {task.priority}
           </Badge>
           {task.dueDate && (
-            <span className="text-xs text-muted-foreground font-semibold flex items-center gap-1">
+            <span className="text-label-12 text-muted-foreground font-semibold flex items-center gap-1">
               <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
               {formatUTC(task.dueDate)}
             </span>

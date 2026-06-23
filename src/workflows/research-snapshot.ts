@@ -269,7 +269,7 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
               userId,
               jobRunId: jobId,
               title: "Research Completed",
-              message: "Research workflow for lead has been completed successfully.",
+              message: "Research workflow for lead completed.",
               status: "SUCCESS",
               link: `/dashboard/leads/${leadId}/research`,
               isRead: false,

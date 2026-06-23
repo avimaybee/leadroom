@@ -18,9 +18,10 @@ function SubmitButton() {
 interface ClientNotesFormProps {
   leadId: string;
   addNoteAction: (prevState: { error?: string | null, success?: boolean } | null | undefined, formData: FormData) => Promise<{ error?: string | null, success?: boolean } | null | undefined>;
+  embedded?: boolean;
 }
 
-export default function ClientNotesForm({ leadId, addNoteAction }: ClientNotesFormProps) {
+export default function ClientNotesForm({ leadId, addNoteAction, embedded = false }: ClientNotesFormProps) {
   const [state, formAction] = useActionState(addNoteAction, undefined);
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -31,24 +32,27 @@ export default function ClientNotesForm({ leadId, addNoteAction }: ClientNotesFo
   }, [state]);
 
   return (
-    <form ref={formRef} action={formAction} className="space-y-3 bg-card p-5 rounded-2xl border border-border shadow-sm">
+    <form ref={formRef} action={formAction} className={embedded ? 'space-y-3 p-0 border-0 bg-transparent shadow-none' : 'space-y-3 rounded-xl border border-border bg-card p-5 shadow-sm'}>
       {state?.error && (
-        <div className="bg-destructive/10 text-destructive p-3.5 rounded-xl text-xs font-semibold border border-destructive/20">
+        <div className="bg-destructive/10 text-destructive p-3.5 rounded-md text-label-12 border border-destructive/20">
           {state.error}
         </div>
       )}
       <input type="hidden" name="leadId" value={leadId} />
-      <Label htmlFor="note-body-input" className="sr-only">Add notes to lead</Label>
-      <Textarea
-        required
-        id="note-body-input"
-        name="body"
-        placeholder="Type notes from calls, meetings, or research..."
-        rows={3}
-      />
-      <div className="flex justify-between items-center">
-        <span className="text-xs text-muted-foreground font-semibold italic">
-          e.g. &apos;Called 6/14 — interested, follow up Friday&apos;
+      <div className="space-y-2">
+        <Label htmlFor="note-body-input" className="text-label-12 text-muted-foreground uppercase">Add note</Label>
+        <Textarea
+          required
+          id="note-body-input"
+          name="body"
+          placeholder="Type notes from calls, meetings, or research..."
+          rows={3}
+          className="bg-background text-copy-14"
+        />
+      </div>
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <span className="text-label-12 text-muted-foreground">
+          Include the outcome and a specific next step when possible.
         </span>
         <SubmitButton />
       </div>

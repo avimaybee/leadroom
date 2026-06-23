@@ -3,13 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-
+import { Card, CardContent } from '@/components/ui/card';
 import { useDebounce } from '@/lib/use-debounce';
-import { Percent, TrendingUp, Sparkles, MapPin } from 'lucide-react';
-
+import { Percent, TrendingUp, Sparkles, AlertTriangle } from 'lucide-react';
 
 const US_STATES = [
   'Texas, USA',
@@ -54,7 +53,6 @@ export default function NewScopePage() {
       setMetrics(null);
     }
   }, [debouncedNiche, debouncedLocation]);
-
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -147,127 +145,161 @@ export default function NewScopePage() {
     }
   };
 
+  // Dynamic campaign name generation for launch summary
+  const generatedCampaignName = `${niche.trim() || '[Keyword]'} in ${location.trim() || '[Location (defaults to random state)]'}`;
+
   return (
-    <div className="max-w-2xl mx-auto space-y-8 animate-fade-in text-left">
-      <div className="space-y-1.5">
-        <Link
-          href="/scopes"
-          className="text-xs font-bold text-muted-foreground hover:text-primary flex items-center gap-1 transition w-fit py-2.5 pr-4 -my-2.5 -ml-1"
-        >
-          &larr; Back to Campaigns
-        </Link>
-      </div>
+    <div className="max-w-2xl mx-auto space-y-6 animate-fade-in text-left">
+      {/* Page Header */}
+      <header className="space-y-4 border-b border-border/70 pb-6">
+        <nav className="flex items-center gap-2 text-copy-14 text-muted-foreground">
+          <Link href="/scopes" className="hover:text-foreground transition-colors">Campaigns</Link>
+          <span className="text-muted-foreground/30">/</span>
+          <span className="font-medium text-foreground">New Campaign</span>
+        </nav>
 
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-border pb-5">
-        <div>
-          <h1 className="text-3xl font-extrabold text-foreground tracking-tight">New Campaign</h1>
-          <p className="text-sm text-muted-foreground mt-1">Configure keywords to scan Google Maps and build a campaign workspace.</p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-heading-3xl text-card-foreground">New Campaign</h1>
+            <p className="text-copy-14 text-muted-foreground mt-1.5 leading-relaxed">
+              Configure keyword parameters to scan Google Maps, discover local businesses, and automatically build a campaign review backlog.
+            </p>
+          </div>
         </div>
-      </div>
+      </header>
 
-      <form onSubmit={handleSubmit} className="bg-card p-8 rounded-2xl border border-border shadow-sm space-y-6">
+      {/* Campaign guided intake form */}
+      <form onSubmit={handleSubmit} className="bg-card p-6 md:p-8 rounded-2xl border border-border/80 shadow-sm space-y-6">
         {error && (
-          <div className="bg-destructive/10 text-destructive p-4 rounded-xl text-sm border border-destructive/20 font-semibold">
+          <div className="bg-destructive/10 text-destructive p-4 rounded-xl text-label-12 border border-destructive/20 leading-relaxed">
             {error}
           </div>
         )}
 
-        <div className="space-y-5">
-
-        {metrics && (
-          <div className="bg-primary/5 border border-primary/20 rounded-xl p-5 space-y-4">
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 className="text-sm font-bold flex items-center gap-2 text-foreground">
-                  <TrendingUp className="w-4 h-4 text-primary" />
-                  Historical Market Performance
-                </h3>
-                <p className="text-xs text-muted-foreground mt-1">Based on past campaigns in this segment.</p>
-              </div>
-              {metrics.conversionRate !== null ? (
-                <div className="bg-primary/10 text-primary px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-1.5">
-                  <Percent className="w-4 h-4" />
-                  {metrics.conversionRate.toFixed(1)}% Promoted
-                </div>
-              ) : (
-                <div className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">Not enough data</div>
-              )}
+        {/* Section 1: Basics */}
+        <div className="space-y-4">
+          <h3 className="text-label-14 text-muted-foreground uppercase border-b border-border pb-1">
+            Campaign Basics
+          </h3>
+          
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="campaign-niche" className="text-label-12 mb-1.5 block">Target Niche / Keyword *</Label>
+              <Input
+                required
+                id="campaign-niche"
+                disabled={submitting}
+                type="text"
+                placeholder="e.g. Roofers, Dental Clinics, Plumbers"
+                value={niche}
+                onChange={(e) => setNiche(e.target.value)}
+              />
             </div>
 
-            {metrics.recommendations && metrics.recommendations.length > 0 && (
-              <div className="pt-3 border-t border-primary/10">
-                <p className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                  Recommended Alternatives in {debouncedLocation || 'this area'}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {metrics.recommendations.map((rec: any) => (
-                    <button
-                      key={rec.niche}
-                      type="button"
-                      onClick={() => setNiche(rec.niche)}
-                      className="text-xs px-2.5 py-1 bg-background hover:bg-muted border border-border rounded-md transition-colors flex items-center gap-1.5 group"
-                    >
-                      <span className="font-medium group-hover:text-primary transition-colors">{rec.niche}</span>
-                      <span className="text-muted-foreground">({rec.conversionRate.toFixed(1)}%)</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+            <div>
+              <Label htmlFor="campaign-loc" className="text-label-12 mb-1.5 block">
+                Target Location (City, Zip Code, Suburb)
+              </Label>
+              <Input
+                id="campaign-loc"
+                disabled={submitting}
+                type="text"
+                placeholder="e.g. Austin, TX (optional)"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+              />
+              <p className="text-label-12 text-muted-foreground mt-1 leading-normal">
+                If left blank, a random US state will be automatically chosen (e.g. Texas, California, Florida).
+              </p>
+            </div>
 
-          <div>
-            <Label className="text-xs uppercase tracking-wider mb-2 block">Target Niche / Keyword *</Label>
-            <Input
-              required
-              disabled={submitting}
-              type="text"
-              placeholder="e.g. Roofers, Dental Clinics, Plumbers"
-              value={niche}
-              onChange={(e) => setNiche(e.target.value)}
-            />
-          </div>
-
-          <div>
-            <Label className="text-xs uppercase tracking-wider mb-2 block">
-              City &amp; State / Location <span className="text-muted-foreground font-normal lowercase">(optional - defaults to random US state)</span>
-            </Label>
-            <Input
-              disabled={submitting}
-              type="text"
-              placeholder="e.g. Austin, TX"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-            />
-          </div>
-
-          <div>
-            <Label className="text-xs uppercase tracking-wider mb-2 block">Lead Limit</Label>
-            <select
-              disabled={submitting}
-              value={limit}
-              onChange={(e) => setLimit(Number(e.target.value))}
-              className="block w-full rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 text-foreground"
-            >
-              <option value={10}>10 Leads</option>
-              <option value={20}>20 Leads (Recommended)</option>
-              <option value={30}>30 Leads</option>
-              <option value={50}>50 Leads</option>
-            </select>
+            <div>
+              <Label htmlFor="campaign-limit" className="text-label-12 mb-1.5 block">Lead Limit</Label>
+              <select
+                id="campaign-limit"
+                disabled={submitting}
+                value={limit}
+                onChange={(e) => setLimit(Number(e.target.value))}
+                className="flex h-10 w-full min-w-0 rounded-md border border-input bg-card px-3 py-2 text-copy-14 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring text-foreground hover:bg-muted/40 cursor-pointer"
+              >
+                <option value={10}>10 prospects</option>
+                <option value={20}>20 prospects (Recommended)</option>
+                <option value={30}>30 prospects</option>
+                <option value={50}>50 prospects</option>
+              </select>
+            </div>
           </div>
         </div>
 
-        <div className="pt-4 flex justify-end gap-3 border-t border-border">
+        {/* Section 2: Market Support Guidance (Optional / Secondary) */}
+        {metrics && (
+          <div className="space-y-3 pt-3 border-t border-border/50">
+            <h4 className="text-label-14 uppercase text-muted-foreground">Historical Market Performance</h4>
+            <div className="bg-muted/30 p-4 rounded-xl space-y-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h5 className="text-label-12 flex items-center gap-1.5 text-foreground">
+                    <TrendingUp className="w-3.5 h-3.5 text-primary" aria-hidden="true" />
+                    Segment Stats
+                  </h5>
+                  <p className="text-label-12 text-muted-foreground mt-0.5">Based on historical campaigns for this keyword.</p>
+                </div>
+                {metrics.conversionRate !== null ? (
+                  <span className="bg-primary/10 text-primary px-2.5 py-1 rounded-md text-label-12 flex items-center gap-1">
+                    <Percent className="w-3.5 h-3.5" aria-hidden="true" />
+                    {metrics.conversionRate.toFixed(1)}% Promoted
+                  </span>
+                ) : (
+                  <span className="text-label-12 text-muted-foreground bg-muted/65 px-2 py-0.5 rounded-md border border-border/50">Insufficient Data</span>
+                )}
+              </div>
+
+              {metrics.recommendations && metrics.recommendations.length > 0 && (
+                <div className="pt-3 border-t border-border/40">
+                  <p className="text-label-12 text-foreground mb-2 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-chart-5" aria-hidden="true" />
+                    Alternatives in {location || 'this geography'}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {metrics.recommendations.map((rec: any) => (
+                      <button
+                        key={rec.niche}
+                        type="button"
+                        onClick={() => setNiche(rec.niche)}
+                        className="text-label-12 px-2 py-0.5 bg-card hover:bg-muted border border-border rounded transition-colors flex items-center gap-1 group"
+                      >
+                        <span className="text-muted-foreground group-hover:text-primary transition-colors">{rec.niche}</span>
+                        <span className="text-[9px] text-muted-foreground/75">({rec.conversionRate.toFixed(1)}%)</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Dynamic Launch Summary Footer Block */}
+        <div className="bg-muted/30 border border-border/80 rounded-xl p-4 text-copy-13 text-muted-foreground leading-relaxed space-y-1">
+          <span className="font-semibold text-foreground flex items-center gap-1">
+            <AlertTriangle className="w-4 h-4 text-chart-5 shrink-0" />
+            Launch Action Summary
+          </span>
+          <p className="text-label-12 text-muted-foreground leading-normal">
+            On submit, the system will save a new campaign named <strong className="text-primary font-semibold">"{generatedCampaignName}"</strong> and immediately trigger a crawler scan on Google Maps to gather up to <strong className="text-foreground font-semibold">{limit}</strong> business prospects.
+          </p>
+        </div>
+
+        {/* Footer actions */}
+        <div className="pt-5 border-t border-border/80 flex justify-end gap-3">
           <Link
             href="/scopes"
-            className="px-5 py-2.5 bg-card text-foreground hover:bg-muted border border-border rounded-xl font-semibold text-sm transition"
+            className={buttonVariants({ variant: 'outline' })}
           >
-            Cancel
+            Keep Editing
           </Link>
           <Button type="submit" disabled={submitting || !userId}>
-            {submitting ? 'Creating & Launching Search...' : 'Launch Campaign'}
+            {submitting ? 'Launching Scan...' : 'Launch Scan'}
           </Button>
         </div>
       </form>
