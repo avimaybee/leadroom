@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { LayoutDashboard, Users, Target, Settings, SlidersHorizontal } from 'lucide-react';
 import { NotificationProvider } from '@/components/NotificationProvider';
 import { NotificationBell } from '@/components/NotificationBell';
+import { HowToUse } from '@/components/HowToUse';
 
 const SIDEBAR_WIDTH_KEY = 'leadroom:sidebar:width';
 const SIDEBAR_COLLAPSED_KEY = 'leadroom:sidebar:collapsed';
@@ -160,6 +161,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <span className="text-label-12 text-muted-foreground uppercase">System Live</span>
           </div>
           <div className="flex items-center gap-4">
+            <HowToUse />
             <NotificationBell />
             <form action="/api/auth/logout" method="POST">
               <Button type="submit" variant="outline" size="xs">

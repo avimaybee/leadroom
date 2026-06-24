@@ -20,6 +20,7 @@ import {
   Sliders,
 } from 'lucide-react';
 import { toast, Toaster } from 'sonner';
+import { useNotifications } from '@/components/NotificationProvider';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -157,6 +158,19 @@ export default function LeadDetailsWorkspace({
       .catch(() => undefined);
     return () => { cancelled = true; };
   }, [activeResearchJob, router]);
+
+  const { recentJobUpdates } = useNotifications();
+
+  useEffect(() => {
+    if (!pollingJobId) return;
+    const status = recentJobUpdates[pollingJobId];
+    if (status === 'SUCCESS' || status === 'ERROR') {
+      setPollingJobId(null);
+      setJobStatus(null);
+      setIsEnriching(false);
+      router.refresh();
+    }
+  }, [pollingJobId, recentJobUpdates, router]);
 
   const navigateTo = useCallback((view: WorkspaceView) => {
     setActiveView(view);
