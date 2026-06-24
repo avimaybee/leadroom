@@ -1,37 +1,15 @@
 export const dynamic = 'force-dynamic';
-import { LeadService } from '@/services/lead';
+import { LeadService, DEFAULT_NBA_RULES } from '@/services/lead';
 import { ResearchService } from '@/services/research';
 import { AuditService } from '@/services/audits';
 import { ScoringService } from '@/services/scoring';
 import { getDb } from '@/db';
+import { stageThresholds, pipelineConfig, tasks } from '@/db/schema/core';
+import { and, eq, or, like } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
-import Link from 'next/link';
-import { formatDateTimeUTC } from '@/lib/date';
-import { Button } from '@/components/ui/button';
-import { 
-  updateStageAction, 
-  addNoteAction,
-  updateLeadAction
-} from '@/app/actions/leads';
-import { 
-  createTaskAction, 
-  toggleTaskStatusAction 
-} from '@/app/actions/tasks';
-import { 
-  saveResearchSnapshotAction, 
-  addContactAction,
-  updateContactAction,
-  deleteContactAction
-} from '@/app/actions/research';
-import { 
-  manualOverrideScoreAction 
-} from '@/app/actions/audits';
-import { jobRuns } from '@/db/schema/research';
-import { and, eq, or } from 'drizzle-orm';
 import LeadDetailsWorkspace from './LeadDetailsWorkspace';
 import { OutreachService } from '@/services/outreach';
-
-
+import { jobRuns } from '@/db/schema/research';
 
 type LeadWorkspaceView = 'overview' | 'research' | 'audit' | 'outreach' | 'activity';
 
@@ -40,7 +18,6 @@ const WORKSPACE_VIEWS = new Set<LeadWorkspaceView>(['overview', 'research', 'aud
 export default async function LeadDetailPage({ params, searchParams }: { params: Promise<{ id: string }>, searchParams: Promise<{ autoEnrich?: string; view?: string; channel?: string }> }) {
   const { id } = await params;
   const { view, channel } = await searchParams;
-  const env = (process as any).env;
   const db = getDb();
   const service = new LeadService(db);
   const researchService = new ResearchService(db);
@@ -52,7 +29,7 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
   const scoringService = new ScoringService(db);
   const outreachService = new OutreachService(db);
 
-  const [notes, tasks, activities, latestSnapshot, contactsList, latestAudit, currentScore, outreachDrafts, activeResearchJob] = await Promise.all([
+  const [notes, tasksData, activities, latestSnapshot, contactsList, latestAudit, currentScore, outreachDrafts, activeResearchJob, stageThresholdRow, pcRow, nextFollowUp] = await Promise.all([
     service.getNotes(id),
     service.getTasks(id),
     service.getActivities(id),
@@ -68,15 +45,23 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
         and(
           eq(jobRuns.targetLeadId, id),
           eq(jobRuns.jobType, 'RESEARCH_GENERATION'),
-          or(
-            eq(jobRuns.status, 'QUEUED'),
-            eq(jobRuns.status, 'RUNNING')
-          )
+          or(eq(jobRuns.status, 'QUEUED'), eq(jobRuns.status, 'RUNNING'))
         )
       )
       .limit(1)
       .then(rows => rows[0] || null),
+    db.select({ days: stageThresholds.days }).from(stageThresholds).where(eq(stageThresholds.stage, lead.stage)).limit(1).then(r => r[0]),
+    db.select().from(pipelineConfig).where(eq(pipelineConfig.id, 'global')).limit(1).then(r => r[0] || null),
+    db.select({ dueDate: tasks.dueDate }).from(tasks).where(and(eq(tasks.leadId, id), eq(tasks.status, 'Open'), like(tasks.title, 'Follow up on %'))).orderBy(tasks.dueDate).limit(1).then(r => r[0] || null),
   ]);
+
+  const stageThreshold = stageThresholdRow?.days ?? 5;
+
+  let nbaRules = DEFAULT_NBA_RULES;
+  if (pcRow?.nbaRules) {
+    try { nbaRules = JSON.parse(pcRow.nbaRules); } catch {}
+  }
+  const nbaResults = await service.getNextBestActions(id, nbaRules);
 
   const STAGE_MAP: Record<string, string> = {
     'Researching': 'In Research',
@@ -91,7 +76,7 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
     <LeadDetailsWorkspace
       lead={lead}
       notes={notes}
-      tasks={tasks}
+      tasks={tasksData}
       activities={activities}
       latestSnapshot={latestSnapshot}
       contactsList={contactsList}
@@ -103,6 +88,9 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
       stages={stages}
       initialView={WORKSPACE_VIEWS.has(view as LeadWorkspaceView) ? view as LeadWorkspaceView : 'overview'}
       initialChannel={channel}
+      stageThreshold={stageThreshold}
+      nbaResults={nbaResults}
+      autoFollowUpDue={nextFollowUp?.dueDate ?? null}
     />
   );
 }

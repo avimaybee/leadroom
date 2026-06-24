@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState, useTransition, useActionState } from 'react';
+import { useCallback, useEffect, useState, useActionState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -42,6 +42,10 @@ import ClientTaskItem from './ClientTaskItem';
 import ClientContactsList from './ClientContactsList';
 import OutreachAssistant from './OutreachAssistant';
 import { updateStageAction, addNoteAction, updateLeadAction, archiveLeadAction } from '@/app/actions/leads';
+import { ClientStageDropdown } from '@/components/ClientStageDropdown';
+import { SetReminderDialog } from '@/components/SetReminderDialog';
+import { StageAgingBar } from '@/components/lead/StageAgingBar';
+import { NextBestActionsList } from '@/components/lead/NextBestActionsList';
 import { createTaskAction, toggleTaskStatusAction } from '@/app/actions/tasks';
 import { saveResearchSnapshotAction, addContactAction, updateContactAction, deleteContactAction } from '@/app/actions/research';
 import { manualOverrideScoreAction } from '@/app/actions/audits';
@@ -63,6 +67,9 @@ interface LeadDetailsWorkspaceProps {
   stages: string[];
   initialView: WorkspaceView;
   initialChannel?: string;
+  stageThreshold?: number;
+  nbaResults?: any[];
+  autoFollowUpDue?: Date | null;
 }
 
 const WORKSPACE_NAV: Array<{ value: WorkspaceView; label: string; icon: typeof Building2 }> = [
@@ -114,6 +121,9 @@ export default function LeadDetailsWorkspace({
   stages,
   initialView,
   initialChannel,
+  stageThreshold,
+  nbaResults,
+  autoFollowUpDue,
 }: LeadDetailsWorkspaceProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -123,7 +133,7 @@ export default function LeadDetailsWorkspace({
   const [isEnriching, setIsEnriching] = useState(Boolean(activeResearchJob));
   const [jobError, setJobError] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
-  const [isUpdatingStage, startTransition] = useTransition();
+
 
   const [isEditLeadOpen, setIsEditLeadOpen] = useState(false);
   const [showAllTasks, setShowAllTasks] = useState(false);
@@ -198,17 +208,6 @@ export default function LeadDetailsWorkspace({
       router.refresh();
     }
   }, [lead.id, pollingJobId, router]);
-
-  const handleStageChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const newStage = event.target.value;
-    startTransition(async () => {
-      const formData = new FormData();
-      formData.append('leadId', lead.id);
-      formData.append('stage', newStage);
-      await updateStageAction(formData);
-      toast.success(`Stage updated to ${newStage}`);
-    });
-  };
 
   const handleArchiveLead = async () => {
     if (confirm('Are you sure you want to archive this lead? This will hide it from the active lead feed.')) {
@@ -365,19 +364,19 @@ export default function LeadDetailsWorkspace({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 lg:mt-1">
+            <SetReminderDialog leadId={lead.id} leadName={lead.name} />
             <label htmlFor="lead-stage" className="text-label-14 font-medium text-muted-foreground">Change stage:</label>
-            <div className="relative">
-              <select
-                id="lead-stage"
-                value={displayStage}
-                onChange={handleStageChange}
-                disabled={isUpdatingStage}
-                className="min-h-10 rounded-md border border-border bg-card py-1.5 pl-3 pr-9 text-label-14 font-semibold text-foreground shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring hover:bg-muted/30 transition-colors"
-              >
-                {stages.map((stage) => <option key={stage} value={stage}>{stage}</option>)}
-              </select>
-              {isUpdatingStage ? <Loader2 className="pointer-events-none absolute right-3 top-3 h-4 w-4 animate-spin text-muted-foreground" /> : null}
-            </div>
+            <ClientStageDropdown
+              currentStage={displayStage}
+              leadName={lead.name}
+              onStageChange={async (newStage) => {
+                const formData = new FormData();
+                formData.append('leadId', lead.id);
+                formData.append('stage', newStage);
+                await updateStageAction(formData);
+                toast.success(`Stage updated to ${newStage}`);
+              }}
+            />
           </div>
         </div>
 
@@ -505,6 +504,21 @@ export default function LeadDetailsWorkspace({
 
             {/* Supporting Column (4 spans) */}
             <div className="space-y-6 xl:col-span-4">
+              {/* 0. Stage Aging */}
+              {stageThreshold !== undefined && (
+                <StageAgingBar
+                  stage={displayStage}
+                  stageUpdatedAt={lead.stageUpdatedAt}
+                  daysThreshold={stageThreshold}
+                  autoFollowUpDue={autoFollowUpDue}
+                />
+              )}
+
+              {/* 0b. Next Best Actions */}
+              {nbaResults && nbaResults.length > 0 && (
+                <NextBestActionsList recommendations={nbaResults} leadId={lead.id} />
+              )}
+
               {/* 1. Contacts */}
               <Section title="Contacts" description="People and channels available for outreach." icon={ContactRound}>
                 <ClientContactsList 

@@ -1,0 +1,95 @@
+'use client';
+
+import { useState } from 'react';
+import Link from 'next/link';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Lightbulb, ArrowRight } from 'lucide-react';
+import type { NBAResult } from '@/services/lead';
+import { logNbaActionAction } from '@/app/actions/tracking';
+
+const PRIORITY_VARIANTS: Record<string, 'destructive' | 'secondary' | 'outline'> = {
+  High: 'destructive',
+  Medium: 'secondary',
+  Low: 'outline',
+};
+
+interface Props {
+  recommendations: NBAResult[];
+  leadId?: string;
+}
+
+export function NextBestActionsList({ recommendations, leadId }: Props) {
+  const [showAll, setShowAll] = useState(false);
+  const displayed = showAll ? recommendations : recommendations.slice(0, 3);
+
+  if (recommendations.length === 0) {
+    return (
+      <div className="bg-card p-6 rounded-xl border border-border">
+        <div className="flex items-center gap-2 text-label-12 text-muted-foreground uppercase mb-3">
+          <Lightbulb className="w-3.5 h-3.5" />
+          <span>Recommended Next Actions</span>
+        </div>
+        <p className="text-copy-14 text-muted-foreground">
+          No recommendations — all signals are clear or the lead is in a terminal stage.
+        </p>
+      </div>
+    );
+  }
+
+  const handleClick = (r: NBAResult) => {
+    if (leadId) {
+      logNbaActionAction(leadId, r.action, r.priority).catch(() => {});
+    }
+  };
+
+  return (
+    <div className="bg-card p-6 rounded-xl border border-border space-y-3">
+      <div className="flex items-center gap-2 text-label-12 text-muted-foreground uppercase">
+        <Lightbulb className="w-3.5 h-3.5" />
+        <span>Recommended Next Actions</span>
+        <span className="ml-auto text-label-12">{recommendations.length} signals</span>
+      </div>
+
+      <div className="space-y-2">
+        {displayed.map((r, i) => (
+          <div
+            key={i}
+            className="flex items-start gap-3 p-3 rounded-lg border border-border/50 bg-muted/30 hover:bg-muted/60 transition-colors"
+          >
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-copy-14 font-semibold text-foreground">{r.action}</span>
+                <Badge variant={PRIORITY_VARIANTS[r.priority]} className="uppercase">
+                  {r.priority}
+                </Badge>
+              </div>
+              <p className="text-copy-13 text-muted-foreground mt-0.5">{r.rationale}</p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-label-12 text-muted-foreground">{r.score}</span>
+              {r.link && (
+                <Link href={r.link} onClick={() => handleClick(r)}>
+                  <Button variant="ghost" size="icon-xs">
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Button>
+                </Link>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {recommendations.length > 3 && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full text-label-12"
+          onClick={() => setShowAll(!showAll)}
+        >
+          {showAll ? 'Show fewer' : `Show all ${recommendations.length} recommendations`}
+        </Button>
+      )}
+    </div>
+  );
+}

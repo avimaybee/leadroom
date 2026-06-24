@@ -17,6 +17,7 @@ export type ActionState = { error?: string | null, success?: boolean, issues?: u
 export async function saveResearchSnapshotAction(prevState: ActionState, formData: FormData) {
   const service = await getService();
   const userId = await getUserId();
+  if (!userId) return { error: 'Authentication required' };
 
   const leadId = formData.get('leadId') as string;
   const companySummary = formData.get('companySummary') as string;
@@ -71,6 +72,7 @@ export async function saveResearchSnapshotAction(prevState: ActionState, formDat
 export async function addContactAction(prevState: ActionState, formData: FormData) {
   const service = await getService();
   const userId = await getUserId();
+  if (!userId) return { error: 'Authentication required' };
 
   const leadId = formData.get('leadId') as string;
   const fullName = formData.get('fullName') as string;

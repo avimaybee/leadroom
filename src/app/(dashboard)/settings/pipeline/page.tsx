@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { getDb } from '@/db';
-import { stageThresholds } from '@/db/schema/core';
+import { LeadService } from '@/services/lead';
 import { StageThresholdsTable } from '@/components/settings/StageThresholdsTable';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 
@@ -10,8 +10,7 @@ export const metadata = {
 };
 
 export default async function PipelineSettingsPage() {
-  const db = getDb();
-  const rows = await db.select().from(stageThresholds);
+  const rows = await new LeadService(getDb()).getStageThresholds();
 
   return (
     <div className="space-y-6 max-w-4xl">

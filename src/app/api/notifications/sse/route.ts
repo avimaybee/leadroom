@@ -4,6 +4,8 @@ import { getDb } from '@/db';
 import { notifications } from '@/db/schema';
 import { eq, and, gt } from 'drizzle-orm';
 import { getUserId } from '@/lib/auth';
+import { ReminderService } from '@/services/reminders';
+import { LeadService } from '@/services/lead';
 
 export async function GET(request: Request) {
   const userId = await getUserId();
@@ -13,6 +15,10 @@ export async function GET(request: Request) {
 
   const encoder = new TextEncoder();
   let isClosed = false;
+  let lastStaleCheck = 0;
+  let lastReminderCheck = 0;
+  const STALE_CHECK_INTERVAL = 60_000;
+  const REMINDER_CHECK_INTERVAL = 30_000;
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -27,6 +33,29 @@ export async function GET(request: Request) {
 
       while (!isClosed) {
         try {
+          // Fire due reminders (every 30s)
+          const now = Date.now();
+          if (now - lastReminderCheck > REMINDER_CHECK_INTERVAL) {
+            try {
+              const reminderService = new ReminderService(db);
+              await reminderService.fireDueReminders();
+            } catch (e) {
+              console.error('Reminder firing failed:', e);
+            }
+            lastReminderCheck = now;
+          }
+
+          // Fire stale lead alerts (every 60s)
+          if (now - lastStaleCheck > STALE_CHECK_INTERVAL) {
+            try {
+              const leadService = new LeadService(db);
+              await leadService.checkAndAlertStaleLeads();
+            } catch (e) {
+              console.error('Stale alert check failed:', e);
+            }
+            lastStaleCheck = now;
+          }
+
           const newNotifs = await db.select()
             .from(notifications)
             .where(
@@ -37,8 +66,6 @@ export async function GET(request: Request) {
             );
 
           if (newNotifs.length > 0) {
-            // Update lastCheck to the latest notification's createdAt plus 1ms, or just now.
-            // Using `now` is safer if system clocks are identical.
             lastCheck = new Date();
             try {
               controller.enqueue(encoder.encode(`data: ${JSON.stringify(newNotifs)}\n\n`));
@@ -47,7 +74,6 @@ export async function GET(request: Request) {
               break;
             }
           } else {
-            // Keep-alive heartbeat
             try {
               controller.enqueue(encoder.encode(':\n\n'));
             } catch (err) {
@@ -59,7 +85,6 @@ export async function GET(request: Request) {
           console.error('SSE DB Error:', err);
         }
 
-        // Wait 2 seconds
         await new Promise(resolve => setTimeout(resolve, 2000));
       }
       

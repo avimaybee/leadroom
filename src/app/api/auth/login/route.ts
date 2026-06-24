@@ -28,11 +28,10 @@ export async function POST(request: NextRequest) {
     }
 
     const response = NextResponse.json({ success: true, user: result.user });
-    
-    // Set cookie
+    const isSecure = request.url.startsWith('https://');
     response.headers.append(
       'Set-Cookie',
-      `session=${result.session}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=86400`
+      `session=${result.session}; HttpOnly; ${isSecure ? 'Secure; ' : ''}SameSite=Lax; Path=/; Max-Age=86400`
     );
 
     return response;

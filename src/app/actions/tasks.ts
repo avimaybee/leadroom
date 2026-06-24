@@ -3,8 +3,7 @@
 import { LeadService } from '@/services/lead';
 import { getDb } from '@/db';
 import { revalidatePath } from 'next/cache';
-import { cookies } from 'next/headers';
-import { decrypt, getUserId } from '@/lib/auth';
+import { getUserId } from '@/lib/auth';
  
 async function getService() {
   const db = getDb();

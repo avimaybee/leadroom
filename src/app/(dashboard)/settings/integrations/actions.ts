@@ -3,8 +3,11 @@
 import { getDb } from '@/db';
 import { IntegrationsService } from '@/services/integrations';
 import { revalidatePath } from 'next/cache';
+import { getUserId } from '@/lib/auth';
 
 export async function saveIntegrationConfigAction(formData: FormData) {
+  const userId = await getUserId();
+  if (!userId) return { error: 'Authentication required' };
   const provider = formData.get('provider') as string;
   const apiKey = formData.get('apiKey') as string;
   const modelName = formData.get('modelName') as string;
@@ -150,6 +153,8 @@ export async function saveIntegrationConfigAction(formData: FormData) {
 }
 
 export async function deleteIntegrationConfigAction(provider: string) {
+  const userId = await getUserId();
+  if (!userId) return { error: 'Authentication required' };
   if (!provider) return { error: 'Provider is required' };
 
   const db = getDb();
@@ -168,6 +173,8 @@ export async function deleteIntegrationConfigAction(provider: string) {
 }
 
 export async function setActiveProviderAndModelAction(provider: string, modelName: string) {
+  const userId = await getUserId();
+  if (!userId) return { error: 'Authentication required' };
   if (!provider || !modelName) {
     return { error: 'Provider and model name are required' };
   }

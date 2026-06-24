@@ -138,7 +138,7 @@ If the app outgrows this shape later, domain modules can be extracted without ch
 
 ### 4.3 Database
 
-- PostgreSQL.
+- SQLite (Cloudflare D1, via Drizzle ORM's sqliteTable).
 - Prisma or Drizzle as the ORM and schema layer.
 
 ### 4.4 Auth

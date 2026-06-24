@@ -1,6 +1,7 @@
-import { test } from 'node:test';
+import { test, after } from 'node:test';
 import assert from 'node:assert';
 
+const ORIGINAL_AUTH_SECRET = process.env.AUTH_SECRET;
 process.env.AUTH_SECRET = 'test-only-secret-key-minimum-32-chars-long';
 import { setupTestDb as initTestDb } from './test-helpers';
 import { AuthService } from '../../services/auth';
@@ -37,4 +38,12 @@ test('AuthService integration', async (t) => {
     const result = await service.login('nonexistent@example.com', 'password123');
     assert.strictEqual(result, null);
   });
+});
+
+after(() => {
+  if (ORIGINAL_AUTH_SECRET === undefined) {
+    delete process.env.AUTH_SECRET;
+  } else {
+    process.env.AUTH_SECRET = ORIGINAL_AUTH_SECRET;
+  }
 });

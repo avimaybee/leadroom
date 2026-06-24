@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import { providerConfigs } from '../schema/core';
 
 // Ensure test environment
+const ORIGINAL_NODE_ENV = process.env.NODE_ENV;
 (process.env as any).NODE_ENV = 'test';
 
 
@@ -74,6 +75,11 @@ test('AI Provider Config & Active Picker Integration', async (t) => {
 
   t.after(() => {
     globalThis.fetch = originalFetch;
+    if (ORIGINAL_NODE_ENV === undefined) {
+      delete (process.env as any).NODE_ENV;
+    } else {
+      (process.env as any).NODE_ENV = ORIGINAL_NODE_ENV;
+    }
   });
 
   await t.test('saveIntegrationConfigAction sets isActive mutually exclusively', async () => {

@@ -67,19 +67,33 @@ These rules override convenience.
 
 ---
 
+## Scoring Philosophy
+
+Confidence scores (LOW / MEDIUM / HIGH) and numerical scores are used in research and lead scoring where they help the operator triage and prioritize. They are deliberately absent from outreach drafts.
+
+Outreach copy is a creative product, not a measurement problem. A confidence score on a draft would imply the system can judge its own persuasion quality — which it cannot. The operator's qualitative review is the only valid signal.
+
+Therefore:
+
+- **Research snapshots** include `confidenceLevel` to help the operator decide how much to trust the data.
+- **Lead scores** provide a numerical signal for pipeline triage.
+- **Outreach drafts** never carry a score or confidence label. Every draft is presented for human judgment without a system-predicted quality rating.
+- **Mock fallback drafts** show a clear `[Fallback — AI not configured]` marker in the body so the operator knows the content is templated and requires full review.
+
+
+---
+
 ## Current Delivery Mode
 
-This repository starts **docs-first**.
-
-Until core planning docs exist, agents must not make large code decisions by guessing.
+Planning docs exist at the repo root. Agents must read them before making broad implementation decisions.
 
 Current operating assumption:
 
 - `AGENTS.md` is the top-level operating contract.
-- `PRD.md` defines the product requirements.
-- `PLAN.md` defines the staged implementation plan.
-- `ARCHITECTURE.md` defines the system structure.
-- `TASKS.md` defines the next executable units of work.
+- `docs/PRD.md` defines the product requirements.
+- `docs/PLAN.md` defines the staged implementation plan.
+- `docs/ARCHITECTURE.md` defines the system structure.
+- `docs/TASKS.md` defines the next executable units of work.
 
 If one of these files is missing, incomplete, or contradicts another file, the agent must stop and resolve the documentation gap before making broad implementation changes.
 

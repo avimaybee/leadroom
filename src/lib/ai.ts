@@ -1211,29 +1211,30 @@ export function generateMockOutreachDraft(
   const name = companyName || leadName;
   const primaryContact = contactsList.find(c => c.isPrimary) || contactsList[0];
   const contactName = primaryContact ? primaryContact.name : 'there';
+  const fallbackPrefix = '[Fallback — AI not configured. Edit before using.]\n\n';
 
   if (channel === 'EMAIL') {
     return { drafts: [{
       subject: `Question about ${name}'s digital presence`,
-      body: `Hi ${contactName},\n\nI was looking at ${name}'s website and noticed opportunities to improve the brand presence and user flow. Happy to share a few specific thoughts if you're open to it.\n\nBest,\n[Your Name]`,
+      body: `${fallbackPrefix}Hi ${contactName},\n\nI was looking at ${name}'s website and noticed opportunities to improve the brand presence and user flow. Happy to share a few specific thoughts if you're open to it.\n\nBest,\n[Your Name]`,
       variationTone: 'Direct',
     }]};
   } else if (channel === 'LINKEDIN') {
     return { drafts: [{
       subject: null,
-      body: `Hi ${contactName}, I came across ${name} and noticed some opportunities on the website that could improve conversions. Would love to connect and share a quick thought.`,
+      body: `${fallbackPrefix}Hi ${contactName}, I came across ${name} and noticed some opportunities on the website that could improve conversions. Would love to connect and share a quick thought.`,
       variationTone: 'Conversational',
     }]};
   } else if (channel === 'CALL') {
     return { drafts: [{
       subject: null,
-      body: `CALL PREP FOR ${name.toUpperCase()}\n\nContact: ${contactName} (${primaryContact?.role || 'Stakeholder'})\n\nOpening:\n"Hi ${contactName}, I was reviewing ${name}'s digital presence and noticed a few opportunities I'd like to share."\n\nQuestions:\n- How are you currently handling website updates?\n- What's the biggest challenge with your current site?\n- What would success look like for a redesign?\n\nGoal: Schedule a discovery call.`,
+      body: `${fallbackPrefix}CALL PREP FOR ${name.toUpperCase()}\n\nContact: ${contactName} (${primaryContact?.role || 'Stakeholder'})\n\nOpening:\n"Hi ${contactName}, I was reviewing ${name}'s digital presence and noticed a few opportunities I'd like to share."\n\nQuestions:\n- How are you currently handling website updates?\n- What's the biggest challenge with your current site?\n- What would success look like for a redesign?\n\nGoal: Schedule a discovery call.`,
       variationTone: 'Direct',
     }]};
   } else {
     return { drafts: [{
       subject: null,
-      body: `MEETING PREP GUIDE FOR ${name.toUpperCase()}\n\nAttendee: ${contactName} (${primaryContact?.role || 'Decision Maker'})\n\nAgenda:\n1. Introductions and context\n2. ${name}'s current digital presence review\n3. Key opportunities identified\n4. Next steps\n\nQuestions:\n- What are your main conversion challenges?\n- How does your brand identity align with future goals?\n- What digital improvements would have the biggest impact?`,
+      body: `${fallbackPrefix}MEETING PREP GUIDE FOR ${name.toUpperCase()}\n\nAttendee: ${contactName} (${primaryContact?.role || 'Decision Maker'})\n\nAgenda:\n1. Introductions and context\n2. ${name}'s current digital presence review\n3. Key opportunities identified\n4. Next steps\n\nQuestions:\n- What are your main conversion challenges?\n- How does your brand identity align with future goals?\n- What digital improvements would have the biggest impact?`,
       variationTone: 'Direct',
     }]};
   }

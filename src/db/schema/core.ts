@@ -48,12 +48,15 @@ export const tasks = sqliteTable('tasks', {
   status: text('status').notNull().default('Open'),
   isRead: integer('is_read', { mode: 'boolean' }).notNull().default(false),
   priority: text('priority').notNull().default('Medium'),
+  assigneeId: text('assignee_id').references(() => users.id),
+  category: text('category'),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   completedAt: integer('completed_at', { mode: 'timestamp' }),
 }, (table) => ({
   statusDueDateIndex: index('tasks_status_due_date_idx').on(table.status, table.dueDate),
   leadIdIndex: index('tasks_lead_id_idx').on(table.leadId),
+  assigneeStatusIndex: index('tasks_assignee_status_idx').on(table.assigneeId, table.status),
 }));
 
 export const notes = sqliteTable('notes', {
@@ -104,6 +107,27 @@ export const providerConfigs = sqliteTable('provider_configs', {
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
 });
+
+export const pipelineConfig = sqliteTable('pipeline_config', {
+  id: text('id').primaryKey().default('global'),
+  enforceStageOrder: integer('enforce_stage_order', { mode: 'boolean' }).notNull().default(false),
+  nbaRules: text('nba_rules'),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
+});
+
+export const reminders = sqliteTable('reminders', {
+  id: text('id').primaryKey(),
+  leadId: text('lead_id').references(() => leads.id),
+  userId: text('user_id').notNull().references(() => users.id),
+  title: text('title').notNull(),
+  message: text('message'),
+  remindAt: integer('remind_at', { mode: 'timestamp' }).notNull(),
+  isFired: integer('is_fired', { mode: 'boolean' }).notNull().default(false),
+  createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
+  link: text('link'),
+}, (table) => ({
+  remindAtFiredIndex: index('reminders_remind_at_fired_idx').on(table.remindAt, table.isFired),
+}));
 
 export const notifications = sqliteTable('notifications', {
   id: text('id').primaryKey(),

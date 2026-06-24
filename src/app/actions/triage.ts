@@ -5,12 +5,15 @@ import { eq } from 'drizzle-orm';
 import { leads, tasks } from '@/db/schema/core';
 import { outreachDrafts } from '@/db/schema/outreach';
 import { revalidatePath } from 'next/cache';
+import { getUserId } from '@/lib/auth';
 
 export async function toggleTriageStatusAction(
   entityType: 'lead' | 'task' | 'draft',
   entityId: string,
   isRead: boolean
 ) {
+  const userId = await getUserId();
+  if (!userId) return { error: 'Authentication required' };
   const db = getDb();
   
   if (entityType === 'lead') {

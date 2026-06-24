@@ -5,8 +5,7 @@ import { CreateLeadSchema, CreateLeadInput } from '@/db/models/lead';
 import { getDb } from '@/db';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { cookies } from 'next/headers';
-import { decrypt, getUserId } from '@/lib/auth';
+import { getUserId } from '@/lib/auth';
 
 
 async function getService() {
@@ -103,7 +102,6 @@ export async function updateLeadAction(prevState: ActionState, formData: FormDat
   }
 
   try {
-    const oldLead = await service.getLead(id);
     await service.updateLead(id, validated.data);
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Failed to update lead.';
