@@ -124,7 +124,7 @@ export function ReviewDialog({
               <Button
                 onClick={onApprove}
                 disabled={isApproving}
-                className="font-semibold bg-chart-2/80 hover:bg-chart-2 text-primary-foreground"
+                className="font-semibold bg-chart-2/80 hover:bg-chart-2 text-white"
               >
                 {isApproving ? (
                   <>

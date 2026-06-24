@@ -82,7 +82,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* Skip to Main Content Link */}
         <a
           href="#main-content"
-          className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-lg focus:font-semibold focus:shadow-md focus:outline-none"
+          className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-primary focus:text-white focus:rounded-lg focus:font-semibold focus:shadow-md focus:outline-none"
         >
           Skip to main content
         </a>
@@ -100,7 +100,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           className={`flex items-center border-b border-sidebar-border w-full text-left hover:bg-sidebar-accent transition-colors cursor-pointer ${collapsed ? 'justify-center p-3' : 'p-3 gap-2'}`}
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
-          <div className="w-7 h-7 rounded-md bg-primary flex items-center justify-center text-primary-foreground font-bold shadow-sm shrink-0">
+          <div className="w-7 h-7 rounded-md bg-primary flex items-center justify-center text-white font-bold shadow-sm shrink-0">
             L
           </div>
           {!collapsed && (

@@ -59,9 +59,9 @@ export function ResearchLoadingState({ jobStatus, leadId, onCancel }: ResearchLo
             <div key={idx} className="relative">
               <div className={`absolute -left-[31px] top-0.5 w-4 h-4 rounded-full border flex items-center justify-center ${
                 isStepCompleted
-                  ? 'bg-chart-2 border-chart-2 text-primary-foreground'
+                  ? 'bg-chart-2 border-chart-2 text-white'
                   : isCurrentStep
-                    ? 'bg-primary border-primary text-primary-foreground animate-pulse'
+                    ? 'bg-primary border-primary text-white animate-pulse'
                     : 'bg-card border-border'
               }`}>
                 {isStepCompleted ? (

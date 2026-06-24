@@ -53,7 +53,7 @@ export default function LoginPage() {
       <div className="w-full max-w-[420px] space-y-6 relative z-10 animate-fade-in">
         {/* Brand header */}
         <div className="text-center space-y-2 select-none">
-          <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-black mx-auto">
+          <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center text-white font-black mx-auto">
             L
           </div>
           <div>
