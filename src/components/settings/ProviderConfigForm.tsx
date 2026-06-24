@@ -56,7 +56,18 @@ const STATIC_MODELS: Record<string, ModelOption[]> = {
     { id: 'meta-llama/Llama-3-8b-chat', name: 'Llama 3 8B Chat' },
     { id: 'meta-llama/Llama-3-70b-chat', name: 'Llama 3 70B Chat' },
     { id: 'mistralai/Mistral-7B-Instruct-v0.2', name: 'Mistral 7B Instruct v0.2' },
-  ]
+  ],
+  openai: [
+    { id: 'gpt-4o', name: 'GPT-4o (Default)' },
+    { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
+    { id: 'gpt-4.1', name: 'GPT-4.1' },
+    { id: 'gpt-5.5', name: 'GPT-5.5' },
+  ],
+  anthropic: [
+    { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6 (Default)' },
+    { id: 'claude-opus-4-8', name: 'Claude Opus 4.8' },
+    { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5' },
+  ],
 };
 
 function ApiKeySection({

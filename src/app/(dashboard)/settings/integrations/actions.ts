@@ -90,6 +90,39 @@ export async function saveIntegrationConfigAction(formData: FormData) {
           return { error: `Invalid AIML model name "${modelName}". Make sure it matches AIML API's model list (e.g., "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning").` };
         }
       }
+    } else if (provider === 'openai') {
+      const res = await fetch('https://api.openai.com/v1/models', {
+        headers: { 'Authorization': `Bearer ${apiKey}` }
+      });
+      if (res.status === 401) {
+        return { error: 'Invalid OpenAI API key.' };
+      }
+      if (res.ok) {
+        const data = (await res.json()) as { data?: Array<{ id: string }> };
+        const models = data.data || [];
+        const exists = models.some((m) => m.id === modelName);
+        if (!exists) {
+          return { error: `Invalid OpenAI model name "${modelName}". Make sure it matches OpenAI's model list (e.g., "gpt-4o").` };
+        }
+      }
+    } else if (provider === 'anthropic') {
+      const res = await fetch('https://api.anthropic.com/v1/models', {
+        headers: {
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01'
+        }
+      });
+      if (res.status === 401 || res.status === 403) {
+        return { error: 'Invalid Anthropic API key.' };
+      }
+      if (res.ok) {
+        const data = (await res.json()) as { data?: Array<{ id: string; display_name?: string }> };
+        const models = data.data || [];
+        const exists = models.some((m) => m.id === modelName);
+        if (!exists) {
+          return { error: `Invalid Anthropic model name "${modelName}". Make sure it matches Claude's model list (e.g., "claude-sonnet-4-6").` };
+        }
+      }
     }
   } catch (err: unknown) {
     console.error(`Validation check failed for ${provider}:`, err);

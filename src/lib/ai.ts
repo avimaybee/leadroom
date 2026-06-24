@@ -82,7 +82,7 @@ export async function getActiveProviderConfig(db: Db) {
 
   const integrationsService = new IntegrationsService(db);
   let config: { provider: string; apiKey: string | null; modelName: string | null } | null = null;
-  for (const p of ['openrouter', 'nvidia', 'groq', 'aiml', 'gemini'] as const) {
+  for (const p of ['openrouter', 'nvidia', 'groq', 'aiml', 'gemini', 'openai', 'anthropic'] as const) {
     const pConfig = await integrationsService.getProviderConfig(p);
     if (pConfig && pConfig.isActive) {
       config = { provider: pConfig.provider, apiKey: pConfig.apiKey, modelName: pConfig.modelName };
@@ -111,6 +111,8 @@ export async function generateResearch(
     provider === 'nvidia' ? 'meta/llama-3.1-70b-instruct' : 
     provider === 'groq' ? 'llama3-70b-8192' :
     provider === 'aiml' ? 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning' :
+    provider === 'openai' ? 'gpt-4o' :
+    provider === 'anthropic' ? 'claude-sonnet-4-6' :
     'gemini-2.5-flash'
   );
 
@@ -243,7 +245,21 @@ Provide your response strictly in JSON format matching this schema:
     }
   }
 
-  // OpenAI-compatible providers (OpenRouter, NVIDIA, Groq, AIML)
+  if (provider === 'anthropic') {
+    try {
+      const textResult = await callAnthropic(
+        prompt, apiKey, modelName,
+        'You are a senior competitive intelligence analyst. Output strictly in valid JSON matching the requested schema. No markdown code blocks, no extra text.',
+      );
+      const parsed = JSON.parse(textResult);
+      return AIResearchSchema.parse(parsed);
+    } catch (error: unknown) {
+      console.error('Anthropic API call failed, falling back to mock generator:', error);
+      return generateMockResearch(leadName, companyName, websiteUrl, industry);
+    }
+  }
+
+  // OpenAI-compatible providers (OpenRouter, NVIDIA, Groq, AIML, OpenAI)
   try {
     let textResult = await callOpenAICompatible(
       provider, prompt, apiKey, modelName,
@@ -310,6 +326,7 @@ const OPENAI_URLS: Record<string, string> = {
   nvidia: 'https://integrate.api.nvidia.com/v1/chat/completions',
   groq: 'https://api.groq.com/openai/v1/chat/completions',
   aiml: 'https://api.aimlapi.com/v1/chat/completions',
+  openai: 'https://api.openai.com/v1/chat/completions',
 };
 
 const OPENAI_EXTRA_HEADERS: Record<string, Record<string, string>> = {
@@ -389,6 +406,48 @@ async function callOpenAICompatible(
   return text;
 }
 
+/**
+ * Anthropic Messages API caller.
+ * Anthropic uses a different request format than OpenAI-compatible APIs.
+ * Returns the raw text response string; caller does JSON.parse + Zod validation.
+ */
+async function callAnthropic(
+  prompt: string,
+  apiKey: string,
+  modelName: string,
+  systemMessage: string,
+): Promise<string> {
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: modelName,
+      max_tokens: 8192,
+      system: systemMessage,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.2,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Anthropic API returned status ${response.status}`);
+  }
+
+  const data = (await response.json()) as { content?: Array<{ text?: string }> };
+  let text = data.content?.[0]?.text;
+  if (!text) throw new Error('Invalid response structure from Anthropic API');
+
+  text = text.trim();
+  if (text.startsWith('```json')) text = text.replace(/^```json\n/, '').replace(/\n```$/, '');
+  else if (text.startsWith('```')) text = text.replace(/^```\n/, '').replace(/\n```$/, '');
+
+  return text;
+}
+
 function generateMockResearch(
   leadName: string,
   companyName: string | null,
@@ -431,6 +490,8 @@ export async function generateAudit(
     provider === 'nvidia' ? 'meta/llama-3.1-70b-instruct' : 
     provider === 'groq' ? 'llama3-70b-8192' :
     provider === 'aiml' ? 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning' :
+    provider === 'openai' ? 'gpt-4o' :
+    provider === 'anthropic' ? 'claude-sonnet-4-6' :
     'gemini-2.5-flash'
   );
 
@@ -603,6 +664,11 @@ Provide your response strictly in JSON format matching this schema:
       } else {
         throw new Error(`Gemini API returned status ${response.status}`);
       }
+    } else if (provider === 'anthropic') {
+      textResult = await callAnthropic(
+        prompt, apiKey, modelName,
+        'You are a senior design and UX auditor. Output strictly in valid JSON matching the requested schema.',
+      );
     } else {
       textResult = await callOpenAICompatible(
         provider, prompt, apiKey, modelName,
@@ -657,6 +723,8 @@ export async function generateOutreachDraft(
     provider === 'nvidia' ? 'meta/llama-3.1-70b-instruct' : 
     provider === 'groq' ? 'llama3-70b-8192' :
     provider === 'aiml' ? 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning' :
+    provider === 'openai' ? 'gpt-4o' :
+    provider === 'anthropic' ? 'claude-sonnet-4-6' :
     'gemini-2.5-flash'
   );
 
@@ -762,12 +830,19 @@ Provide your response strictly in JSON format. The response must match the follo
       } else {
         throw new Error(`Gemini API returned status ${response.status}`);
       }
+    } else if (provider === 'anthropic') {
+      textResult = await callAnthropic(
+        prompt, apiKey, modelName,
+        'You are a senior creative director drafting agency outreach. Output strictly in valid JSON matching the requested schema.',
+      );
     } else {
       const url = 
         provider === 'openrouter' ? 'https://openrouter.ai/api/v1/chat/completions' :
         provider === 'groq' ? 'https://api.groq.com/openai/v1/chat/completions' :
         provider === 'nvidia' ? 'https://integrate.api.nvidia.com/v1/chat/completions' :
-        'https://api.aimlapi.com/v1/chat/completions';
+        provider === 'openai' ? 'https://api.openai.com/v1/chat/completions' :
+        provider === 'aiml' ? 'https://api.aimlapi.com/v1/chat/completions' :
+        'https://api.openai.com/v1/chat/completions';
 
       // Setup payload content structure for potential multimodal input
       let userMessageContent: any = prompt;
@@ -881,6 +956,27 @@ export async function checkModelVisionCapability(provider: string, modelName: st
     }
   }
 
+  // Dynamic OpenAI check
+  if (p === 'openai') {
+    try {
+      const response = await fetch('https://api.openai.com/v1/models', {
+        headers: { 'Authorization': `Bearer ${apiKey}` }
+      });
+      if (response.ok) {
+        const data = (await response.json()) as any;
+        const modelObj = data.data?.find((x: any) => x.id === modelName);
+        if (modelObj) {
+          const id = modelObj.id.toLowerCase();
+          const result = id.includes('vision') || id.includes('gpt-4o') || id.includes('gpt-4-vision') || id.includes('o3') || id.includes('o4');
+          _visionCapabilityCache.set(cacheKey, { result, timestamp: Date.now() });
+          return result;
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching OpenAI models:', e);
+    }
+  }
+
   // Dynamic Groq / Nvidia / AIML checks
   if (['groq', 'nvidia', 'aiml'].includes(p)) {
     try {
@@ -907,7 +1003,7 @@ export async function checkModelVisionCapability(provider: string, modelName: st
     }
   }
 
-  const visionKeywords = ['vision', 'llava', 'pixtral', 'gemini', 'claude-3', 'gpt-4o', 'gpt-4-vision', 'llama-3.2-11b', 'llama-3.2-90b'];
+  const visionKeywords = ['vision', 'llava', 'pixtral', 'gemini', 'claude-3', 'claude-opus', 'claude-sonnet', 'gpt-4o', 'gpt-4-vision', 'gpt-5', 'llama-3.2-11b', 'llama-3.2-90b'];
   const fallbackResult = visionKeywords.some(keyword => m.includes(keyword)) && !m.includes('embedding');
   _visionCapabilityCache.set(cacheKey, { result: fallbackResult, timestamp: Date.now() });
   return fallbackResult;
@@ -922,6 +1018,8 @@ export async function getModelInfo(db: Db): Promise<{ provider: string; modelNam
     provider === 'nvidia' ? 'meta/llama-3.1-70b-instruct' : 
     provider === 'groq' ? 'llama3-70b-8192' :
     provider === 'aiml' ? 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning' :
+    provider === 'openai' ? 'gpt-4o' :
+    provider === 'anthropic' ? 'claude-sonnet-4-6' :
     'gemini-2.5-flash'
   );
 
@@ -954,6 +1052,8 @@ export async function generateContactExtraction(
     provider === 'nvidia' ? 'meta/llama-3.1-70b-instruct' : 
     provider === 'groq' ? 'llama3-70b-8192' :
     provider === 'aiml' ? 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning' :
+    provider === 'openai' ? 'gpt-4o' :
+    provider === 'anthropic' ? 'claude-sonnet-4-6' :
     'gemini-2.5-flash'
   );
 
@@ -1043,13 +1143,29 @@ Rules:
     }
   }
 
+  if (provider === 'anthropic') {
+    try {
+      const textResult = await callAnthropic(
+        prompt, apiKey, modelName,
+        'Extract contact information from business website content. Output strictly in valid JSON.',
+      );
+      const parsed = JSON.parse(textResult);
+      return AIContactExtractionSchema.parse(parsed);
+    } catch (error: unknown) {
+      console.error('Anthropic contact extraction failed:', error);
+      return { people: null, socialLinks: null, emails: null, phones: null };
+    }
+  }
+
   // OpenAI-compatible providers
   try {
     const url = 
       provider === 'openrouter' ? 'https://openrouter.ai/api/v1/chat/completions' :
       provider === 'groq' ? 'https://api.groq.com/openai/v1/chat/completions' :
       provider === 'nvidia' ? 'https://integrate.api.nvidia.com/v1/chat/completions' :
-      'https://api.aimlapi.com/v1/chat/completions';
+      provider === 'openai' ? 'https://api.openai.com/v1/chat/completions' :
+      provider === 'aiml' ? 'https://api.aimlapi.com/v1/chat/completions' :
+      'https://api.openai.com/v1/chat/completions';
 
     const response = await fetch(url, {
       method: 'POST',
@@ -1217,6 +1333,11 @@ Provide your response strictly in JSON format matching this schema:
       } else {
         throw new Error(`Gemini API returned status ${response.status}`);
       }
+    } else if (provider === 'anthropic') {
+      textResult = await callAnthropic(
+        prompt, apiKey, modelName,
+        'You are a lead scoring evaluator. Output strictly valid JSON.',
+      );
     } else {
       textResult = await callOpenAICompatible(
         provider, prompt, apiKey, modelName,

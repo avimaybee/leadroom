@@ -103,6 +103,41 @@ export async function GET(request: Request) {
       }));
     }
 
+    else if (provider === 'openai') {
+      if (!apiKey || apiKey === 'placeholder' || apiKey.trim() === '') {
+        return NextResponse.json({ models: [] });
+      }
+      const res = await fetch('https://api.openai.com/v1/models', {
+        headers: { 'Authorization': `Bearer ${apiKey}` },
+        cache: 'no-store'
+      });
+      if (!res.ok) throw new Error(`OpenAI returned status ${res.status}`);
+      const data = (await res.json()) as { data?: Array<{ id: string }> };
+      models = (data.data || []).map((m) => ({
+        id: m.id,
+        name: m.id,
+      }));
+    }
+
+    else if (provider === 'anthropic') {
+      if (!apiKey || apiKey === 'placeholder' || apiKey.trim() === '') {
+        return NextResponse.json({ models: [] });
+      }
+      const res = await fetch('https://api.anthropic.com/v1/models', {
+        headers: {
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01'
+        },
+        cache: 'no-store'
+      });
+      if (!res.ok) throw new Error(`Anthropic returned status ${res.status}`);
+      const data = (await res.json()) as { data?: Array<{ id: string; display_name?: string }> };
+      models = (data.data || []).map((m) => ({
+        id: m.id,
+        name: m.display_name || m.id,
+      }));
+    }
+
     return NextResponse.json({ models });
   } catch (error: unknown) {
     console.error('Settings models error:', error);

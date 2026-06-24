@@ -18,6 +18,8 @@ export default async function IntegrationsPage() {
   const openrouterConfig = await service.getProviderConfig('openrouter');
   const groqConfig = await service.getProviderConfig('groq');
   const aimlConfig = await service.getProviderConfig('aiml');
+  const openaiConfig = await service.getProviderConfig('openai');
+  const anthropicConfig = await service.getProviderConfig('anthropic');
 
   return (
     <div className="space-y-8 max-w-4xl">
@@ -29,6 +31,8 @@ export default async function IntegrationsPage() {
           openrouter: openrouterConfig,
           groq: groqConfig,
           aiml: aimlConfig,
+          openai: openaiConfig,
+          anthropic: anthropicConfig,
         }}
       />
 
@@ -75,6 +79,20 @@ export default async function IntegrationsPage() {
             displayName="AI/ML API (OpenAI Compatible)"
             defaultModel="nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
             config={aimlConfig}
+          />
+
+          <ProviderConfigForm
+            provider="openai"
+            displayName="OpenAI"
+            defaultModel="gpt-4o"
+            config={openaiConfig}
+          />
+
+          <ProviderConfigForm
+            provider="anthropic"
+            displayName="Anthropic Claude"
+            defaultModel="claude-sonnet-4-6"
+            config={anthropicConfig}
           />
         </div>
       </div>
