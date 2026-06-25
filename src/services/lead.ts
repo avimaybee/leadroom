@@ -85,8 +85,9 @@ export class LeadService {
     await this.db.insert(leadStageHistory).values({
       id: crypto.randomUUID(),
       leadId: id,
-      stage: leadData.stage || 'New',
-      enteredAt: now,
+      fromStage: null,
+      toStage: leadData.stage || 'New',
+      timestamp: now,
     });
 
     let finalSourceName = sourceName?.trim() || 'Manual Entry';
@@ -177,15 +178,12 @@ async listLeads() {
     if (!oldLead) throw new Error('Lead not found');
 
     if (input.stage && input.stage !== oldLead.stage) {
-      await this.db.update(leadStageHistory)
-        .set({ exitedAt: now })
-        .where(and(eq(leadStageHistory.leadId, id), isNull(leadStageHistory.exitedAt)));
-        
       await this.db.insert(leadStageHistory).values({
         id: crypto.randomUUID(),
         leadId: id,
-        stage: input.stage,
-        enteredAt: now,
+        fromStage: oldLead.stage,
+        toStage: input.stage,
+        timestamp: now,
       });
 
       await new LoggingService(this.db).log({
@@ -243,7 +241,7 @@ async listLeads() {
           const [entry] = await this.db
             .select({ count: count() })
             .from(leadStageHistory)
-            .where(and(eq(leadStageHistory.leadId, id), eq(leadStageHistory.stage, stage)))
+            .where(and(eq(leadStageHistory.leadId, id), eq(leadStageHistory.toStage, stage)))
             .limit(1);
           if (!entry?.count) missing.push(stage);
         }
@@ -253,15 +251,12 @@ async listLeads() {
       }
     }
 
-    await this.db.update(leadStageHistory)
-      .set({ exitedAt: now })
-      .where(and(eq(leadStageHistory.leadId, id), isNull(leadStageHistory.exitedAt)));
-      
     await this.db.insert(leadStageHistory).values({
       id: crypto.randomUUID(),
       leadId: id,
-      stage: newStage,
-      enteredAt: now,
+      fromStage: oldStage,
+      toStage: newStage,
+      timestamp: now,
     });
 
     const updates: any = {
@@ -293,9 +288,16 @@ async listLeads() {
   async archiveLead(id: string) {
     const now = new Date();
     
-    await this.db.update(leadStageHistory)
-      .set({ exitedAt: now })
-      .where(and(eq(leadStageHistory.leadId, id), isNull(leadStageHistory.exitedAt)));
+    const lead = await this.getLead(id);
+    if (lead) {
+      await this.db.insert(leadStageHistory).values({
+        id: crypto.randomUUID(),
+        leadId: id,
+        fromStage: lead.stage,
+        toStage: 'Archived',
+        timestamp: now,
+      });
+    }
 
     await this.db.update(leads).set({
       status: 'Archived',
@@ -498,16 +500,16 @@ async listLeads() {
     droppedPercent: number | null;
   }[]> {
     const enteredRows = await this.db
-      .select({ stage: leadStageHistory.stage, count: count() })
+      .select({ stage: leadStageHistory.toStage, count: count() })
       .from(leadStageHistory)
-      .groupBy(leadStageHistory.stage);
+      .groupBy(leadStageHistory.toStage);
     const enteredMap = new Map(enteredRows.map((r) => [r.stage, r.count]));
 
     const exitedRows = await this.db
-      .select({ stage: leadStageHistory.stage, count: count() })
+      .select({ stage: leadStageHistory.fromStage, count: count() })
       .from(leadStageHistory)
-      .where(isNotNull(leadStageHistory.exitedAt))
-      .groupBy(leadStageHistory.stage);
+      .where(isNotNull(leadStageHistory.fromStage))
+      .groupBy(leadStageHistory.fromStage);
     const exitedMap = new Map(exitedRows.map((r) => [r.stage, r.count]));
 
     const avgDaysMap = await this.getAvgDaysInAllStages();
@@ -532,20 +534,44 @@ async listLeads() {
   }
 
   private async getAvgDaysInAllStages(): Promise<Map<string, number | null>> {
-    const rows = await this.db
+    // Basic in-memory computation for simplicity
+    const history = await this.db
       .select({
-        stage: leadStageHistory.stage,
-        avgMs: sql<number>`AVG(${leadStageHistory.exitedAt} - ${leadStageHistory.enteredAt})`,
+        leadId: leadStageHistory.leadId,
+        fromStage: leadStageHistory.fromStage,
+        toStage: leadStageHistory.toStage,
+        timestamp: leadStageHistory.timestamp,
       })
       .from(leadStageHistory)
-      .where(and(isNotNull(leadStageHistory.exitedAt), isNotNull(leadStageHistory.enteredAt)))
-      .groupBy(leadStageHistory.stage);
+      .orderBy(leadStageHistory.timestamp);
+
+    const enteredAtMap = new Map<string, number>();
+    const durations = new Map<string, number[]>();
+
+    for (const record of history) {
+      if (record.fromStage && record.timestamp) {
+        const key = `${record.leadId}:${record.fromStage}`;
+        if (enteredAtMap.has(key)) {
+          const start = enteredAtMap.get(key)!;
+          const durationSec = (record.timestamp.getTime() - start) / 1000;
+          if (!durations.has(record.fromStage)) durations.set(record.fromStage, []);
+          durations.get(record.fromStage)!.push(durationSec);
+          enteredAtMap.delete(key);
+        }
+      }
+      if (record.toStage && record.timestamp) {
+        enteredAtMap.set(`${record.leadId}:${record.toStage}`, record.timestamp.getTime());
+      }
+    }
+
     const map = new Map<string, number | null>();
-    for (const row of rows) {
-      if (row.avgMs === null) {
-        map.set(row.stage, null);
+    for (const stage of PIPELINE_STAGES) {
+      const arr = durations.get(stage);
+      if (!arr || arr.length === 0) {
+        map.set(stage, null);
       } else {
-        map.set(row.stage, Math.round(row.avgMs / (24 * 60 * 60) * 10) / 10);
+        const avgSec = arr.reduce((a, b) => a + b, 0) / arr.length;
+        map.set(stage, Math.round(avgSec / (24 * 60 * 60) * 10) / 10);
       }
     }
     return map;

@@ -87,9 +87,9 @@ export const activities = sqliteTable('activities', {
 export const leadStageHistory = sqliteTable('lead_stage_history', {
   id: text('id').primaryKey(),
   leadId: text('lead_id').notNull().references(() => leads.id),
-  stage: text('stage').notNull(),
-  enteredAt: integer('entered_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
-  exitedAt: integer('exited_at', { mode: 'timestamp' }),
+  fromStage: text('from_stage'),
+  toStage: text('to_stage').notNull(),
+  timestamp: integer('timestamp', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
 });
 
 export const activityMetadata = sqliteTable('activity_metadata', {

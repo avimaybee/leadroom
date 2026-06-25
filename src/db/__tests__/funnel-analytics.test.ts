@@ -43,19 +43,32 @@ test('FunnelAnalytics', async (t) => {
     const { db, leadService } = setupTestDb();
     const lead1 = await leadService.createLead({ name: 'L1' });
     const lead2 = await leadService.createLead({ name: 'L2' });
+    
+    // Both enter In Research
     await db.insert(leadStageHistory).values({
       id: crypto.randomUUID(),
       leadId: lead1.id,
-      stage: 'In Research',
-      enteredAt: new Date(Date.now() - 86400000),
-      exitedAt: new Date(),
+      fromStage: 'New',
+      toStage: 'In Research',
+      timestamp: new Date(Date.now() - 86400000),
     });
     await db.insert(leadStageHistory).values({
       id: crypto.randomUUID(),
       leadId: lead2.id,
-      stage: 'In Research',
-      enteredAt: new Date(),
+      fromStage: 'New',
+      toStage: 'In Research',
+      timestamp: new Date(),
     });
+    
+    // Only lead1 exits In Research
+    await db.insert(leadStageHistory).values({
+      id: crypto.randomUUID(),
+      leadId: lead1.id,
+      fromStage: 'In Research',
+      toStage: 'Auditing',
+      timestamp: new Date(),
+    });
+
     const funnel = await leadService.getStageFunnel();
     const researchStage = funnel.find((r) => r.stage === 'In Research')!;
     assert.strictEqual(researchStage.entered, 2);
@@ -67,18 +80,18 @@ test('FunnelAnalytics', async (t) => {
     const { db, leadService } = setupTestDb();
     const lead1 = await leadService.createLead({ name: 'L1' });
     const lead2 = await leadService.createLead({ name: 'L2' });
+    
+    // Both leave New and enter In Research
     for (const lead of [lead1, lead2]) {
       await db.insert(leadStageHistory).values({
         id: crypto.randomUUID(),
         leadId: lead.id,
-        stage: 'In Research',
-        enteredAt: new Date(Date.now() - 86400000),
+        fromStage: 'New',
+        toStage: 'In Research',
+        timestamp: new Date(Date.now() - 86400000),
       });
     }
-    const newRows = await db.select().from(leadStageHistory).where(eq(leadStageHistory.stage, 'New'));
-    for (let i = 0; i < newRows.length; i++) {
-      await db.update(leadStageHistory).set({ exitedAt: new Date(Date.now() - 86400000) }).where(eq(leadStageHistory.id, newRows[i].id));
-    }
+
     const funnel = await leadService.getStageFunnel();
     const newStage = funnel.find((r) => r.stage === 'New')!;
     assert.strictEqual(newStage.entered, 2);
@@ -86,7 +99,7 @@ test('FunnelAnalytics', async (t) => {
     assert.strictEqual(newStage.conversionRate, 100);
   });
 
-  await t.test('avgDaysInStage computed via SQL aggregation', async () => {
+  await t.test('avgDaysInStage computed via transitions', async () => {
     const { db, leadService } = setupTestDb();
     const lead1 = await leadService.createLead({ name: 'L1' });
     const lead2 = await leadService.createLead({ name: 'L2' });
@@ -94,20 +107,37 @@ test('FunnelAnalytics', async (t) => {
     const exited1 = new Date(Date.now() - 2 * 86400000);
     const entered2 = new Date(Date.now() - 3 * 86400000);
     const exited2 = new Date(Date.now() - 2 * 86400000);
+    
     await db.insert(leadStageHistory).values({
       id: crypto.randomUUID(),
       leadId: lead1.id,
-      stage: 'In Research',
-      enteredAt: entered1,
-      exitedAt: exited1,
+      fromStage: 'New',
+      toStage: 'In Research',
+      timestamp: entered1,
+    });
+    await db.insert(leadStageHistory).values({
+      id: crypto.randomUUID(),
+      leadId: lead1.id,
+      fromStage: 'In Research',
+      toStage: 'Auditing',
+      timestamp: exited1,
+    });
+    
+    await db.insert(leadStageHistory).values({
+      id: crypto.randomUUID(),
+      leadId: lead2.id,
+      fromStage: 'New',
+      toStage: 'In Research',
+      timestamp: entered2,
     });
     await db.insert(leadStageHistory).values({
       id: crypto.randomUUID(),
       leadId: lead2.id,
-      stage: 'In Research',
-      enteredAt: entered2,
-      exitedAt: exited2,
+      fromStage: 'In Research',
+      toStage: 'Auditing',
+      timestamp: exited2,
     });
+
     const funnel = await leadService.getStageFunnel();
     const row = funnel.find((r) => r.stage === 'In Research')!;
     assert.ok(row.avgDaysInStage !== null, 'avgDaysInStage should not be null');
