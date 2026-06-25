@@ -9,6 +9,7 @@ import { discoveryScopes, candidateLeads } from '@/db/schema/discovery';
 import { eq } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 import { decrypt, getUserId } from '@/lib/auth';
+import { LeadService } from '@/services/lead';
 
 export async function POST(request: Request) {
   const userId = await getUserId();
@@ -35,70 +36,11 @@ export async function POST(request: Request) {
     }
 
     const db = getDb();
-    const importedLeadIds: string[] = [];
-    const now = new Date();
+    const leadService = new LeadService(db);
 
     const importSourceName = filename ? filename.replace(/\.csv$/i, '') : 'CSV Import';
 
-    // 1. Ensure Discovery Scope exists for this import
-    let [scope] = await db.select().from(discoveryScopes).where(eq(discoveryScopes.name, importSourceName)).limit(1);
-    
-    if (!scope) {
-      const scopeId = crypto.randomUUID();
-      await db.insert(discoveryScopes).values({
-        id: scopeId,
-        name: importSourceName,
-        description: `Imported leads from ${filename || 'CSV Import'}`,
-        createdByUserId: userId,
-        createdAt: now,
-        updatedAt: now,
-      });
-      [scope] = await db.select().from(discoveryScopes).where(eq(discoveryScopes.id, scopeId)).limit(1);
-    }
-
-    // 2. Bulk Insert Leads
-    for (const item of items) {
-      const leadId = crypto.randomUUID();
-      
-      await db.insert(leads).values({
-        id: leadId,
-        name: item.name,
-        website: item.website || null,
-        phone: item.phone || null,
-        city: item.city || null,
-        region: item.region || null,
-        industry: item.industry || null,
-        ownerId: userId,
-        stage: 'New',
-        status: 'Active',
-        createdAt: now,
-        updatedAt: now,
-      });
-
-      // Link via candidateLead to Discovery Scope
-      await db.insert(candidateLeads).values({
-        id: crypto.randomUUID(),
-        discoveryScopeId: scope.id,
-        rawName: item.name,
-        rawWebsiteUrl: item.website || null,
-        rawContactInfo: item.phone || null,
-        rawLocation: [item.city, item.region].filter(Boolean).join(', ') || null,
-        status: 'PROMOTED',
-        promotedLeadId: leadId,
-        createdAt: now,
-        updatedAt: now,
-      });
-
-      // Log import activity
-      await new LoggingService(db).log({
-        leadId,
-        type: 'Lead imported',
-        summary: `Imported via CSV/Bulk Import. Source: ${importSourceName}`,
-        metadata: { source: importSourceName }
-      });
-
-      importedLeadIds.push(leadId);
-    }
+    const importedLeadIds = await leadService.import(items, importSourceName, userId);
 
     return NextResponse.json({ 
       success: true, 

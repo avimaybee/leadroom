@@ -84,8 +84,9 @@ test('LeadService integration', async (t) => {
     assert.strictEqual(task.status, 'Open');
 
     const tasksList = await service.getTasks(lead.id);
-    assert.strictEqual(tasksList.length, 1);
-    assert.strictEqual(tasksList[0].id, task.id);
+    // Expected 2 tasks: the manually added one, and the 'Review new lead' auto-scheduled task.
+    assert.strictEqual(tasksList.length, 2);
+    assert.ok(tasksList.find(t => t.id === task.id));
 
     const toggled = await service.toggleTaskStatus(task.id, 'Open');
     assert.strictEqual(toggled.status, 'Completed');

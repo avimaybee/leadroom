@@ -140,9 +140,96 @@ export class LeadService {
     if (input.stage === 'Outreach Sent') {
       await this.triggerWorkflowIfOutreachSent(id, 'Outreach Sent', 'New', lead?.stageUpdatedAt);
     }
-    await this.autoScheduleFollowUp(id, leadData.stage || 'New', '');
+    await this.autoScheduleFollowUp(id, leadData.stage || 'New', '', finalSourceName);
 
     return lead;
+  }
+
+  async import(items: Array<{
+    name: string;
+    website?: string | null;
+    phone?: string | null;
+    city?: string | null;
+    region?: string | null;
+    industry?: string | null;
+    sourceUrl?: string | null;
+  }>, importSourceName: string, userId: string) {
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      throw new Error('No items provided for import');
+    }
+
+    const importedLeadIds: string[] = [];
+    const now = new Date();
+
+    let [scope] = await this.db.select().from(discoveryScopes).where(eq(discoveryScopes.name, importSourceName)).limit(1);
+    
+    if (!scope) {
+      const scopeId = crypto.randomUUID();
+      await this.db.insert(discoveryScopes).values({
+        id: scopeId,
+        name: importSourceName,
+        description: `Imported leads from ${importSourceName}`,
+        createdByUserId: userId,
+        createdAt: now,
+        updatedAt: now,
+      });
+      [scope] = await this.db.select().from(discoveryScopes).where(eq(discoveryScopes.id, scopeId)).limit(1);
+    }
+
+    const scoringService = new ScoringService(this.db);
+
+    for (const item of items) {
+      const leadId = crypto.randomUUID();
+      
+      await this.db.insert(leads).values({
+        id: leadId,
+        name: item.name,
+        website: item.website || null,
+        phone: item.phone || null,
+        city: item.city || null,
+        region: item.region || null,
+        industry: item.industry || null,
+        ownerId: userId,
+        stage: 'New',
+        status: 'Active',
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      await this.db.insert(leadStageHistory).values({
+        id: crypto.randomUUID(),
+        leadId,
+        stage: 'New',
+        enteredAt: now,
+      });
+
+      await this.db.insert(candidateLeads).values({
+        id: crypto.randomUUID(),
+        discoveryScopeId: scope.id,
+        rawName: item.name,
+        rawWebsiteUrl: item.website || null,
+        rawContactInfo: item.phone || null,
+        rawLocation: [item.city, item.region].filter(Boolean).join(', ') || null,
+        status: 'PROMOTED',
+        promotedLeadId: leadId,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      await new LoggingService(this.db).log({
+        leadId,
+        type: 'Lead imported',
+        summary: `Imported via CSV/Bulk Import. Source: ${importSourceName}`,
+        metadata: { source: importSourceName }
+      });
+
+      await scoringService.recalculateScore(leadId);
+      await this.autoScheduleFollowUp(leadId, 'New', '', importSourceName);
+
+      importedLeadIds.push(leadId);
+    }
+
+    return importedLeadIds;
   }
 
 async listLeads() {
@@ -420,8 +507,13 @@ async listLeads() {
     return task;
   }
 
-  private async autoScheduleFollowUp(leadId: string, newStage: string, oldStage: string) {
+  private async autoScheduleFollowUp(leadId: string, newStage: string, oldStage: string, sourceName?: string) {
     const FOLLOWUP_CONFIG: Record<string, { title: string; description: string; days: number } | null> = {
+      'New': {
+        title: 'Review new lead',
+        description: `This lead was added on ${new Date().toLocaleDateString()}${sourceName ? ` from ${sourceName}` : ''}. Review and determine next steps.`,
+        days: 1,
+      },
       'Outreach Sent': {
         title: 'Follow up on outreach',
         description: `This lead was marked as Outreach Sent on ${new Date().toLocaleDateString()}. Schedule a follow-up touchpoint.`,
@@ -565,6 +657,7 @@ async listLeads() {
 
     for (const lead of activeLeads) {
       if (lead.stage === 'Won' || lead.stage === 'Lost') continue;
+      if (lead.stage === 'New' || lead.stage === 'In Research') continue;
       const ageDays = this.getDaysSinceStageChange(lead.stageUpdatedAt);
       if (ageDays === null) continue;
       const thresholdDays = thresholds.find((t) => t.stage === lead.stage)?.days ?? 5;

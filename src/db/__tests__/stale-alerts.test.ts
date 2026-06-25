@@ -49,12 +49,12 @@ test('StaleAlerts', async (t) => {
   await t.test('creates alert (ERROR) when lead past threshold', async () => {
     const { db, leadService } = setupTestDb();
     const userId = await seedUser(db);
-    const lead = await leadService.createLead({ name: 'Stale Alert Lead', ownerId: userId, stage: 'In Research' });
+    const lead = await leadService.createLead({ name: 'Stale Alert Lead', ownerId: userId, stage: 'Auditing' });
     const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
     await db.update(leads).set({ stageUpdatedAt: tenDaysAgo }).where(eq(leads.id, lead.id));
     await db.insert(stageThresholds).values({
       id: crypto.randomUUID(),
-      stage: 'In Research',
+      stage: 'Auditing',
       days: 5,
     });
     const count = await leadService.checkAndAlertStaleLeads();
@@ -74,10 +74,10 @@ test('StaleAlerts', async (t) => {
     // Set threshold to 10 days, lead is 9 days old = 90% of threshold (within 80-99% range)
     await db.insert(stageThresholds).values({
       id: crypto.randomUUID(),
-      stage: 'New',
+      stage: 'Auditing',
       days: 10,
     });
-    const lead = await leadService.createLead({ name: 'Warning Lead', ownerId: userId, stage: 'New' });
+    const lead = await leadService.createLead({ name: 'Warning Lead', ownerId: userId, stage: 'Auditing' });
     const nineDaysAgo = new Date(Date.now() - 9 * 24 * 60 * 60 * 1000);
     await db.update(leads).set({ stageUpdatedAt: nineDaysAgo }).where(eq(leads.id, lead.id));
     const count = await leadService.checkAndAlertStaleLeads();
@@ -95,12 +95,12 @@ test('StaleAlerts', async (t) => {
   await t.test('dedup prevents duplicate ERROR alerts within window', async () => {
     const { db, leadService } = setupTestDb();
     const userId = await seedUser(db);
-    const lead = await leadService.createLead({ name: 'Dedup Alert Lead', ownerId: userId, stage: 'In Research' });
+    const lead = await leadService.createLead({ name: 'Dedup Alert Lead', ownerId: userId, stage: 'Auditing' });
     const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
     await db.update(leads).set({ stageUpdatedAt: tenDaysAgo }).where(eq(leads.id, lead.id));
     await db.insert(stageThresholds).values({
       id: crypto.randomUUID(),
-      stage: 'In Research',
+      stage: 'Auditing',
       days: 5,
     });
 
