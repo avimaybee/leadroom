@@ -21,6 +21,8 @@ export interface UnifiedItem {
   priority?: string;
   status?: string;
   leadId?: string;
+  score?: number;
+  isUrgent?: boolean;
 }
 
 export default function UnifiedActionFeed({ items }: { items: UnifiedItem[] }) {
@@ -98,6 +100,11 @@ export default function UnifiedActionFeed({ items }: { items: UnifiedItem[] }) {
                   {item.type === 'task' && <Badge variant="outline" className="text-label-12 uppercase"><CheckCircle className="w-3 h-3 mr-1" /> Task</Badge>}
                   {item.type === 'draft' && <Badge variant="default" className="text-label-12 uppercase"><Mail className="w-3 h-3 mr-1" /> Draft</Badge>}
                   
+                  {item.isUrgent && (
+                    <Badge variant="destructive" className="text-label-12 uppercase font-bold">
+                      Urgent
+                    </Badge>
+                  )}
                   {item.priority && (
                     <Badge variant={item.priority === 'High' ? 'destructive' : 'outline'} className="text-label-12">
                       {item.priority}
