@@ -34,9 +34,15 @@ export class LeadService {
    */
 
 
-  private async triggerWorkflowIfOutreachSent(leadId: string, newStage: string, oldStage: string, stageUpdatedAt?: Date | null) {
-    if (newStage === 'Outreach Sent' && oldStage !== 'Outreach Sent') {
+  private async evaluateStagePlaybooks(leadId: string, newStage: string, oldStage: string, stageUpdatedAt?: Date | null) {
+    if (newStage !== oldStage) {
       try {
+        const { PlaybookEngine } = await import('./playbook-engine');
+        const engine = new PlaybookEngine(this.db);
+        const rules = await engine.getPlaybooksForStage(newStage);
+
+        if (rules.length === 0) return;
+
         const { triggerMonitorStalledLeadWorkflow } = await import('../lib/workflow-client');
         let workflowBinding: any = undefined;
         try {
@@ -46,9 +52,18 @@ export class LeadService {
         if (!workflowBinding) {
           workflowBinding = (process.env as any)?.MONITOR_STALLED_LEAD_WORKFLOW;
         }
-        await triggerMonitorStalledLeadWorkflow(this.db, workflowBinding, leadId, stageUpdatedAt ? stageUpdatedAt.getTime() : Date.now());
+
+        for (const rule of rules) {
+          await triggerMonitorStalledLeadWorkflow(
+            this.db,
+            workflowBinding,
+            leadId,
+            stageUpdatedAt ? stageUpdatedAt.getTime() : Date.now(),
+            rule.id
+          );
+        }
       } catch (e) {
-        console.error('Failed to trigger stalled lead monitor workflow:', e);
+        console.error('Failed to evaluate playbooks:', e);
       }
     }
   }
@@ -137,8 +152,8 @@ export class LeadService {
 
     const [lead] = await this.db.select().from(leads).where(eq(leads.id, id)).limit(1);
     
-    if (input.stage === 'Outreach Sent') {
-      await this.triggerWorkflowIfOutreachSent(id, 'Outreach Sent', 'New', lead?.stageUpdatedAt);
+    if (input.stage) {
+      await this.evaluateStagePlaybooks(id, input.stage, 'New', lead?.stageUpdatedAt);
     }
     await this.autoScheduleFollowUp(id, leadData.stage || 'New', '');
 
@@ -214,7 +229,7 @@ async listLeads() {
 
     if (input.stage) {
       const updatedLead = await this.getLead(id);
-      await this.triggerWorkflowIfOutreachSent(id, input.stage, oldLead.stage, updatedLead?.stageUpdatedAt);
+      await this.evaluateStagePlaybooks(id, input.stage, oldLead.stage, updatedLead?.stageUpdatedAt);
       await this.autoScheduleFollowUp(id, input.stage, oldLead.stage);
     }
 
@@ -284,7 +299,7 @@ async listLeads() {
     });
 
     const updatedLead = await this.getLead(id);
-    await this.triggerWorkflowIfOutreachSent(id, newStage, oldStage, updatedLead?.stageUpdatedAt);
+    await this.evaluateStagePlaybooks(id, newStage, oldStage, updatedLead?.stageUpdatedAt);
     await this.autoScheduleFollowUp(id, newStage, oldStage);
 
     return this.getLead(id);

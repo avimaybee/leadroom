@@ -2,11 +2,12 @@ import { WorkflowEntrypoint, WorkflowStep, WorkflowEvent } from 'cloudflare:work
 import { getDb } from '../db';
 import { LeadService } from '../services/lead';
 import { eq } from 'drizzle-orm';
-import { leads } from '../db/schema/core';
+import { playbooks } from '../db/schema/playbooks';
 
 type MonitorParams = {
   leadId: string;
   stageUpdatedAt: number;
+  playbookId: string;
 };
 
 type Env = {
@@ -15,7 +16,7 @@ type Env = {
 
 export class MonitorStalledLeadWorkflow extends WorkflowEntrypoint<Env, MonitorParams> {
   async run(event: WorkflowEvent<MonitorParams>, step: WorkflowStep) {
-    const { leadId, stageUpdatedAt } = event.payload;
+    const { leadId, stageUpdatedAt, playbookId } = event.payload;
 
     (process as any).env = {
       ...(process as any).env,
@@ -24,8 +25,16 @@ export class MonitorStalledLeadWorkflow extends WorkflowEntrypoint<Env, MonitorP
 
     const db = getDb();
 
-    // Sleep for 72 hours
-    await step.sleep('wait-72-hours', '72 hours');
+    // Fetch the playbook rule
+    const rule = await step.do('fetch-playbook', async () => {
+      const [r] = await db.select().from(playbooks).where(eq(playbooks.id, playbookId)).limit(1);
+      return r;
+    });
+
+    if (!rule) return; // Playbook might have been deleted
+
+    // Sleep for dynamic duration
+    await step.sleep(`wait-${rule.delayHours}-hours`, `${rule.delayHours} hours`);
 
     await step.do('check-and-create-task', { retries: { limit: 3, delay: 5000 } }, async () => {
       const leadService = new LeadService(db);
@@ -33,20 +42,20 @@ export class MonitorStalledLeadWorkflow extends WorkflowEntrypoint<Env, MonitorP
       
       if (!lead) return;
 
-      // Check if lead is still in 'Outreach Sent'
+      // Check if lead is still in the trigger stage
       const currentStageUpdatedAt = lead.stageUpdatedAt ? new Date(lead.stageUpdatedAt).getTime() : 0;
       
-      // If the stage changed to something else and back to Outreach Sent, stageUpdatedAt will be greater than the workflow's stageUpdatedAt
+      // If the stage changed to something else and back, stageUpdatedAt will be greater than the workflow's stageUpdatedAt
       // We allow a small tolerance (e.g. 5 seconds) just in case.
       const isUnchanged = Math.abs(currentStageUpdatedAt - stageUpdatedAt) < 5000;
 
-      if (lead.stage === 'Outreach Sent' && isUnchanged) {
+      if (lead.stage === rule.triggerStage && isUnchanged) {
         await leadService.addTask(
           leadId,
-          'Follow up on stalled outreach',
-          'This lead has been in the "Outreach Sent" stage for 72 hours without any movement. Please follow up.',
+          rule.taskTitle,
+          rule.taskDescription || '',
           new Date(),
-          'High'
+          rule.taskPriority
         );
       }
     });

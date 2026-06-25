@@ -358,16 +358,16 @@ export async function triggerMonitorStalledLeadWorkflow(
   db: Db,
   workflowBinding: CloudflareWorkflow | undefined | null,
   leadId: string,
-  stageUpdatedAt: number
+  stageUpdatedAt: number,
+  playbookId: string
 ) {
   if (workflowBinding && typeof workflowBinding.create === 'function') {
-    logger.info('Triggering Cloudflare Monitor Stalled Lead Workflow', { leadId });
+    logger.info('Triggering Cloudflare Monitor Stalled Lead Workflow', { leadId, playbookId });
     try {
       // By supplying an id, Cloudflare Workflows deduplicates automatically
-      // But we can also just rely on not triggering it when the stage is already Outreach Sent.
       await workflowBinding.create({
-        id: `monitor-stalled-${leadId}-${Date.now()}`,
-        params: { leadId, stageUpdatedAt }
+        id: `monitor-stalled-${leadId}-${playbookId}-${Date.now()}`,
+        params: { leadId, stageUpdatedAt, playbookId }
       });
       return;
     } catch (err: unknown) {
@@ -376,13 +376,18 @@ export async function triggerMonitorStalledLeadWorkflow(
   }
 
   // Simulation mode
-  logger.info('Local simulation mode for monitor stalled lead', { leadId });
+  logger.info('Local simulation mode for monitor stalled lead', { leadId, playbookId });
 
   const runSimulation = async () => {
     try {
       const delayMs = process.env.NODE_ENV === 'test' ? 0 : 10000;
       await new Promise((resolve) => setTimeout(resolve, delayMs));
       
+      const { playbooks } = await import('@/db/schema/playbooks');
+      const [rule] = await db.select().from(playbooks).where(eq(playbooks.id, playbookId)).limit(1);
+
+      if (!rule) return;
+
       const { LeadService } = await import('@/services/lead');
       const leadService = new LeadService(db);
       const lead = await leadService.getLead(leadId);
@@ -390,13 +395,13 @@ export async function triggerMonitorStalledLeadWorkflow(
       const currentStageUpdatedAt = lead?.stageUpdatedAt ? new Date(lead.stageUpdatedAt).getTime() : 0;
       const isUnchanged = Math.abs(currentStageUpdatedAt - stageUpdatedAt) < 5000;
       
-      if (lead && lead.stage === 'Outreach Sent' && isUnchanged) {
+      if (lead && lead.stage === rule.triggerStage && isUnchanged) {
         await leadService.addTask(
           leadId,
-          'Follow up on stalled outreach',
-          'This lead has been in the "Outreach Sent" stage for 72 hours without any movement. Please follow up.',
+          rule.taskTitle,
+          rule.taskDescription || '',
           new Date(),
-          'High'
+          rule.taskPriority
         );
       }
     } catch (error: unknown) {
