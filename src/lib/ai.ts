@@ -47,6 +47,24 @@ export const AIContactExtractionSchema = z.object({
 
 export type AIContactExtractionOutput = z.infer<typeof AIContactExtractionSchema>;
 
+export const AIResearchAuditSchema = z.object({
+  companySummary: z.string(),
+  productsServicesSummary: z.string(),
+  digitalPresenceNotes: z.string(),
+  websiteNotes: z.string(),
+  brandingNotes: z.string(),
+  painPointsHypotheses: z.string(),
+  opportunityHypotheses: z.string(),
+  confidenceLevel: z.enum(['LOW', 'MEDIUM', 'HIGH']),
+  keyStrengths: z.string(),
+  keyWeaknesses: z.string(),
+  recommendedImprovements: z.string(),
+  contacts: AIContactExtractionSchema.nullable().optional(),
+  sources: z.array(z.string()),
+});
+
+export type AIResearchAuditOutput = z.infer<typeof AIResearchAuditSchema>;
+
 export const AIOutreachDraftSchema = z.object({
   drafts: z.array(z.object({
     subject: z.string().nullable().optional(),
@@ -308,6 +326,290 @@ const RESEARCH_JSON_SCHEMA = {
   required: ['companySummary', 'productsServicesSummary', 'digitalPresenceNotes', 'websiteNotes', 'brandingNotes', 'painPointsHypotheses', 'opportunityHypotheses', 'sources', 'confidenceLevel'],
   additionalProperties: false,
 };
+
+const RESEARCH_AUDIT_JSON_SCHEMA = {
+  type: 'object',
+  properties: {
+    companySummary: { type: 'string' },
+    productsServicesSummary: { type: 'string' },
+    digitalPresenceNotes: { type: 'string' },
+    websiteNotes: { type: 'string' },
+    brandingNotes: { type: 'string' },
+    painPointsHypotheses: { type: 'string' },
+    opportunityHypotheses: { type: 'string' },
+    confidenceLevel: { type: 'string', enum: ['LOW', 'MEDIUM', 'HIGH'] },
+    keyStrengths: { type: 'string' },
+    keyWeaknesses: { type: 'string' },
+    recommendedImprovements: { type: 'string' },
+    contacts: {
+      type: 'object',
+      properties: {
+        people: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              fullName: { type: 'string' },
+              roleTitle: { type: 'string' },
+              email: { type: 'string' },
+              phone: { type: 'string' },
+              linkedinUrl: { type: 'string' }
+            }
+          }
+        },
+        socialLinks: {
+          type: 'object',
+          properties: {
+            facebook: { type: 'string' },
+            instagram: { type: 'string' },
+            linkedin: { type: 'string' },
+            twitter: { type: 'string' },
+            youtube: { type: 'string' },
+            tiktok: { type: 'string' }
+          }
+        },
+        emails: { type: 'array', items: { type: 'string' } },
+        phones: { type: 'array', items: { type: 'string' } }
+      }
+    },
+    sources: { type: 'array', items: { type: 'string' } }
+  },
+  required: [
+    'companySummary', 'productsServicesSummary', 'digitalPresenceNotes', 
+    'websiteNotes', 'brandingNotes', 'painPointsHypotheses', 
+    'opportunityHypotheses', 'confidenceLevel', 'keyStrengths', 
+    'keyWeaknesses', 'recommendedImprovements', 'sources'
+  ],
+  additionalProperties: false,
+};
+
+export async function generateResearchAndAudit(
+  db: Db,
+  leadName: string,
+  companyName: string | null,
+  websiteUrl: string | null,
+  industry: string | null,
+  scrapedContent?: string | null,
+  location?: string | null
+): Promise<AIResearchAuditOutput> {
+  const config = await getActiveProviderConfig(db);
+  let provider = config?.provider || 'gemini';
+  let apiKey = config?.apiKey || (process as any).env?.GEMINI_API_KEY;
+  let modelName = config?.modelName || (
+    provider === 'openrouter' ? 'google/gemini-2.5-flash' : 
+    provider === 'nvidia' ? 'meta/llama-3.1-70b-instruct' : 
+    provider === 'groq' ? 'llama3-70b-8192' :
+    provider === 'aiml' ? 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning' :
+    provider === 'openai' ? 'gpt-4o' :
+    provider === 'anthropic' ? 'claude-sonnet-4-6' :
+    'gemini-2.5-flash'
+  );
+
+  if (!apiKey || apiKey === 'placeholder' || apiKey === '') {
+    return generateMockResearchAndAudit(leadName, companyName, websiteUrl, industry);
+  }
+
+  const name = companyName || leadName;
+  const ind = industry || 'General Business';
+  const web = websiteUrl || 'No website provided';
+
+  const prompt = `Perform a combined company research and design/UX audit on the company "${name}".
+Location Context: ${location || 'Unknown location'}
+Industry: ${ind}
+Website: ${web}
+${scrapedContent ? `\nHere is the scraped content of their website to analyze:\n--- START OF WEBSITE CONTENT ---\n${scrapedContent}\n--- END OF WEBSITE CONTENT ---\n` : ''}
+
+You are a senior design auditor and competitive intelligence analyst at a creative/digital agency. You will evaluate their company's core business AND perform a digital presence, website, and branding audit.
+
+---
+## 1. MINDSET
+Every field must serve a specific purpose to help the account team sound knowledgeable and identify real opportunities. Be generous where deserved and ruthless where needed. 
+
+---
+## 2. FIELD METHODOLOGY
+- **companySummary**: Business model, target customer, revenue model, scale. One paragraph.
+- **productsServicesSummary**: Specific offerings with context, not categories.
+- **digitalPresenceNotes**: Social channels, review sites, directory listings, content strategy.
+- **websiteNotes**: Above-the-fold analysis, CTA clarity, page load, mobile behavior, navigation.
+- **brandingNotes**: Logo quality, typography, color system consistency, photography style.
+- **painPointsHypotheses**: Markdown bullet list. Evidence first, then inferred pain.
+- **opportunityHypotheses**: Markdown bullet list. Specific service angles (3-5 bullets).
+- **confidenceLevel**: LOW (no scraped content), MEDIUM (limited scraped content), HIGH (rich content).
+- **keyStrengths**: Markdown bullet list of specific design/brand strengths.
+- **keyWeaknesses**: Markdown bullet list of digital presence/UX weaknesses.
+- **recommendedImprovements**: Markdown bullet list of concrete improvements ordered by impact.
+- **contacts**: Extract any contact details found (people names/roles/emails/phones, social media profile links, general email/phone).
+- **sources**: Array of URLs checked.
+
+Provide your response strictly in JSON format matching this schema:
+{
+  "companySummary": "...",
+  "productsServicesSummary": "...",
+  "digitalPresenceNotes": "...",
+  "websiteNotes": "...",
+  "brandingNotes": "...",
+  "painPointsHypotheses": "- Evidence: pain",
+  "opportunityHypotheses": "- Opportunity",
+  "confidenceLevel": "LOW" | "MEDIUM" | "HIGH",
+  "keyStrengths": "- Strength",
+  "keyWeaknesses": "- Weakness",
+  "recommendedImprovements": "- Improvement",
+  "contacts": {
+    "people": [
+      { "fullName": "...", "roleTitle": "...", "email": "...", "phone": "...", "linkedinUrl": "..." }
+    ],
+    "socialLinks": {
+      "facebook": "...", "instagram": "...", "linkedin": "...", "twitter": "...", "youtube": "...", "tiktok": "..."
+    },
+    "emails": ["..."],
+    "phones": ["..."]
+  },
+  "sources": ["..."]
+}`;
+
+  if (provider === 'gemini') {
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              maxOutputTokens: 24000,
+              responseMimeType: 'application/json',
+              responseSchema: {
+                type: 'OBJECT',
+                properties: {
+                  companySummary: { type: 'STRING' },
+                  productsServicesSummary: { type: 'STRING' },
+                  digitalPresenceNotes: { type: 'STRING' },
+                  websiteNotes: { type: 'STRING' },
+                  brandingNotes: { type: 'STRING' },
+                  painPointsHypotheses: { type: 'STRING' },
+                  opportunityHypotheses: { type: 'STRING' },
+                  confidenceLevel: { type: 'STRING', enum: ['LOW', 'MEDIUM', 'HIGH'] },
+                  keyStrengths: { type: 'STRING' },
+                  keyWeaknesses: { type: 'STRING' },
+                  recommendedImprovements: { type: 'STRING' },
+                  contacts: {
+                    type: 'OBJECT',
+                    properties: {
+                      people: {
+                        type: 'ARRAY',
+                        items: {
+                          type: 'OBJECT',
+                          properties: {
+                            fullName: { type: 'STRING' },
+                            roleTitle: { type: 'STRING' },
+                            email: { type: 'STRING' },
+                            phone: { type: 'STRING' },
+                            linkedinUrl: { type: 'STRING' },
+                          },
+                        },
+                      },
+                      socialLinks: {
+                        type: 'OBJECT',
+                        properties: {
+                          facebook: { type: 'STRING' },
+                          instagram: { type: 'STRING' },
+                          linkedin: { type: 'STRING' },
+                          twitter: { type: 'STRING' },
+                          youtube: { type: 'STRING' },
+                          tiktok: { type: 'STRING' },
+                        },
+                      },
+                      emails: { type: 'ARRAY', items: { type: 'STRING' } },
+                      phones: { type: 'ARRAY', items: { type: 'STRING' } },
+                    },
+                  },
+                  sources: { type: 'ARRAY', items: { type: 'STRING' } },
+                },
+                required: [
+                  'companySummary', 'productsServicesSummary', 'digitalPresenceNotes',
+                  'websiteNotes', 'brandingNotes', 'painPointsHypotheses',
+                  'opportunityHypotheses', 'confidenceLevel', 'keyStrengths',
+                  'keyWeaknesses', 'recommendedImprovements', 'sources',
+                ],
+              },
+            },
+          }),
+        }
+      );
+      if (!response.ok) throw new Error(`Gemini API returned status ${response.status}`);
+      const data = (await response.json()) as any;
+      const textResult = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!textResult) throw new Error('Invalid response structure from Gemini API');
+      const parsed = JSON.parse(textResult);
+      return AIResearchAuditSchema.parse(parsed);
+    } catch (error: unknown) {
+      console.error('Gemini API call failed, falling back to mock generator:', error);
+      return generateMockResearchAndAudit(leadName, companyName, websiteUrl, industry);
+    }
+  }
+
+  if (provider === 'anthropic') {
+    try {
+      const textResult = await callAnthropic(
+        prompt, apiKey, modelName,
+        'You are a senior competitive intelligence analyst and UX/design auditor. Output strictly in valid JSON matching the requested schema.',
+      );
+      const parsed = JSON.parse(textResult);
+      return AIResearchAuditSchema.parse(parsed);
+    } catch (error: unknown) {
+      console.error('Anthropic API call failed, falling back to mock generator:', error);
+      return generateMockResearchAndAudit(leadName, companyName, websiteUrl, industry);
+    }
+  }
+
+  // OpenAI-compatible providers
+  try {
+    const textResult = await callOpenAICompatible(
+      provider, prompt, apiKey, modelName,
+      'You are a senior competitive intelligence analyst and UX/design auditor. Output strictly in valid JSON matching the requested schema.',
+      RESEARCH_AUDIT_JSON_SCHEMA,
+    );
+    const parsed = JSON.parse(textResult);
+    return AIResearchAuditSchema.parse(parsed);
+  } catch (error: unknown) {
+    console.error(`${provider} API call failed, falling back to mock generator:`, error);
+    return generateMockResearchAndAudit(leadName, companyName, websiteUrl, industry);
+  }
+}
+
+function generateMockResearchAndAudit(
+  leadName: string,
+  companyName: string | null,
+  websiteUrl: string | null,
+  industry: string | null
+): AIResearchAuditOutput {
+  const name = companyName || leadName;
+  const web = websiteUrl || '';
+  const ind = (industry || 'General Business').toLowerCase();
+  const mockWeb = web || `https://${name.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`;
+
+  return {
+    companySummary: `${name} is an established company in the ${ind} industry.`,
+    productsServicesSummary: `Offers specialized services/products tailored to their customer base.`,
+    digitalPresenceNotes: `Limited social media activity with minimal detectable online footprint.`,
+    websiteNotes: `Website is functional but uses standard templates with room for UX and performance improvement.`,
+    brandingNotes: `Branding appears functional but lacks a cohesive visual identity system.`,
+    painPointsHypotheses: `- Digital presence is underutilized for lead generation\n- Website may not reflect current brand positioning`,
+    opportunityHypotheses: `- Modernize website with responsive design and clear CTAs\n- Refresh brand identity for consistency across channels`,
+    confidenceLevel: 'LOW',
+    keyStrengths: `- Clean baseline layout with core sections\n- Contact information is visible on the page`,
+    keyWeaknesses: `- Lacks modern mobile-responsive grid layout\n- Outdated typography and default browser styling`,
+    recommendedImprovements: `- Redesign with responsive grid system\n- Apply cohesive visual style guide\n- Simplify contact/booking flow`,
+    sources: [mockWeb].filter(Boolean),
+    contacts: {
+      people: [],
+      socialLinks: {},
+      emails: [],
+      phones: [],
+    },
+  };
+}
 
 const AUDIT_JSON_SCHEMA = {
   type: 'object',

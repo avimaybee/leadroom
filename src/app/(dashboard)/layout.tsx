@@ -1,13 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { LayoutDashboard, Users, Target, Settings, SlidersHorizontal } from 'lucide-react';
 import { NotificationProvider } from '@/components/NotificationProvider';
 import { NotificationBell } from '@/components/NotificationBell';
 import { HowToUse } from '@/components/HowToUse';
+import { signOut } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 
 const SIDEBAR_WIDTH_KEY = 'leadroom:sidebar:width';
 const SIDEBAR_COLLAPSED_KEY = 'leadroom:sidebar:collapsed';
@@ -25,6 +27,7 @@ const navItems = [
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const sidebarRef = useRef<HTMLElement>(null);
   const dragRef = useRef(false);
@@ -163,11 +166,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="flex items-center gap-4">
             <HowToUse />
             <NotificationBell />
-            <form action="/api/auth/logout" method="POST">
-              <Button type="submit" variant="outline" size="xs">
-                Sign out
-              </Button>
-            </form>
+            <Button type="button" variant="outline" size="xs" onClick={async () => {
+              try { await signOut(auth); } catch {}
+              await fetch('/api/auth/logout', { method: 'POST' });
+              router.push('/login');
+            }}>
+              Sign out
+            </Button>
           </div>
         </header>
         <div className="p-8 md:p-10 flex-1 overflow-y-auto">

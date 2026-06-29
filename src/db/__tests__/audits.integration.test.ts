@@ -70,16 +70,18 @@ test('Audits & Scoring Integration', async (t) => {
     // Base: 10
     // Profile: website (15) + email (10) + phone (10) + location (5) = +40
     // Audit completed: +30
-    // Total expected score: 10 + 40 + 30 = 80 (High)
+    // Weaknesses identified: +5
+    // Recommended improvements: +5
+    // Total expected score: 10 + 40 + 30 + 5 + 5 = 90 (High)
     const currentScore = await scoringService.getCurrentScore(lead.id);
     assert.ok(currentScore);
-    assert.strictEqual(currentScore.scoreValue, 80);
+    assert.strictEqual(currentScore.scoreValue, 90);
     assert.strictEqual(currentScore.scoreLabel, 'High');
 
     // Verify activity logs
     const activitiesList = await db.select().from(activities).where(eq(activities.leadId, lead.id));
     const auditActivity = activitiesList.find(a => a.type === 'Audit generated');
-    const scoreActivity = activitiesList.find(a => a.type === 'Score updated' && a.summary.includes('80'));
+    const scoreActivity = activitiesList.find(a => a.type === 'Score updated' && a.summary.includes('90'));
     
     assert.ok(auditActivity);
     assert.ok(scoreActivity);

@@ -3,17 +3,51 @@ export const dynamic = 'force-dynamic';
 import { getDb } from '@/db';
 import { LeadService } from '@/services/lead';
 import { StageThresholdsTable } from '@/components/settings/StageThresholdsTable';
+import { PlaybooksEditor } from '@/components/settings/PlaybooksEditor';
+import { StageRequirementsEditor } from '@/components/settings/StageRequirementsEditor';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { playbooks, playbookTasks, pipelineConfig } from '@/db/schema/core';
+import { eq } from 'drizzle-orm';
 
 export const metadata = {
   title: 'Pipeline Preferences | Leadroom',
 };
 
 export default async function PipelineSettingsPage() {
-  const rows = await new LeadService(getDb()).getStageThresholds();
+  const db = getDb();
+  const [thresholdRows, playbookRows, taskRows, pcRow] = await Promise.all([
+    new LeadService(db).getStageThresholds(),
+    db.select().from(playbooks),
+    db.select().from(playbookTasks),
+    db.select().from(pipelineConfig).where(eq(pipelineConfig.id, 'global')).limit(1).then((r) => r[0] || null),
+  ]);
+
+  const tasksByPlaybook = new Map<string, typeof taskRows>();
+  for (const t of taskRows) {
+    const list = tasksByPlaybook.get(t.playbookId) || [];
+    list.push(t);
+    tasksByPlaybook.set(t.playbookId, list);
+  }
+
+  const playbookData = playbookRows.map((pb) => ({
+    id: pb.id,
+    stage: pb.stage,
+    name: pb.name,
+    isActive: pb.isActive,
+    tasks: (tasksByPlaybook.get(pb.id) || []).map((t) => ({
+      id: t.id,
+      title: t.title,
+      description: t.description,
+      daysOffset: t.daysOffset,
+      priority: t.priority,
+      category: t.category,
+      actionType: (t as any).actionType || 'TASK',
+      jobType: (t as any).jobType || null,
+    })),
+  }));
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-8 max-w-4xl">
       <Card className="border border-border shadow-sm">
         <CardHeader className="border-b border-border bg-muted/20 pb-4">
           <CardTitle className="text-heading-lg">Pipeline Staleness Rules</CardTitle>
@@ -32,7 +66,31 @@ export default async function PipelineSettingsPage() {
             </span>
           </div>
 
-          <StageThresholdsTable initialThresholds={rows} />
+          <StageThresholdsTable initialThresholds={thresholdRows} />
+        </CardContent>
+      </Card>
+
+      <Card className="border border-border shadow-sm">
+        <CardHeader className="border-b border-border bg-muted/20 pb-4">
+          <CardTitle className="text-heading-lg">Stage Playbooks</CardTitle>
+          <CardDescription className="text-copy-14 mt-1">
+            Define automated task sequences that spawn when a lead enters a stage. Tasks are created with due dates relative to the stage entry date.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-6">
+          <PlaybooksEditor initialPlaybooks={playbookData} />
+        </CardContent>
+      </Card>
+
+      <Card className="border border-border shadow-sm">
+        <CardHeader className="border-b border-border bg-muted/20 pb-4">
+          <CardTitle className="text-heading-lg">Stage Requirements</CardTitle>
+          <CardDescription className="text-copy-14 mt-1">
+            Block forward stage transitions until required artifacts exist. Configure which checks are enforced per stage.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-6">
+          <StageRequirementsEditor initialRequirements={(pcRow?.stageRequirements as Record<string, string[]>) || {}} />
         </CardContent>
       </Card>
     </div>

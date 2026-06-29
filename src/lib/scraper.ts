@@ -214,6 +214,21 @@ function extractDescription(html: string): string {
   return match ? match[1].trim() : '';
 }
 
+export function pruneHtml(html: string): string {
+  if (!html) return '';
+  let text = html;
+  text = text.replace(/<!--[\s\S]*?-->/g, '');
+  text = text.replace(/<script[^>]*>([\s\S]*?)<\/script>/gi, '');
+  text = text.replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, '');
+  text = text.replace(/<svg[^>]*>([\s\S]*?)<\/svg>/gi, '');
+  text = text.replace(/<noscript[^>]*>([\s\S]*?)<\/noscript>/gi, '');
+  text = text.replace(/<head[^>]*>([\s\S]*?)<\/head>/gi, '');
+  text = text.replace(/<nav[^>]*>([\s\S]*?)<\/nav>/gi, '');
+  text = text.replace(/<footer[^>]*>([\s\S]*?)<\/footer>/gi, '');
+  text = text.replace(/<iframe[^>]*>([\s\S]*?)<\/iframe>/gi, '');
+  return text;
+}
+
 function cleanHtml(html: string): string {
   let text = html;
   text = text.replace(/<script[^>]*>([\s\S]*?)<\/script>/gi, '');
@@ -409,7 +424,7 @@ export async function fetchSiteContent(url: string, timeoutMs: number = 20000): 
     if (html) {
       const title = extractTitle(html);
       const description = extractDescription(html);
-      const cleaned = cleanHtml(html);
+      const cleaned = cleanHtml(pruneHtml(html));
       
       if (!isLikelySPAOrEmpty(html, cleaned)) {
         logger.info(`Fetch-First successful`, { url: normalized, length: cleaned.length });
@@ -458,10 +473,22 @@ export async function fetchSiteContentLight(url: string, timeoutMs: number = 150
   try {
     const html = await fetchDirectly(normalized, timeoutMs, signal);
     if (!html) return null;
-    const cleaned = cleanHtml(html);
+    const cleaned = cleanHtml(pruneHtml(html));
     if (cleaned.length < 600 || isLikelySPAOrEmpty(html, cleaned)) return null;
     return cleaned.substring(0, 5000);
   } catch {
     return null;
   }
+}
+
+/** Simple deterministic hash from scraped content for cache keys */
+export function contentHash(websiteUrl: string | null, markdown: string | null): string {
+  const input = `${websiteUrl || ''}|${(markdown || '').substring(0, 10000)}`;
+  let hash = 0;
+  for (let i = 0; i < input.length; i++) {
+    const char = input.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash |= 0;
+  }
+  return hash.toString(36);
 }

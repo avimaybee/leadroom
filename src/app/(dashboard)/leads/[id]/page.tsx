@@ -29,7 +29,7 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
   const scoringService = new ScoringService(db);
   const outreachService = new OutreachService(db);
 
-  const [notes, tasksData, activities, latestSnapshot, contactsList, latestAudit, currentScore, outreachDrafts, activeResearchJob, stageThresholdRow, pcRow, nextFollowUp] = await Promise.all([
+  const [notes, tasksData, activities, latestSnapshot, contactsList, latestAudit, currentScore, outreachDrafts, activeResearchJob, stageThresholdRow, pcRow, nextFollowUp, unmetRequirements] = await Promise.all([
     service.getNotes(id),
     service.getTasks(id),
     service.getActivities(id),
@@ -53,6 +53,7 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
     db.select({ days: stageThresholds.days }).from(stageThresholds).where(eq(stageThresholds.stage, lead.stage)).limit(1).then(r => r[0]),
     db.select().from(pipelineConfig).where(eq(pipelineConfig.id, 'global')).limit(1).then(r => r[0] || null),
     db.select({ dueDate: tasks.dueDate }).from(tasks).where(and(eq(tasks.leadId, id), eq(tasks.status, 'Open'), like(tasks.title, 'Follow up on %'))).orderBy(tasks.dueDate).limit(1).then(r => r[0] || null),
+    service.getUnmetStageRequirements(id, lead.email || null),
   ]);
 
   const stageThreshold = stageThresholdRow?.days ?? 5;
@@ -91,6 +92,7 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
       stageThreshold={stageThreshold}
       nbaResults={nbaResults}
       autoFollowUpDue={nextFollowUp?.dueDate ?? null}
+      unmetRequirements={unmetRequirements}
     />
   );
 }

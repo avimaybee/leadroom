@@ -21,6 +21,7 @@ export class DiscoveryService {
       businessTypeFilter: input.businessTypeFilter ?? null,
       digitalPresenceFilter: input.digitalPresenceFilter ?? null,
       notes: input.notes ?? null,
+      autoResearchPromotedLeads: input.autoResearchPromotedLeads ?? true,
       createdByUserId: input.createdByUserId,
       createdAt: now,
       updatedAt: now,
@@ -117,14 +118,49 @@ export class DiscoveryService {
       }
     }
 
-    // 3. Insert into active leads
+    // 3. Auto-detect industry from website if not already known
     const leadId = crypto.randomUUID();
+    let detectedIndustry = scopeIndustry;
+    if (!detectedIndustry && candidate.rawWebsiteUrl) {
+      try {
+        const response = await fetch(candidate.rawWebsiteUrl, { signal: AbortSignal.timeout(5000) });
+        const html = await response.text();
+        const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+        const title = titleMatch?.[1] || '';
+        const metaMatch = html.match(/<meta\s+name="(?:description|keywords)"[^>]*content="([^"]+)"/i) 
+          || html.match(/<meta\s+property="og:description"[^>]*content="([^"]+)"/i);
+        const meta = metaMatch?.[1] || '';
+
+        const text = `${title} ${meta}`.toLowerCase();
+        const industryKeywords: Record<string, string[]> = {
+          'Healthcare': ['dentist', 'clinic', 'medical', 'healthcare', 'hospital', 'doctor', 'dental', 'pediatric', 'wellness', 'physical therapy'],
+          'Legal': ['lawyer', 'attorney', 'legal', 'law firm', 'notary', 'litigation'],
+          'Financial Services': ['bank', 'credit union', 'financial', 'insurance', 'mortgage', 'accounting', 'cpa', 'tax', 'investment'],
+          'Real Estate': ['real estate', 'realtor', 'property', 'rental', 'apartment', 'condo', 'property management', 'home'],
+          'Technology': ['software', 'tech', 'saas', 'it ', 'technology', 'startup', 'digital', 'cloud', 'cyber'],
+          'Hospitality': ['hotel', 'restaurant', 'cafe', 'bar', 'inn', 'lodging', 'dining', 'food', 'brewery', 'bakery'],
+          'Education': ['school', 'academy', 'university', 'college', 'education', 'learning', 'tutoring', 'training'],
+          'Local Services': ['plumber', 'electrician', 'contractor', 'roofing', 'hvac', 'landscaping', 'cleaning', 'pest control', 'mechanic', 'auto repair', 'salon', 'spa'],
+          'Retail': ['store', 'shop', 'boutique', 'goods', 'furniture', 'gift', 'market', 'grocer'],
+          'Professional Services': ['consulting', 'agency', 'marketing', 'design', 'photography', 'consultant', 'recruiting', 'hr'],
+        };
+        for (const [industry, keywords] of Object.entries(industryKeywords)) {
+          if (keywords.some((kw) => text.includes(kw))) {
+            detectedIndustry = industry;
+            break;
+          }
+        }
+      } catch {
+        // Silently fall back to scope industry or null
+      }
+    }
+
     await this.db.insert(leads).values({
       id: leadId,
       name: candidate.rawName,
       website: candidate.rawWebsiteUrl,
       city: candidate.rawLocation || null,
-      industry: scopeIndustry,
+      industry: detectedIndustry,
       stage: 'New',
       status: 'Active',
       ownerId: ownerId,
@@ -158,25 +194,38 @@ export class DiscoveryService {
     const scoringService = new ScoringService(this.db);
     await scoringService.recalculateScore(leadId);
 
-    // 7. Auto-trigger research for the promoted lead
-    const jobId = crypto.randomUUID();
-    const { jobRuns } = await import('../db/schema/research');
-    await this.db.insert(jobRuns).values({
-      id: jobId,
-      jobType: 'RESEARCH_GENERATION',
-      status: 'QUEUED',
-      targetLeadId: leadId,
-      triggeredByUserId: ownerId,
-      externalRunId: 'AUTO_TRIGGERED',
-      startedAt: null,
-      finishedAt: null,
-      createdAt: now,
-    });
+    // 7. Auto-trigger research if candidate has a website and scope allows it
+    let shouldAutoResearch = !!candidate.rawWebsiteUrl;
+    if (shouldAutoResearch && candidate.discoveryScopeId) {
+      const [scope] = await this.db.select({ autoResearchPromotedLeads: discoveryScopes.autoResearchPromotedLeads })
+        .from(discoveryScopes)
+        .where(eq(discoveryScopes.id, candidate.discoveryScopeId))
+        .limit(1);
+      if (scope && !scope.autoResearchPromotedLeads) {
+        shouldAutoResearch = false;
+      }
+    }
 
-    const { triggerResearchWorkflow } = await import('../lib/workflow-client');
-    const env = (process.env as unknown as Record<string, unknown>);
-    const workflowBinding = env?.RESEARCH_SNAPSHOT_WORKFLOW as any;
-    await triggerResearchWorkflow(this.db, workflowBinding, leadId, jobId, ownerId);
+    if (shouldAutoResearch) {
+      const jobId = crypto.randomUUID();
+      const { jobRuns } = await import('../db/schema/research');
+      await this.db.insert(jobRuns).values({
+        id: jobId,
+        jobType: 'RESEARCH_GENERATION',
+        status: 'QUEUED',
+        targetLeadId: leadId,
+        triggeredByUserId: ownerId,
+        externalRunId: 'AUTO_TRIGGERED',
+        startedAt: null,
+        finishedAt: null,
+        createdAt: now,
+      });
+
+      const { triggerResearchWorkflow } = await import('../lib/workflow-client');
+      const env = (process.env as unknown as Record<string, unknown>);
+      const workflowBinding = env?.RESEARCH_SNAPSHOT_WORKFLOW as any;
+      await triggerResearchWorkflow(this.db, workflowBinding, leadId, jobId, ownerId);
+    }
 
     const [promotedLead] = await this.db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
     return promotedLead;

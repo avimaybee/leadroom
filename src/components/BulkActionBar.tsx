@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { useBulkSelect } from './BulkSelectProvider';
 import {
@@ -12,13 +12,15 @@ import {
   DialogFooter,
   DialogClose,
 } from '@/components/ui/dialog';
-import { bulkAdvanceStageAction, bulkAddTaskAction, bulkSetReminderAction } from '@/app/actions/bulk';
+import { bulkAdvanceStageAction, bulkAdvanceStageToAction, bulkResearchTriggerAction, bulkArchiveAction, bulkReassignAction, bulkExportAction, bulkAddTaskAction, bulkSetReminderAction } from '@/app/actions/bulk';
 import { toast } from 'sonner';
-import { ArrowRight, Plus, Bell, X } from 'lucide-react';
+import { ArrowRight, Plus, Bell, X, FlaskConical, Archive, UserRound, Download } from 'lucide-react';
+
+const PIPELINE_STAGES = ['New', 'Researching', 'Auditing', 'Audited', 'Drafting', 'Ready to Send', 'Outreach Sent', 'Follow-up'];
 
 export function BulkActionBar() {
   const { selectedIds, selectionCount, clearSelection } = useBulkSelect();
-  const [activeDialog, setActiveDialog] = useState<'task' | 'reminder' | null>(null);
+  const [activeDialog, setActiveDialog] = useState<'task' | 'reminder' | 'advance-to' | 'reassign' | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   if (selectionCount === 0) return null;
@@ -29,7 +31,11 @@ export function BulkActionBar() {
     setIsLoading(true);
     try {
       const result = await bulkAdvanceStageAction(ids);
-      toast.success(`Advanced ${result.advanced} lead${result.advanced !== 1 ? 's' : ''}.${result.skipped > 0 ? ` ${result.skipped} skipped (terminal stage).` : ''}`);
+      const parts: string[] = [];
+      if (result.advanced > 0) parts.push(`Advanced ${result.advanced}`);
+      if (result.skipped.length > 0) parts.push(`${result.skipped.length} skipped`);
+      if (result.errors.length > 0) parts.push(`${result.errors.length} errors`);
+      toast.success(parts.join(', ') || 'Done');
       clearSelection();
     } catch {
       toast.error('Failed to advance leads');
@@ -37,6 +43,60 @@ export function BulkActionBar() {
       setIsLoading(false);
     }
   };
+
+  const handleResearch = async () => {
+    setIsLoading(true);
+    try {
+      const result = await bulkResearchTriggerAction(ids);
+      const parts: string[] = [];
+      if (result.triggered > 0) parts.push(`Started research for ${result.triggered}`);
+      if (result.skipped.length > 0) parts.push(`${result.skipped.length} skipped`);
+      if (result.errors.length > 0) parts.push(`${result.errors.length} errors`);
+      toast.success(parts.join(', ') || 'Done');
+      clearSelection();
+    } catch {
+      toast.error('Failed to trigger research');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleArchive = async () => {
+    setIsLoading(true);
+    try {
+      const result = await bulkArchiveAction(ids);
+      const parts: string[] = [];
+      if (result.archived > 0) parts.push(`Archived ${result.archived}`);
+      if (result.skipped.length > 0) parts.push(`${result.skipped.length} skipped`);
+      if (result.errors.length > 0) parts.push(`${result.errors.length} errors`);
+      toast.success(parts.join(', ') || 'Done');
+      clearSelection();
+    } catch {
+      toast.error('Failed to archive leads');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleExport = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const result = await bulkExportAction(ids);
+      const blob = new Blob([result.csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `leads-export-${Date.now()}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`Exported ${result.count} leads`);
+      clearSelection();
+    } catch {
+      toast.error('Failed to export leads');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [ids, clearSelection]);
 
   return (
     <>
@@ -49,13 +109,33 @@ export function BulkActionBar() {
             <ArrowRight className="w-3.5 h-3.5 mr-1" />
             Advance
           </Button>
+          <Button variant="outline" size="sm" onClick={() => setActiveDialog('advance-to')} disabled={isLoading}>
+            <ArrowRight className="w-3.5 h-3.5 mr-1" />
+            Stage&hellip;
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleResearch} disabled={isLoading}>
+            <FlaskConical className="w-3.5 h-3.5 mr-1" />
+            Research
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setActiveDialog('task')} disabled={isLoading}>
             <Plus className="w-3.5 h-3.5 mr-1" />
-            Add Task
+            Task
           </Button>
           <Button variant="outline" size="sm" onClick={() => setActiveDialog('reminder')} disabled={isLoading}>
             <Bell className="w-3.5 h-3.5 mr-1" />
             Remind
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setActiveDialog('reassign')} disabled={isLoading}>
+            <UserRound className="w-3.5 h-3.5 mr-1" />
+            Reassign
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleArchive} disabled={isLoading}>
+            <Archive className="w-3.5 h-3.5 mr-1" />
+            Archive
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleExport} disabled={isLoading}>
+            <Download className="w-3.5 h-3.5 mr-1" />
+            Export
           </Button>
         </div>
         <button onClick={clearSelection} className="text-muted-foreground hover:text-foreground transition-colors ml-2" disabled={isLoading}>
@@ -84,6 +164,30 @@ export function BulkActionBar() {
             </DialogDescription>
           </DialogHeader>
           <BulkReminderForm leadIds={ids} onSuccess={() => { setActiveDialog(null); clearSelection(); }} />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={activeDialog === 'advance-to'} onOpenChange={() => setActiveDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Move {selectionCount} lead{selectionCount !== 1 ? 's' : ''} to stage</DialogTitle>
+            <DialogDescription>
+              Select the target pipeline stage. Stage requirements will be checked for each lead.
+            </DialogDescription>
+          </DialogHeader>
+          <BulkAdvanceToForm leadIds={ids} onSuccess={() => { setActiveDialog(null); clearSelection(); }} />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={activeDialog === 'reassign'} onOpenChange={() => setActiveDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reassign {selectionCount} lead{selectionCount !== 1 ? 's' : ''}</DialogTitle>
+            <DialogDescription>
+              Change the owner for all selected leads.
+            </DialogDescription>
+          </DialogHeader>
+          <BulkReassignForm leadIds={ids} onSuccess={() => { setActiveDialog(null); clearSelection(); }} />
         </DialogContent>
       </Dialog>
     </>
@@ -177,6 +281,101 @@ function BulkReminderForm({ leadIds, onSuccess }: { leadIds: string[]; onSuccess
       <DialogFooter>
         <DialogClose render={<Button variant="outline" type="button" />}>Cancel</DialogClose>
         <Button type="submit" disabled={isSubmitting || !title.trim() || !remindAt}>Set Reminders</Button>
+      </DialogFooter>
+    </form>
+  );
+}
+
+function BulkAdvanceToForm({ leadIds, onSuccess }: { leadIds: string[]; onSuccess: () => void }) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [targetStage, setTargetStage] = useState('Researching');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      const result = await bulkAdvanceStageToAction(leadIds, targetStage);
+      const parts: string[] = [];
+      if (result.advanced > 0) parts.push(`Moved ${result.advanced} to "${targetStage}"`);
+      if (result.skipped.length > 0) parts.push(`${result.skipped.length} skipped`);
+      if (result.errors.length > 0) parts.push(`${result.errors.length} errors`);
+      toast.success(parts.join(', ') || 'Done');
+      onSuccess();
+    } catch {
+      toast.error('Failed to move leads');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <label className="text-label-12 text-muted-foreground">Target stage</label>
+        <select value={targetStage} onChange={(e) => setTargetStage(e.target.value)} className="w-full rounded-md border border-border bg-card px-3 py-2 text-copy-14 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          {PIPELINE_STAGES.map((s) => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
+      </div>
+      <DialogFooter>
+        <DialogClose render={<Button variant="outline" type="button" />}>Cancel</DialogClose>
+        <Button type="submit" disabled={isSubmitting}>Move Leads</Button>
+      </DialogFooter>
+    </form>
+  );
+}
+
+function BulkReassignForm({ leadIds, onSuccess }: { leadIds: string[]; onSuccess: () => void }) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [users, setUsers] = useState<{ id: string; name: string }[]>([]);
+  const [ownerId, setOwnerId] = useState('');
+  const [loaded, setLoaded] = useState(false);
+
+  if (!loaded) {
+    setLoaded(true);
+    fetch('/api/users')
+      .then((r) => r.json() as Promise<{ data?: { id: string; name: string }[]; users?: { id: string; name: string }[] }>)
+      .then((data) => {
+        const list = data.data || data.users || [];
+        setUsers(list);
+        if (list.length > 0) setOwnerId(list[0].id);
+      })
+      .catch(() => toast.error('Failed to load users'));
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ownerId) return;
+    setIsSubmitting(true);
+    try {
+      const result = await bulkReassignAction(leadIds, ownerId);
+      const parts: string[] = [];
+      if (result.reassigned > 0) parts.push(`Reassigned ${result.reassigned}`);
+      if (result.skipped.length > 0) parts.push(`${result.skipped.length} skipped`);
+      if (result.errors.length > 0) parts.push(`${result.errors.length} errors`);
+      toast.success(parts.join(', ') || 'Done');
+      onSuccess();
+    } catch {
+      toast.error('Failed to reassign leads');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <label className="text-label-12 text-muted-foreground">New owner</label>
+        <select value={ownerId} onChange={(e) => setOwnerId(e.target.value)} className="w-full rounded-md border border-border bg-card px-3 py-2 text-copy-14 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          {users.map((u) => (
+            <option key={u.id} value={u.id}>{u.name}</option>
+          ))}
+        </select>
+      </div>
+      <DialogFooter>
+        <DialogClose render={<Button variant="outline" type="button" />}>Cancel</DialogClose>
+        <Button type="submit" disabled={isSubmitting || !ownerId || users.length === 0}>Reassign</Button>
       </DialogFooter>
     </form>
   );

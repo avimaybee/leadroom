@@ -4,6 +4,7 @@ import { contacts, researchSnapshots } from '@/db/schema/research';
 import { activities } from '@/db/schema/core';
 import { eq, and, isNull, or, inArray } from 'drizzle-orm';
 import type { ContactExtract } from './extract';
+import type { AIContactExtractionOutput } from '../ai';
 
 /**
  * Save extracted contacts from website scraping to the contacts table.
@@ -150,4 +151,174 @@ export async function logContactDiscoveryActivity(
     type: 'Contact info discovered',
     summary: `Found ${parts.join(', ')} on website${saved > 0 ? ` (${saved} new contact${saved > 1 ? 's' : ''} saved)` : ''}`,
   });
+}
+
+/**
+ * Save structured contacts extracted by the AI to the database.
+ * Deduplicates against existing email/social URLs to preserve human-added details.
+ */
+export async function saveAIExtractedContacts(
+  db: Db,
+  leadId: string,
+  extracted: AIContactExtractionOutput | null | undefined,
+  userId?: string | null
+): Promise<number> {
+  if (!extracted) return 0;
+  let saved = 0;
+
+  // Fetch existing contacts for this lead to avoid duplicates
+  const existingContacts = await db.select()
+    .from(contacts)
+    .where(and(
+      eq(contacts.leadId, leadId),
+      isNull(contacts.deletedAt)
+    ));
+
+  const existingEmails = new Set(
+    existingContacts.map(c => c.email?.toLowerCase()).filter(Boolean)
+  );
+  const existingUrls = new Set(
+    existingContacts.map(c => [
+      c.linkedinUrl?.toLowerCase(),
+      c.otherProfileUrl?.toLowerCase(),
+    ]).flat().filter(Boolean)
+  );
+
+  const now = new Date();
+
+  // 1. Save people details
+  if (extracted.people && Array.isArray(extracted.people)) {
+    for (const person of extracted.people) {
+      if (!person) continue;
+      // Skip if email exists
+      if (person.email && existingEmails.has(person.email.toLowerCase())) continue;
+      // Skip if linkedin exists
+      if (person.linkedinUrl && existingUrls.has(person.linkedinUrl.toLowerCase())) continue;
+
+      await db.insert(contacts).values({
+        id: crypto.randomUUID(),
+        leadId,
+        fullName: person.fullName || null,
+        roleTitle: person.roleTitle || null,
+        email: person.email || null,
+        phone: person.phone || null,
+        linkedinUrl: person.linkedinUrl || null,
+        otherProfileUrl: null,
+        isPrimary: 0,
+        confidenceLevel: 'HIGH', // AI extracted specific person
+        sourceType: 'ENRICHMENT',
+        createdByUserId: userId || null,
+        createdAt: now,
+        updatedAt: now,
+      });
+      saved++;
+      
+      if (person.email) existingEmails.add(person.email.toLowerCase());
+      if (person.linkedinUrl) existingUrls.add(person.linkedinUrl.toLowerCase());
+    }
+  }
+
+  // 2. Save emails
+  if (extracted.emails && Array.isArray(extracted.emails)) {
+    for (const email of extracted.emails) {
+      if (!email) continue;
+      if (existingEmails.has(email.toLowerCase())) continue;
+
+      await db.insert(contacts).values({
+        id: crypto.randomUUID(),
+        leadId,
+        fullName: null,
+        roleTitle: null,
+        email: email,
+        phone: null,
+        linkedinUrl: null,
+        otherProfileUrl: null,
+        isPrimary: 0,
+        confidenceLevel: 'MEDIUM',
+        sourceType: 'ENRICHMENT',
+        createdByUserId: userId || null,
+        createdAt: now,
+        updatedAt: now,
+      });
+      saved++;
+      existingEmails.add(email.toLowerCase());
+    }
+  }
+
+  // 3. Save phones
+  if (extracted.phones && Array.isArray(extracted.phones)) {
+    for (const phone of extracted.phones) {
+      if (!phone) continue;
+      const hasPhone = existingContacts.some(c => c.phone === phone);
+      if (hasPhone) continue;
+
+      await db.insert(contacts).values({
+        id: crypto.randomUUID(),
+        leadId,
+        fullName: null,
+        roleTitle: null,
+        email: null,
+        phone: phone,
+        linkedinUrl: null,
+        otherProfileUrl: null,
+        isPrimary: 0,
+        confidenceLevel: 'MEDIUM',
+        sourceType: 'ENRICHMENT',
+        createdByUserId: userId || null,
+        createdAt: now,
+        updatedAt: now,
+      });
+      saved++;
+    }
+  }
+
+  // 4. Save social links
+  if (extracted.socialLinks) {
+    const { linkedin, facebook, instagram, twitter, youtube, tiktok } = extracted.socialLinks;
+    if (linkedin && !existingUrls.has(linkedin.toLowerCase())) {
+      await db.insert(contacts).values({
+        id: crypto.randomUUID(),
+        leadId,
+        fullName: null,
+        roleTitle: null,
+        email: null,
+        phone: null,
+        linkedinUrl: linkedin,
+        otherProfileUrl: null,
+        isPrimary: 0,
+        confidenceLevel: 'MEDIUM',
+        sourceType: 'ENRICHMENT',
+        createdByUserId: userId || null,
+        createdAt: now,
+        updatedAt: now,
+      });
+      saved++;
+      existingUrls.add(linkedin.toLowerCase());
+    }
+
+    const otherSocials = [facebook, instagram, twitter, youtube, tiktok].filter(Boolean) as string[];
+    for (const social of otherSocials) {
+      if (existingUrls.has(social.toLowerCase())) continue;
+      await db.insert(contacts).values({
+        id: crypto.randomUUID(),
+        leadId,
+        fullName: null,
+        roleTitle: null,
+        email: null,
+        phone: null,
+        linkedinUrl: null,
+        otherProfileUrl: social,
+        isPrimary: 0,
+        confidenceLevel: 'MEDIUM',
+        sourceType: 'ENRICHMENT',
+        createdByUserId: userId || null,
+        createdAt: now,
+        updatedAt: now,
+      });
+      saved++;
+      existingUrls.add(social.toLowerCase());
+    }
+  }
+
+  return saved;
 }

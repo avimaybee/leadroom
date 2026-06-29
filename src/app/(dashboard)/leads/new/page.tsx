@@ -1,24 +1,86 @@
 'use client';
 
-import { createLeadAction } from '@/app/actions/leads';
+import { createLeadAction, type LeadDuplicate } from '@/app/actions/leads';
 import { useFormStatus } from 'react-dom';
-import { useActionState } from 'react';
+import { useActionState, useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { AlertTriangle, X } from 'lucide-react';
 
-function SubmitButton() {
+function SubmitButton({ disabled }: { disabled?: boolean }) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" disabled={pending}>
+    <Button type="submit" disabled={pending || disabled}>
       {pending ? 'Saving Lead...' : 'Create Lead'}
     </Button>
   );
 }
 
+function DuplicateWarning({ duplicates, onDismiss, onForceCreate }: {
+  duplicates: LeadDuplicate[];
+  onDismiss: () => void;
+  onForceCreate: () => void;
+}) {
+  return (
+    <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 space-y-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-start gap-2.5">
+          <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-label-14 font-semibold text-amber-500">Potential duplicate detected</p>
+            <p className="text-label-12 text-muted-foreground mt-0.5">
+              The following existing leads match by website, email, or company name:
+            </p>
+          </div>
+        </div>
+        <button type="button" onClick={onDismiss} className="text-muted-foreground hover:text-foreground shrink-0">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+      <ul className="space-y-1.5">
+        {duplicates.map((d) => (
+          <li key={d.id} className="text-label-12 text-muted-foreground bg-card rounded-md px-3 py-2 border border-border">
+            <span className="font-medium text-foreground">{d.name}</span>
+            {d.website && <span className="ml-2">· {d.website}</span>}
+            {d.email && <span className="ml-2">· {d.email}</span>}
+          </li>
+        ))}
+      </ul>
+      <div className="flex gap-2 pt-1">
+        <Button type="button" variant="outline" size="sm" onClick={onDismiss}>
+          Go back
+        </Button>
+        <Button type="button" variant="default" size="sm" onClick={onForceCreate}>
+          Create anyway
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function NewLeadPage() {
   const [state, formAction] = useActionState(createLeadAction, undefined);
+  const [duplicates, setDuplicates] = useState<LeadDuplicate[] | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    if (state && 'duplicates' in state && state.duplicates) {
+      setDuplicates(state.duplicates as LeadDuplicate[]);
+    }
+  }, [state]);
+
+  const handleForceCreate = () => {
+    if (!formRef.current) return;
+    setDuplicates(null);
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = '_force';
+    input.value = 'true';
+    formRef.current.appendChild(input);
+    formRef.current.requestSubmit();
+  };
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 animate-fade-in text-left">
@@ -41,11 +103,19 @@ export default function NewLeadPage() {
       </header>
 
       {/* Intake Form */}
-      <form action={formAction} className="space-y-8 bg-card p-6 md:p-8 rounded-xl border border-border">
+      <form ref={formRef} action={formAction} className="space-y-8 bg-card p-6 md:p-8 rounded-xl border border-border">
         {state?.error && (
           <div className="bg-destructive/10 text-destructive p-4 rounded-md text-label-12 border border-destructive/20 leading-relaxed">
             {state.error}
           </div>
+        )}
+
+        {duplicates && (
+          <DuplicateWarning
+            duplicates={duplicates}
+            onDismiss={() => setDuplicates(null)}
+            onForceCreate={handleForceCreate}
+          />
         )}
 
         {/* Section 1: Business Identity */}
@@ -148,7 +218,7 @@ export default function NewLeadPage() {
           >
             Discard Lead
           </Link>
-          <SubmitButton />
+          <SubmitButton disabled={!!duplicates} />
         </div>
       </form>
     </div>

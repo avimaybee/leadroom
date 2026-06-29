@@ -12,6 +12,7 @@ export const audits = sqliteTable('audits', {
   keyWeaknesses: text('key_weaknesses'), // Markdown-enabled text or paragraph
   recommendedImprovements: text('recommended_improvements'), // Markdown-enabled text or paragraph
   opportunityNotes: text('opportunity_notes'), // Hypotheses or comments
+  contentHash: text('content_hash'),
   sources: text('sources'), // JSON stringified array of URLs
   jobRunId: text('job_run_id').references(() => jobRuns.id),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),

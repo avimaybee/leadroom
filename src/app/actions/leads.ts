@@ -13,7 +13,9 @@ async function getService() {
   return new LeadService(db);
 }
 
-export type ActionState = { error?: string | null, success?: boolean, issues?: unknown } | null | undefined;
+export type LeadDuplicate = { id: string; name: string; website: string | null; email: string | null; company: string | null };
+
+export type ActionState = { error?: string | null, success?: boolean, issues?: unknown, duplicates?: LeadDuplicate[] } | null | undefined;
 
 export async function createLeadAction(prevState: ActionState, formData: FormData) {
   const userId = await getUserId();
@@ -38,6 +40,15 @@ export async function createLeadAction(prevState: ActionState, formData: FormDat
 
   if (!validated.success) {
     return { error: 'Validation failed. Please check the fields.', issues: validated.error.format() };
+  }
+
+  // Check for duplicates unless force-created
+  const force = formData.get('_force') === 'true';
+  if (!force) {
+    const duplicates = await service.checkDuplicates(validated.data);
+    if (duplicates.length > 0) {
+      return { duplicates, error: null };
+    }
   }
 
   try {
@@ -135,4 +146,16 @@ export async function addNoteAction(prevState: ActionState, formData: FormData) 
 
   revalidatePath(`/leads/${leadId}`);
   revalidatePath('/');
+}
+
+export async function verifyStageRequirementsAction(leadId: string, targetStage: string) {
+  const service = await getService();
+  const reason = await service.verifyStageRequirements(leadId, targetStage);
+  if (reason) return { blocked: true, reason };
+  return { blocked: false };
+}
+
+export async function getUnmetStageRequirementsAction(leadId: string, email: string | null) {
+  const service = await getService();
+  return service.getUnmetStageRequirements(leadId, email);
 }

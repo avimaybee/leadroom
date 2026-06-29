@@ -41,6 +41,7 @@ function setupTestDb() {
       stage TEXT NOT NULL DEFAULT 'New',
       status TEXT NOT NULL DEFAULT 'Active',
       is_read INTEGER DEFAULT 0 NOT NULL,
+      score_dirty INTEGER DEFAULT 1 NOT NULL,
       owner_id TEXT REFERENCES users(id),
       created_at INTEGER DEFAULT (strftime('%s', 'now')),
       updated_at INTEGER DEFAULT (strftime('%s', 'now')),
@@ -99,6 +100,7 @@ function setupTestDb() {
       opportunity_hypotheses TEXT,
       sources TEXT,
       confidence_level TEXT NOT NULL DEFAULT 'UNKNOWN',
+      content_hash TEXT,
       user_remarks TEXT,
       job_run_id TEXT REFERENCES job_runs(id),
       created_at INTEGER DEFAULT (strftime('%s', 'now')),
@@ -132,6 +134,7 @@ function setupTestDb() {
       key_weaknesses TEXT,
       recommended_improvements TEXT,
       opportunity_notes TEXT,
+      content_hash TEXT,
       sources TEXT,
       job_run_id TEXT REFERENCES job_runs(id),
       created_at INTEGER DEFAULT (strftime('%s', 'now')),
@@ -163,6 +166,88 @@ function setupTestDb() {
       job_run_id TEXT REFERENCES job_runs(id),
       created_at INTEGER DEFAULT (strftime('%s', 'now')),
       updated_at INTEGER DEFAULT (strftime('%s', 'now'))
+    );
+
+    CREATE TABLE discovery_scopes (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      industry_filter TEXT,
+      geography_filter TEXT,
+      company_size_filter TEXT,
+      business_type_filter TEXT,
+      digital_presence_filter TEXT,
+      notes TEXT,
+      auto_research_promoted_leads INTEGER DEFAULT 1 NOT NULL,
+      created_by_user_id TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE candidate_leads (
+      id TEXT PRIMARY KEY,
+      discovery_scope_id TEXT REFERENCES discovery_scopes(id),
+      raw_name TEXT NOT NULL,
+      raw_website_url TEXT,
+      raw_contact_info TEXT,
+      raw_location TEXT,
+      notes TEXT,
+      status TEXT DEFAULT 'NEW' NOT NULL,
+      promoted_lead_id TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE lead_stage_history (
+      id TEXT PRIMARY KEY,
+      lead_id TEXT NOT NULL REFERENCES leads(id),
+      stage TEXT NOT NULL,
+      entered_at INTEGER,
+      exited_at INTEGER
+    );
+
+    CREATE TABLE pipeline_config (
+      id TEXT PRIMARY KEY DEFAULT 'global',
+      enforce_stage_order INTEGER NOT NULL DEFAULT 0,
+      nba_rules TEXT,
+      stage_requirements TEXT,
+      updated_at INTEGER DEFAULT (strftime('%s', 'now'))
+    );
+
+    CREATE TABLE activity_metadata (
+      id TEXT PRIMARY KEY,
+      activity_id TEXT NOT NULL REFERENCES activities(id),
+      metadata TEXT NOT NULL
+    );
+
+    CREATE TABLE nba_action_logs (
+      id TEXT PRIMARY KEY,
+      lead_id TEXT NOT NULL REFERENCES leads(id),
+      user_id TEXT NOT NULL REFERENCES users(id),
+      signal TEXT NOT NULL,
+      action_taken_at INTEGER,
+      result_stage_target TEXT,
+      result_stage_reached_at INTEGER
+    );
+
+    CREATE TABLE playbooks (
+      id TEXT PRIMARY KEY,
+      stage TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER
+    );
+
+    CREATE TABLE playbook_tasks (
+      id TEXT PRIMARY KEY,
+      playbook_id TEXT NOT NULL REFERENCES playbooks(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      description TEXT,
+      days_offset INTEGER NOT NULL,
+      priority TEXT NOT NULL DEFAULT 'Medium',
+      category TEXT,
+      action_type TEXT NOT NULL DEFAULT 'TASK',
+      job_type TEXT
     );
   `);
 

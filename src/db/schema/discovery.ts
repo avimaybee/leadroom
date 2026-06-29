@@ -10,6 +10,7 @@ export const discoveryScopes = sqliteTable('discovery_scopes', {
   businessTypeFilter: text('business_type_filter'),
   digitalPresenceFilter: text('digital_presence_filter'),
   notes: text('notes'),
+  autoResearchPromotedLeads: integer('auto_research_promoted_leads', { mode: 'boolean' }).default(true).notNull(),
   createdByUserId: text('created_by_user_id').notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),

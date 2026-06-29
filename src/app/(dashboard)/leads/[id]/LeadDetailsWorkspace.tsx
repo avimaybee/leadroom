@@ -7,6 +7,7 @@ import {
   Activity,
   ArrowLeft,
   Building2,
+  Calendar,
   CheckSquare2,
   ClipboardList,
   ContactRound,
@@ -18,6 +19,7 @@ import {
   Edit,
   Archive,
   Sliders,
+  X,
 } from 'lucide-react';
 import { toast, Toaster } from 'sonner';
 import { useNotifications } from '@/components/NotificationProvider';
@@ -42,13 +44,16 @@ import ClientTaskItem from './ClientTaskItem';
 import ClientContactsList from './ClientContactsList';
 import OutreachAssistant from './OutreachAssistant';
 import { updateStageAction, addNoteAction, updateLeadAction, archiveLeadAction } from '@/app/actions/leads';
+import { logNbaActionAction, dismissNbaActionAction } from '@/app/actions/tracking';
+import { getCalendarStatusAction } from '@/app/actions/calendar';
 import { ClientStageDropdown } from '@/components/ClientStageDropdown';
 import { SetReminderDialog } from '@/components/SetReminderDialog';
 import { StageAgingBar } from '@/components/lead/StageAgingBar';
 import { NextBestActionsList } from '@/components/lead/NextBestActionsList';
 import { createTaskAction, toggleTaskStatusAction } from '@/app/actions/tasks';
 import { saveResearchSnapshotAction, addContactAction, updateContactAction, deleteContactAction } from '@/app/actions/research';
-import { manualOverrideScoreAction } from '@/app/actions/audits';
+import { manualOverrideScoreAction, triggerAuditAction } from '@/app/actions/audits';
+import { generateOutreachDraftAction } from '@/app/actions/outreach';
 
 type WorkspaceView = 'overview' | 'research' | 'audit' | 'outreach' | 'activity';
 
@@ -70,6 +75,7 @@ interface LeadDetailsWorkspaceProps {
   stageThreshold?: number;
   nbaResults?: any[];
   autoFollowUpDue?: Date | null;
+  unmetRequirements?: Record<string, string>;
 }
 
 const WORKSPACE_NAV: Array<{ value: WorkspaceView; label: string; icon: typeof Building2 }> = [
@@ -124,6 +130,7 @@ export default function LeadDetailsWorkspace({
   stageThreshold,
   nbaResults,
   autoFollowUpDue,
+  unmetRequirements,
 }: LeadDetailsWorkspaceProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -133,7 +140,15 @@ export default function LeadDetailsWorkspace({
   const [isEnriching, setIsEnriching] = useState(Boolean(activeResearchJob));
   const [jobError, setJobError] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [executingAction, setExecutingAction] = useState<string | null>(null);
 
+  const nbaTop = nbaResults && nbaResults.length > 0 ? nbaResults[0] : null;
+
+  const [calendarStatus, setCalendarStatus] = useState<{ connected: boolean; isConfigured: boolean } | null>(null);
+
+  useEffect(() => {
+    getCalendarStatusAction().then(setCalendarStatus).catch(() => setCalendarStatus(null));
+  }, []);
 
   const [isEditLeadOpen, setIsEditLeadOpen] = useState(false);
   const [showAllTasks, setShowAllTasks] = useState(false);
@@ -364,11 +379,19 @@ export default function LeadDetailsWorkspace({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 lg:mt-1">
+            {calendarStatus && (
+              <span className={`inline-flex items-center gap-1.5 text-label-12 font-medium ${calendarStatus.connected ? 'text-chart-3' : 'text-muted-foreground'}`}>
+                <Calendar className="w-3.5 h-3.5" />
+                {calendarStatus.connected ? 'Calendar synced' : 'Calendar off'}
+              </span>
+            )}
             <SetReminderDialog leadId={lead.id} leadName={lead.name} />
             <label htmlFor="lead-stage" className="text-label-14 font-medium text-muted-foreground">Change stage:</label>
             <ClientStageDropdown
               currentStage={displayStage}
               leadName={lead.name}
+              leadId={lead.id}
+              unmetRequirements={unmetRequirements}
               onStageChange={async (newStage) => {
                 const formData = new FormData();
                 formData.append('leadId', lead.id);
@@ -424,35 +447,122 @@ export default function LeadDetailsWorkspace({
             {/* Main Column (8 spans) */}
             <div className="space-y-6 xl:col-span-8">
               {/* 1. Next Action */}
-              <section className="rounded-xl border border-foreground/10 bg-foreground px-5 py-5 text-background sm:px-6">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-label-12 uppercase text-background">Next action</p>
-                  {nextTaskDueState && (
-                    <span className={`inline-flex items-center rounded-md px-2.5 py-0.5 text-label-12 font-semibold ${nextTaskDueState.isOverdue ? 'bg-destructive/20 text-background' : 'bg-background/25 text-background'}`}>
-                      {nextTaskDueState.text}
-                    </span>
-                  )}
+              <section className="rounded-xl border border-foreground/10 bg-foreground px-5 py-5 text-background sm:px-6 relative">
+                <div className="flex flex-wrap items-center justify-between gap-2 pr-8">
+                  <div className="flex items-center gap-2">
+                    <p className="text-label-12 uppercase text-background">Next action</p>
+                    {nextTaskDueState && (
+                      <span className={`inline-flex items-center rounded-md px-2.5 py-0.5 text-label-12 font-semibold ${nextTaskDueState.isOverdue ? 'bg-destructive/20 text-background' : 'bg-background/25 text-background'}`}>
+                        {nextTaskDueState.text}
+                      </span>
+                    )}
+                  </div>
                 </div>
+                {nbaTop && (
+                  <button 
+                    className="absolute top-5 right-5 text-background/50 hover:text-background transition-colors"
+                    title="Dismiss this recommendation"
+                    onClick={async () => {
+                      const signal = nbaTop.action.toLowerCase().includes('overdue') ? 'overdue_task'
+                        : nbaTop.action.toLowerCase().includes('task') ? 'future_task'
+                        : nbaTop.action.toLowerCase().includes('stall') ? 'stale'
+                        : nbaTop.action.toLowerCase().includes('draft') ? 'unsent_draft'
+                        : nbaTop.action.toLowerCase().includes('research') ? 'no_research'
+                        : nbaTop.action.toLowerCase().includes('audit') ? 'no_audit'
+                        : 'unread';
+                      await dismissNbaActionAction(lead.id, signal);
+                      toast.success('Recommendation dismissed');
+                      router.refresh();
+                    }}
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
                 <h2 className="mt-3 text-heading-xl">
-                  {nextTask?.title || (latestSnapshot ? 'Review evidence and prepare outreach' : 'Start lead research')}
+                  {nbaTop?.action || nextTask?.title || (latestSnapshot ? 'Review evidence and prepare outreach' : 'Start lead research')}
                 </h2>
                 <p className="mt-2 text-copy-14 leading-6 text-background/80">
-                  {nextTask?.description || (latestSnapshot ? 'The lead has research context ready for a human decision.' : 'Build a traceable research snapshot before drafting outreach.')}
+                  {nbaTop?.rationale || nextTask?.description || (latestSnapshot ? 'The lead has research context ready for a human decision.' : 'Build a traceable research snapshot before drafting outreach.')}
                 </p>
-                <Button 
-                  className="mt-5 bg-background text-foreground hover:bg-background/90" 
-                  onClick={() => {
-                    if (nextTask) {
-                      // Stay on overview and focus tasks
-                    } else if (latestSnapshot) {
-                      navigateTo('outreach');
-                    } else {
-                      navigateTo('research');
-                    }
-                  }}
-                >
-                  {nextTask ? 'Execute Task' : latestSnapshot ? 'Open outreach' : 'Open research'}
-                </Button>
+                {nbaTop && nbaTop.priority === 'High' && (
+                  <span className="inline-flex items-center gap-1 mt-2 text-label-12 font-semibold text-background/70">
+                    <span className="w-1.5 h-1.5 rounded-full bg-destructive/60" />
+                    NBA priority — recommended by pipeline signals
+                  </span>
+                )}
+                <div className="flex items-center gap-2 mt-5">
+                  <Button 
+                    className="bg-background text-foreground hover:bg-background/90"
+                    disabled={!!executingAction}
+                    onClick={async () => {
+                      if (nbaTop) {
+                        logNbaActionAction(lead.id, nbaTop.action, nbaTop.priority).catch(() => {});
+                        if (nbaTop.type === 'research') {
+                          setExecutingAction('research');
+                          try {
+                            const res = await fetch(`/api/leads/${lead.id}/research`, { method: 'POST' });
+                            const data = await res.json() as { jobId?: string };
+                            if (data.jobId) setPollingJobId(data.jobId);
+                            navigateTo('research');
+                          } catch {
+                            window.location.href = `/leads/${lead.id}?tab=research`;
+                          } finally {
+                            setExecutingAction(null);
+                          }
+                        } else if (nbaTop.type === 'audit') {
+                          setExecutingAction('audit');
+                          try {
+                            await triggerAuditAction(lead.id);
+                            navigateTo('audit');
+                          } catch {
+                            window.location.href = `/leads/${lead.id}?tab=audit`;
+                          } finally {
+                            setExecutingAction(null);
+                          }
+                        } else if (nbaTop.type === 'outreach') {
+                          setExecutingAction('outreach');
+                          try {
+                            await generateOutreachDraftAction(lead.id, 'EMAIL');
+                            navigateTo('outreach');
+                          } catch {
+                            window.location.href = `/leads/${lead.id}?tab=outreach`;
+                          } finally {
+                            setExecutingAction(null);
+                          }
+                        } else if (nbaTop.link) {
+                          window.location.href = nbaTop.link;
+                        }
+                      } else if (nextTask) {
+                        // Stay on overview
+                      } else if (latestSnapshot) {
+                        navigateTo('outreach');
+                      } else {
+                        navigateTo('research');
+                      }
+                    }}
+                  >
+                    {executingAction === 'research' && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}
+                    {executingAction === 'audit' && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}
+                    {executingAction === 'outreach' && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}
+                    {!executingAction && (nbaTop ? nbaTop.action : nextTask ? 'Execute Task' : latestSnapshot ? 'Open outreach' : 'Open research')}
+                    {executingAction === 'research' && 'Starting research...'}
+                    {executingAction === 'audit' && 'Starting audit...'}
+                    {executingAction === 'outreach' && 'Generating draft...'}
+                  </Button>
+                  {nbaTop && nbaTop.link && !executingAction && (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="border-background/30 text-background hover:bg-background/10"
+                      onClick={() => {
+                        logNbaActionAction(lead.id, nbaTop.action, nbaTop.priority).catch(() => {});
+                        window.location.href = nbaTop.link;
+                      }}
+                    >
+                      View details
+                    </Button>
+                  )}
+                </div>
               </section>
 
               {/* 2. Lead Summary */}

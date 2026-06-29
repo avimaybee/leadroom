@@ -1,8 +1,9 @@
 'use server';
 
 import { getDb } from '@/db';
-import { stageThresholds, pipelineConfig } from '@/db/schema/core';
-import { eq } from 'drizzle-orm';
+import { LeadService } from '@/services/lead';
+import { stageThresholds, pipelineConfig, playbooks, playbookTasks } from '@/db/schema/core';
+import { eq, and } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { getUserId } from '@/lib/auth';
 
@@ -67,4 +68,101 @@ export async function toggleEnforceStageOrderAction(enabled: boolean) {
 
   revalidatePath('/settings/pipeline');
   revalidatePath('/');
+}
+
+export async function upsertPlaybookAction(stage: string, name: string, tasksInput: { title: string; description?: string; daysOffset: number; priority: string; category?: string; actionType?: string; jobType?: string }[]) {
+  const userId = await getUserId();
+  if (!userId) return { error: 'Unauthorized' };
+
+  const db = getDb();
+  const id = crypto.randomUUID();
+  const existing = await db.select({ id: playbooks.id }).from(playbooks).where(eq(playbooks.stage, stage)).limit(1);
+
+  try {
+    if (existing.length > 0) {
+      await db.update(playbooks).set({ name, isActive: true }).where(eq(playbooks.id, existing[0].id));
+      await db.delete(playbookTasks).where(eq(playbookTasks.playbookId, existing[0].id));
+      for (const t of tasksInput) {
+        await db.insert(playbookTasks).values({ id: crypto.randomUUID(), playbookId: existing[0].id, ...t, actionType: t.actionType || 'TASK', jobType: t.jobType || null });
+      }
+    } else {
+      await db.insert(playbooks).values({ id, stage, name, isActive: true });
+      for (const t of tasksInput) {
+        await db.insert(playbookTasks).values({ id: crypto.randomUUID(), playbookId: id, ...t, actionType: t.actionType || 'TASK', jobType: t.jobType || null });
+      }
+    }
+  } catch {
+    return { error: 'Failed to save playbook' };
+  }
+
+  revalidatePath('/settings/pipeline');
+  revalidatePath('/');
+  return { success: true };
+}
+
+export async function togglePlaybookActiveAction(stage: string, isActive: boolean) {
+  const userId = await getUserId();
+  if (!userId) return { error: 'Unauthorized' };
+
+  const db = getDb();
+  await db.update(playbooks).set({ isActive }).where(eq(playbooks.stage, stage));
+  revalidatePath('/settings/pipeline');
+  revalidatePath('/');
+  return { success: true };
+}
+
+export async function deletePlaybookAction(stage: string) {
+  const userId = await getUserId();
+  if (!userId) return { error: 'Unauthorized' };
+
+  const db = getDb();
+  await db.delete(playbooks).where(eq(playbooks.stage, stage));
+  revalidatePath('/settings/pipeline');
+  revalidatePath('/');
+  return { success: true };
+}
+
+export type NBAResultWithName = {
+  action: string;
+  type: string;
+  priority: string;
+  rationale: string;
+  link?: string;
+  score: number;
+  leadName: string;
+};
+
+export async function simulateNBARulesAction(draftRulesJson: string): Promise<{ results: NBAResultWithName[] } | { error: string }> {
+  const userId = await getUserId();
+  if (!userId) return { error: 'Unauthorized' };
+
+  const db = getDb();
+  try {
+    const rules = JSON.parse(draftRulesJson);
+    const results = await new LeadService(db).simulateNBARules(rules, 5);
+    return { results };
+  } catch {
+    return { error: 'Failed to simulate' };
+  }
+}
+
+export async function saveStageRequirementsAction(requirements: Record<string, string[]>) {
+  const userId = await getUserId();
+  if (!userId) return { error: 'Unauthorized' };
+
+  const db = getDb();
+  try {
+    const existing = await db.select().from(pipelineConfig).where(eq(pipelineConfig.id, 'global')).limit(1);
+    if (existing.length > 0) {
+      await db.update(pipelineConfig).set({ stageRequirements: requirements, updatedAt: new Date() }).where(eq(pipelineConfig.id, 'global'));
+    } else {
+      await db.insert(pipelineConfig).values({ id: 'global', stageRequirements: requirements, enforceStageOrder: false, updatedAt: new Date() });
+    }
+  } catch {
+    return { error: 'Failed to save stage requirements' };
+  }
+
+  revalidatePath('/settings/pipeline');
+  revalidatePath('/');
+  return { success: true };
 }

@@ -38,6 +38,7 @@ export const researchSnapshots = sqliteTable('research_snapshots', {
   opportunityHypotheses: text('opportunity_hypotheses'),
   sources: text('sources'), // JSON stringified array of string URLs
   confidenceLevel: text('confidence_level').notNull().default('UNKNOWN'), // 'LOW' | 'MEDIUM' | 'HIGH' | 'UNKNOWN'
+  contentHash: text('content_hash'),
   userRemarks: text('user_remarks'), // Appended notes by the human operator
   jobRunId: text('job_run_id').references(() => jobRuns.id),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),

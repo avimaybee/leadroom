@@ -1,11 +1,13 @@
 import { LoggingService } from './logging';
 import { Db } from '../db';
-import { fetchSiteContent, ScrapedContent } from '../lib/scraper';
-import { generateResearch, generateAudit, generateLeadScore } from '../lib/ai';
-import { saveExtractedContacts, logContactDiscoveryActivity } from '../lib/contacts';
+import { fetchSiteContent, ScrapedContent, contentHash } from '../lib/scraper';
+import { generateResearchAndAudit } from '../lib/ai';
+import { saveExtractedContacts, logContactDiscoveryActivity, saveAIExtractedContacts } from '../lib/contacts';
 import { leads, activities, researchSnapshots, audits, leadScores } from '../db/schema';
-import { eq } from 'drizzle-orm';
+import { ScoringService } from './scoring';
+import { eq, and } from 'drizzle-orm';
 import { getLogger } from '../lib/logger';
+import { LeadService } from './lead';
 
 const logger = getLogger('ResearchWorkflowService');
 
@@ -74,8 +76,28 @@ export class ResearchWorkflowService {
     const websiteMarkdown = scraped?.content || null;
     const location = [lead.city, lead.region].filter(Boolean).join(', ') || null;
 
-    // Run the LLM calls
-    const research = await generateResearch(
+    // Check cache: skip AI call if website content hasn't changed
+    const hash = contentHash(lead.website, websiteMarkdown);
+    const [cachedSnapshot] = await this.db
+      .select({ id: researchSnapshots.id, confidenceLevel: researchSnapshots.confidenceLevel })
+      .from(researchSnapshots)
+      .where(and(eq(researchSnapshots.leadId, lead.id), eq(researchSnapshots.contentHash, hash)))
+      .limit(1);
+
+    if (cachedSnapshot) {
+      logger.info('Using cached research+audit results (content unchanged)', { leadId: lead.id, snapshotId: cachedSnapshot.id });
+      await new LoggingService(this.db).log({
+        leadId: lead.id,
+        type: 'Research cached',
+        summary: `AI research skipped — website content unchanged since last snapshot (${cachedSnapshot.id.slice(0, 8)}).`,
+      });
+      const leadService = new LeadService(this.db);
+      await leadService.advanceStageIfEarlier(lead.id, 'In Research');
+      return;
+    }
+
+    // Run the merged single LLM call (Research + Audit + Contacts)
+    const merged = await generateResearchAndAudit(
       this.db,
       lead.name,
       lead.company,
@@ -85,26 +107,8 @@ export class ResearchWorkflowService {
       location
     );
 
-    const audit = await generateAudit(
-      this.db,
-      lead.name,
-      lead.company,
-      lead.website,
-      lead.industry,
-      websiteMarkdown,
-      lead.id
-    );
-
-    const score = await generateLeadScore(
-      this.db,
-      lead.name,
-      research,
-      audit
-    );
-
     const snapshotId = crypto.randomUUID();
     const auditId = crypto.randomUUID();
-    const scoreId = crypto.randomUUID();
     const now = new Date();
 
     // Persist snapshot records
@@ -114,15 +118,16 @@ export class ResearchWorkflowService {
       createdByUserId: userId || null,
       origin: 'AI_GENERATED',
       snapshotTitle: scraped?.title ? `Research Snapshot: ${scraped.title}` : 'AI Research Snapshot',
-      companySummary: research.companySummary,
-      productsServicesSummary: research.productsServicesSummary,
-      digitalPresenceNotes: research.digitalPresenceNotes,
-      websiteNotes: research.websiteNotes,
-      brandingNotes: research.brandingNotes,
-      painPointsHypotheses: research.painPointsHypotheses,
-      opportunityHypotheses: research.opportunityHypotheses,
-      sources: JSON.stringify(research.sources || [lead.website].filter(Boolean)),
-      confidenceLevel: research.confidenceLevel,
+      companySummary: merged.companySummary,
+      productsServicesSummary: merged.productsServicesSummary,
+      digitalPresenceNotes: merged.digitalPresenceNotes,
+      websiteNotes: merged.websiteNotes,
+      brandingNotes: merged.brandingNotes,
+      painPointsHypotheses: merged.painPointsHypotheses,
+      opportunityHypotheses: merged.opportunityHypotheses,
+      sources: JSON.stringify(merged.sources || [lead.website].filter(Boolean)),
+      confidenceLevel: merged.confidenceLevel,
+      contentHash: hash,
       jobRunId: jobId,
       createdAt: now,
       updatedAt: now,
@@ -133,40 +138,48 @@ export class ResearchWorkflowService {
       leadId: lead.id,
       createdByUserId: userId || null,
       origin: 'AI_GENERATED',
-      keyStrengths: audit.keyStrengths,
-      keyWeaknesses: audit.keyWeaknesses,
-      recommendedImprovements: audit.recommendedImprovements,
+      keyStrengths: merged.keyStrengths,
+      keyWeaknesses: merged.keyWeaknesses,
+      recommendedImprovements: merged.recommendedImprovements,
       opportunityNotes: null,
-      sources: JSON.stringify(audit.sources || [lead.website].filter(Boolean)),
+      contentHash: hash,
+      sources: JSON.stringify(merged.sources || [lead.website].filter(Boolean)),
       jobRunId: jobId,
       createdAt: now,
       updatedAt: now,
     });
 
-    await this.db.update(leadScores)
-      .set({ isCurrent: 0, updatedAt: now })
-      .where(eq(leadScores.leadId, lead.id));
+    // Save AI extracted contacts if present
+    if (merged.contacts) {
+      const savedContactsCount = await saveAIExtractedContacts(
+        this.db,
+        lead.id,
+        merged.contacts,
+        userId
+      );
+      if (savedContactsCount > 0) {
+        const contactExtractObj = {
+          emails: merged.contacts.emails || [],
+          phones: merged.contacts.phones || [],
+          socialLinks: (merged.contacts.socialLinks || {}) as Record<string, string>,
+          contactPageUrls: [],
+        };
+        await logContactDiscoveryActivity(this.db, lead.id, contactExtractObj, savedContactsCount);
+      }
+    }
 
-    await this.db.insert(leadScores).values({
-      id: scoreId,
-      leadId: lead.id,
-      scoreValue: score.score,
-      scoreLabel: score.score >= 80 ? 'High' : (score.score >= 50 ? 'Medium' : 'Low'),
-      rationaleSummary: score.rationaleSummary,
-      factors: JSON.stringify(score.factors || []),
-      origin: 'AI_SUGGESTED',
-      isCurrent: 1,
-      createdByUserId: userId || null,
-      jobRunId: jobId,
-      createdAt: now,
-      updatedAt: now,
-    });
+    // Recalculate score deterministically in code (bypasses LLM call)
+    const scoringService = new ScoringService(this.db);
+    const savedScore = await scoringService.recalculateScore(lead.id, jobId, userId);
 
     await new LoggingService(this.db).log({
-leadId: lead.id,
+      leadId: lead.id,
       type: 'Research generated',
-      summary: `AI research, design audit, and lead score (${score.score}) generated.`,
-      
-});
+      summary: `AI research, design audit, and lead score (${savedScore.scoreValue}) generated.`,
+    });
+
+    // Auto-advance stage from New to In Research after successful generation
+    const leadService = new LeadService(this.db);
+    await leadService.advanceStageIfEarlier(lead.id, 'In Research');
   }
 }

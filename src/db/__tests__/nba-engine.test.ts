@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 import { setupTestDb as initTestDb } from './test-helpers';
 import { LeadService } from '../../services/lead';
-import { leads, stageThresholds, users } from '../schema/core';
+import { leads, stageThresholds, users, nbaActionLogs } from '../schema/core';
 import { researchSnapshots } from '../schema/research';
 import { outreachDrafts } from '../schema/outreach';
 import { eq, sql } from 'drizzle-orm';
@@ -154,5 +154,56 @@ test('NBAEngine', async (t) => {
     ];
     const result = await leadService.getNextBestActions(lead.id, zeroWeightRules);
     assert.strictEqual(result.length, 0);
+  });
+
+  await t.test('simulateNBARules returns scored results from active leads', async () => {
+    const { leadService } = setupTestDb();
+    const lead = await leadService.createLead({ name: 'Sim Lead' });
+    const rules = [{ signal: 'unread' as const, weight: 100 }];
+    const results = await leadService.simulateNBARules(rules, 5);
+    assert.ok(results.length > 0);
+    assert.ok(results[0].leadName.length > 0);
+    assert.ok(results[0].score > 0);
+  });
+
+  await t.test('logNBAAction inserts a row and correlates on stage advancement', async () => {
+    const { db, leadService } = setupTestDb();
+    const [user] = await db.select().from(users).limit(1);
+    if (!user) return;
+
+    const lead = await leadService.createLead({ name: 'Correlation Lead' });
+    await leadService.logNBAAction(lead.id, 'unread', user.id);
+
+    // advance stage — should correlate
+    await leadService.updateStage(lead.id, 'In Research');
+
+    const logs = await db.select().from(nbaActionLogs).where(eq(nbaActionLogs.leadId, lead.id));
+    assert.strictEqual(logs.length, 1);
+    assert.strictEqual(logs[0].resultStageTarget, 'In Research');
+    assert.ok(logs[0].resultStageReachedAt !== null);
+  });
+
+  await t.test('dismissing an NBA signal prevents it from returning in getNextBestActions', async () => {
+    const { db, leadService } = setupTestDb();
+    const [user] = await db.select().from(users).limit(1);
+    if (!user) return;
+
+    const lead = await leadService.createLead({ name: 'Dismiss Lead' });
+    
+    const before = await leadService.getNextBestActions(lead.id);
+    const hasResearchActionBefore = before.some((a) => a.action === 'Start lead research');
+    assert.ok(hasResearchActionBefore);
+
+    await db.insert(nbaActionLogs).values({
+      id: crypto.randomUUID(),
+      leadId: lead.id,
+      userId: user.id,
+      signal: 'no_research',
+      resultStageTarget: 'DISMISSED',
+    });
+
+    const after = await leadService.getNextBestActions(lead.id);
+    const hasResearchActionAfter = after.some((a) => a.action === 'Start lead research');
+    assert.strictEqual(hasResearchActionAfter, false);
   });
 });

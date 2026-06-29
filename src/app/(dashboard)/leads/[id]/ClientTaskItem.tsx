@@ -3,7 +3,7 @@
 import { useTransition } from 'react';
 import { formatUTC } from '@/lib/date';
 import { Badge } from '@/components/ui/badge';
-import { Calendar } from 'lucide-react';
+import { Calendar, Sparkles, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 
 interface Task {
   id: string;
@@ -12,6 +12,11 @@ interface Task {
   dueDate: Date | null;
   status: string;
   priority: string;
+  source?: string | null;
+  playbookId?: string | null;
+  playbookName?: string | null;
+  googleCalendarSyncStatus?: string | null;
+  googleCalendarSyncError?: string | null;
 }
 
 interface ClientTaskItemProps {
@@ -76,11 +81,44 @@ export default function ClientTaskItem({ leadId, task, toggleTaskStatusAction }:
           <Badge variant={getPriorityVariant(task.priority)} className="uppercase">
             {task.priority}
           </Badge>
-          {task.dueDate && (
-            <span className="text-label-12 text-muted-foreground font-semibold flex items-center gap-1">
-              <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
-              {formatUTC(task.dueDate)}
+          {task.playbookId && (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-chart-3/10 border border-chart-3/20 text-label-12 font-medium text-chart-3 uppercase" title="Automated Playbook Task">
+              <Sparkles className="w-3 h-3 text-chart-3" />
+              {task.playbookName || 'Playbook'}
             </span>
+          )}
+          {task.dueDate && (
+            <div className="flex items-center gap-1.5 text-label-12 text-muted-foreground font-semibold">
+              <div className="flex items-center gap-1">
+                <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+                <span>{formatUTC(task.dueDate)}</span>
+              </div>
+              
+              {task.googleCalendarSyncStatus && (
+                <span 
+                  className={`flex items-center ${
+                    task.googleCalendarSyncStatus === 'Synced'
+                      ? 'text-emerald-500'
+                      : task.googleCalendarSyncStatus === 'Error'
+                      ? 'text-destructive'
+                      : 'text-amber-500'
+                  }`}
+                  title={
+                    task.googleCalendarSyncStatus === 'Synced' ? 'Synced to Google Calendar' :
+                    task.googleCalendarSyncStatus === 'Error' ? (task.googleCalendarSyncError || 'Sync failed') : 
+                    'Syncing to calendar...'
+                  }
+                >
+                  {task.googleCalendarSyncStatus === 'Synced' ? (
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                  ) : task.googleCalendarSyncStatus === 'Error' ? (
+                    <AlertCircle className="w-3.5 h-3.5" />
+                  ) : (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  )}
+                </span>
+              )}
+            </div>
           )}
         </div>
       </div>

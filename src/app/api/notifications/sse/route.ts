@@ -4,8 +4,7 @@ import { getDb } from '@/db';
 import { notifications } from '@/db/schema';
 import { eq, and, gt } from 'drizzle-orm';
 import { getUserId } from '@/lib/auth';
-import { ReminderService } from '@/services/reminders';
-import { LeadService } from '@/services/lead';
+import { runReminderSweep, runStaleLeadSweep, runOverdueTaskSweep } from '@/services/sweeps';
 
 export async function GET(request: Request) {
   const userId = await getUserId();
@@ -33,26 +32,15 @@ export async function GET(request: Request) {
 
       while (!isClosed) {
         try {
-          // Fire due reminders (every 30s)
+          // Fire background sweeps
           const now = Date.now();
           if (now - lastReminderCheck > REMINDER_CHECK_INTERVAL) {
-            try {
-              const reminderService = new ReminderService(db);
-              await reminderService.fireDueReminders();
-            } catch (e) {
-              console.error('Reminder firing failed:', e);
-            }
+            await runReminderSweep(db).catch(e => console.error('Reminder sweep failed:', e));
             lastReminderCheck = now;
           }
-
-          // Fire stale lead alerts (every 60s)
           if (now - lastStaleCheck > STALE_CHECK_INTERVAL) {
-            try {
-              const leadService = new LeadService(db);
-              await leadService.checkAndAlertStaleLeads();
-            } catch (e) {
-              console.error('Stale alert check failed:', e);
-            }
+            await runStaleLeadSweep(db).catch(e => console.error('Stale sweep failed:', e));
+            await runOverdueTaskSweep(db).catch(e => console.error('Overdue task sweep failed:', e));
             lastStaleCheck = now;
           }
 

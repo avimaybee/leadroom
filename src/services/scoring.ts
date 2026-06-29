@@ -1,8 +1,7 @@
 import { LoggingService } from './logging';
 import { Db } from '../db';
 import { eq, and, desc } from 'drizzle-orm';
-import { leads, leadScores, audits, activities, researchSnapshots } from '../db/schema';
-import { generateLeadScore, getActiveProviderConfig } from '../lib/ai';
+import { leads, leadScores, audits, researchSnapshots, } from '../db/schema';
 
 export interface ScoringFactor {
   name: string;
@@ -40,55 +39,25 @@ export class ScoringService {
       .orderBy(desc(audits.createdAt))
       .limit(1);
 
-    let scoreValue = 10;
+    // Pure deterministic completeness & quality score
+    const calculation = this.calculateCompletenessScore(lead, latestAudit, latestResearch);
+    const scoreValue = calculation.scoreValue;
+    const factors = calculation.factors.map(f => `${f.name}: ${f.description} (+${f.value})`);
+    
     let scoreLabel: 'High' | 'Medium' | 'Low' = 'Low';
-    let rationaleSummary = '';
-    let factors: string[] = [];
-    let origin: 'RULE_BASED' | 'AI_SUGGESTED' | 'MANUAL_OVERRIDE' = 'RULE_BASED';
-
-    let hasActiveConfig = false;
-    try {
-      const config = await getActiveProviderConfig(this.db);
-      // If we are in tests, we can fall back to environment variable if configured,
-      // but otherwise verify api_key is present.
-      const apiKey = config?.apiKey || (typeof process !== 'undefined' ? process.env?.GEMINI_API_KEY : undefined);
-      if (apiKey && apiKey !== 'placeholder' && apiKey !== '') {
-        hasActiveConfig = true;
-      }
-    } catch (e) {}
-
-    if ((latestResearch || latestAudit) && hasActiveConfig) {
-      try {
-        const aiScore = await generateLeadScore(this.db, lead.name, latestResearch, latestAudit);
-        scoreValue = aiScore.score;
-        rationaleSummary = aiScore.rationaleSummary;
-        factors = aiScore.factors;
-        origin = 'AI_SUGGESTED';
-      } catch (err) {
-        console.error('[ScoringService] AI scoring failed, using baseline:', err);
-        // Fallback to completeness
-        const fallback = this.calculateCompletenessScore(lead, latestAudit);
-        scoreValue = fallback.scoreValue;
-        rationaleSummary = 'Fallback baseline score (AI generation failed).';
-        factors = fallback.factors.map(f => `${f.name}: ${f.description}`);
-      }
-    } else {
-      const fallback = this.calculateCompletenessScore(lead, latestAudit);
-      scoreValue = fallback.scoreValue;
-      rationaleSummary = `Calculated baseline priority based on profile completeness.`;
-      factors = fallback.factors.map(f => `${f.name}: ${f.description}`);
-    }
-
-    // Clamp score value between 0 and 100
-    scoreValue = Math.max(0, Math.min(100, scoreValue));
-
-    // Determine priority label
     if (scoreValue >= 80) {
       scoreLabel = 'High';
     } else if (scoreValue >= 50) {
       scoreLabel = 'Medium';
+    }
+
+    let rationaleSummary = '';
+    if (latestResearch && latestAudit) {
+      rationaleSummary = `Priority score calculated from profile completeness, high-confidence research, and design audit findings.`;
+    } else if (latestResearch || latestAudit) {
+      rationaleSummary = `Priority score calculated from profile completeness and partial AI snapshots.`;
     } else {
-      scoreLabel = 'Low';
+      rationaleSummary = `Calculated baseline priority based on profile completeness.`;
     }
 
     const scoreId = crypto.randomUUID();
@@ -108,7 +77,7 @@ export class ScoringService {
       scoreLabel,
       rationaleSummary,
       factors: JSON.stringify(factors),
-      origin: userId ? ('MANUAL_OVERRIDE' as const) : (jobRunId ? ('AI_SUGGESTED' as const) : origin),
+      origin: userId ? ('MANUAL_OVERRIDE' as const) : (jobRunId ? ('AI_SUGGESTED' as const) : ('RULE_BASED' as const)),
       isCurrent: 1,
       createdByUserId: userId,
       jobRunId,
@@ -118,18 +87,20 @@ export class ScoringService {
 
     await this.db.insert(leadScores).values(newScore);
 
+    // Clear score dirty flag
+    await this.db.update(leads).set({ scoreDirty: false }).where(eq(leads.id, leadId));
+
     // Insert activity log
     await new LoggingService(this.db).log({
-leadId,
+      leadId,
       type: 'Score updated',
       summary: `Lead score updated to ${scoreValue} (${scoreLabel})`,
-      
-});
+    });
 
     return newScore;
   }
 
-  private calculateCompletenessScore(lead: any, latestAudit: any) {
+  private calculateCompletenessScore(lead: any, latestAudit: any, latestResearch?: any) {
     const factors: ScoringFactor[] = [];
     let scoreValue = 10; // Base baseline priority points
     factors.push({ name: 'Base Priority', value: 10, description: 'Baseline priority weight' });
@@ -156,13 +127,51 @@ leadId,
       factors.push({ name: 'Profile: Has Industry', value: 10, description: 'Industry classification is identified' });
     }
 
-    // 2. Audit Presence Factor
+    // 2. Audit Presence & Findings Factors
     if (latestAudit) {
       scoreValue += 30;
-      factors.push({ name: 'Audit: Completed', value: 30, description: 'Digital presence audit has been performed' });
+      factors.push({ name: 'Audit: Performed', value: 30, description: 'Digital presence audit has been completed' });
+
+      const weaknesses = latestAudit.keyWeaknesses || '';
+      if (weaknesses.includes('-') || weaknesses.length > 20) {
+        scoreValue += 5;
+        factors.push({ name: 'Audit: Weaknesses Identified', value: 5, description: 'Specific UX/branding weaknesses discovered' });
+      }
+
+      const improvements = latestAudit.recommendedImprovements || '';
+      if (improvements.includes('-') || improvements.length > 20) {
+        scoreValue += 5;
+        factors.push({ name: 'Audit: Recommendations Logged', value: 5, description: 'Actionable improvements recommended' });
+      }
     }
 
-    return { scoreValue, factors };
+    // 3. Research Presence & Findings Factors
+    if (latestResearch) {
+      scoreValue += 10;
+      factors.push({ name: 'Research: Snapshot Created', value: 10, description: 'AI research snapshot has been generated' });
+
+      if (latestResearch.confidenceLevel === 'HIGH') {
+        scoreValue += 5;
+        factors.push({ name: 'Research: High Confidence Data', value: 5, description: 'Scraped data is rich and verified' });
+      } else if (latestResearch.confidenceLevel === 'MEDIUM') {
+        scoreValue += 2;
+        factors.push({ name: 'Research: Medium Confidence Data', value: 2, description: 'Scraped data is partially verified' });
+      }
+
+      const painPoints = latestResearch.painPointsHypotheses || '';
+      if (painPoints.includes('-') || painPoints.length > 20) {
+        scoreValue += 5;
+        factors.push({ name: 'Research: Pain Points Defined', value: 5, description: 'Pain points and business implications mapped' });
+      }
+
+      const opps = latestResearch.opportunityHypotheses || '';
+      if (opps.includes('-') || opps.length > 20) {
+        scoreValue += 5;
+        factors.push({ name: 'Research: Opportunities Proposed', value: 5, description: 'Specific pitch angles and project opportunities identified' });
+      }
+    }
+
+    return { scoreValue: Math.min(100, scoreValue), factors };
   }
 
   /**

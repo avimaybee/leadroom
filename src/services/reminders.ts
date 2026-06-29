@@ -44,8 +44,7 @@ export class ReminderService {
     const due = await this.db
       .select()
       .from(reminders)
-      .where(and(lte(reminders.remindAt, now), eq(reminders.isFired, false)))
-      .all();
+      .where(and(lte(reminders.remindAt, now), eq(reminders.isFired, false)));
 
     for (const r of due) {
       await createNotification(

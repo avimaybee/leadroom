@@ -1,7 +1,10 @@
 import { getDb } from '@/db';
+import { getUserId } from '@/lib/auth';
 import { IntegrationsService } from '@/services/integrations';
+import { CalendarService } from '@/services/calendar';
 import { ProviderConfigForm } from '@/components/settings/ProviderConfigForm';
 import { ActiveProviderPicker } from '@/components/settings/ActiveProviderPicker';
+import { CalendarIntegration } from '@/components/settings/CalendarIntegration';
 
 export const metadata = {
   title: 'AI Integrations | Leadroom',
@@ -11,7 +14,9 @@ export const dynamic = 'force-dynamic';
 
 export default async function IntegrationsPage() {
   const db = getDb();
+  const userId = await getUserId();
   const service = new IntegrationsService(db);
+  const calendarService = new CalendarService(db);
 
   const geminiConfig = await service.getProviderConfig('gemini');
   const nvidiaConfig = await service.getProviderConfig('nvidia');
@@ -20,6 +25,11 @@ export default async function IntegrationsPage() {
   const aimlConfig = await service.getProviderConfig('aiml');
   const openaiConfig = await service.getProviderConfig('openai');
   const anthropicConfig = await service.getProviderConfig('anthropic');
+
+  const calendarStatus = userId ? await calendarService.getStatus(userId) : { connected: false };
+  const clientId = userId ? await calendarService.getClientId(userId) : null;
+  const clientSecret = userId ? await calendarService.getClientSecret(userId) : null;
+  const storedCreds = userId ? await calendarService.getStoredCredentials(userId) : null;
 
   return (
     <div className="space-y-8 max-w-4xl">
@@ -93,6 +103,21 @@ export default async function IntegrationsPage() {
             displayName="Anthropic Claude"
             defaultModel="claude-sonnet-4-6"
             config={anthropicConfig}
+          />
+        </div>
+      </div>
+
+      {/* Calendar Integration */}
+      <div className="rounded-xl border border-border bg-card">
+        <div className="border-b border-border px-6 py-4">
+          <h2 className="text-heading-lg text-foreground">Calendar Sync</h2>
+          <p className="text-copy-14 text-muted-foreground mt-0.5">Sync tasks to your Google Calendar for external visibility.</p>
+        </div>
+        <div className="p-6">
+          <CalendarIntegration
+            initialConnected={calendarStatus.connected}
+            isConfigured={!!(clientId && clientSecret)}
+            hasStoredCredentials={!!(storedCreds?.googleClientId && storedCreds?.googleClientSecret)}
           />
         </div>
       </div>

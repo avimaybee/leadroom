@@ -106,6 +106,27 @@
       "when": 1782326492809,
       "tag": "0014_living_hellcat",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1782640760810,
+      "tag": "0015_pink_molly_hayes",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1782641143701,
+      "tag": "0016_spotty_obadiah_stane",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1782714396222,
+      "tag": "0017_oval_the_leader",
+      "breakpoints": true
     }
   ]
 }

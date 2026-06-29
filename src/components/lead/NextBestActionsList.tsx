@@ -2,11 +2,13 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Lightbulb, ArrowRight } from 'lucide-react';
+import { X, Lightbulb, ArrowRight } from 'lucide-react';
 import type { NBAResult } from '@/services/lead';
-import { logNbaActionAction } from '@/app/actions/tracking';
+import { logNbaActionAction, dismissNbaActionAction } from '@/app/actions/tracking';
+import { toast } from 'sonner';
 
 const PRIORITY_VARIANTS: Record<string, 'destructive' | 'secondary' | 'outline'> = {
   High: 'destructive',
@@ -20,6 +22,7 @@ interface Props {
 }
 
 export function NextBestActionsList({ recommendations, leadId }: Props) {
+  const router = useRouter();
   const [showAll, setShowAll] = useState(false);
   const displayed = showAll ? recommendations : recommendations.slice(0, 3);
 
@@ -66,8 +69,29 @@ export function NextBestActionsList({ recommendations, leadId }: Props) {
               </div>
               <p className="text-copy-13 text-muted-foreground mt-0.5">{r.rationale}</p>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="text-label-12 text-muted-foreground">{r.score}</span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-label-12 text-muted-foreground mr-1">{r.score}</span>
+              {leadId && (
+                <Button 
+                  variant="ghost" 
+                  size="icon-xs" 
+                  title="Dismiss recommendation"
+                  onClick={async () => {
+                    const signal = r.action.toLowerCase().includes('overdue') ? 'overdue_task'
+                      : r.action.toLowerCase().includes('task') ? 'future_task'
+                      : r.action.toLowerCase().includes('stall') ? 'stale'
+                      : r.action.toLowerCase().includes('draft') ? 'unsent_draft'
+                      : r.action.toLowerCase().includes('research') ? 'no_research'
+                      : r.action.toLowerCase().includes('audit') ? 'no_audit'
+                      : 'unread';
+                    await dismissNbaActionAction(leadId, signal);
+                    toast.success('Recommendation dismissed');
+                    router.refresh();
+                  }}
+                >
+                  <X className="w-3.5 h-3.5 text-muted-foreground hover:text-destructive" />
+                </Button>
+              )}
               {r.link && (
                 <Link href={r.link} onClick={() => handleClick(r)}>
                   <Button variant="ghost" size="icon-xs">

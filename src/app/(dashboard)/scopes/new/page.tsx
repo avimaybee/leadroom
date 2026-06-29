@@ -33,6 +33,7 @@ export default function NewScopePage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [autoResearch, setAutoResearch] = useState(true);
   const [debouncedNiche] = useDebounce(niche, 500);
   const [debouncedLocation] = useDebounce(location, 500);
   const [metrics, setMetrics] = useState<any>(null);
@@ -105,6 +106,7 @@ export default function NewScopePage() {
           description: `Automated discovery campaign for ${formattedNiche} in ${formattedLocation}`,
           industryFilter: formattedNiche,
           geographyFilter: formattedLocation,
+          autoResearchPromotedLeads: autoResearch,
           createdByUserId: userId,
         }),
       });
@@ -280,6 +282,29 @@ export default function NewScopePage() {
             </div>
           </div>
         )}
+
+        {/* Section 3: Automation Settings */}
+        <div className="space-y-4 pt-3 border-t border-border/50">
+          <h3 className="text-label-14 text-muted-foreground uppercase border-b border-border pb-1">
+            Automation Settings
+          </h3>
+          <label className="flex items-start gap-3 cursor-pointer group">
+            <input
+              type="checkbox"
+              checked={autoResearch}
+              onChange={(e) => setAutoResearch(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-border accent-primary cursor-pointer"
+            />
+            <div>
+              <span className="text-label-14 text-foreground font-medium group-hover:text-primary transition-colors">
+                Auto-research promoted leads
+              </span>
+              <p className="text-label-12 text-muted-foreground mt-0.5 leading-normal">
+                When a candidate is promoted to a lead, automatically queue a research snapshot if the candidate has a website URL.
+              </p>
+            </div>
+          </label>
+        </div>
 
         {/* Dynamic Launch Summary Footer Block */}
         <div className="bg-muted/30 border border-border/80 rounded-xl p-4 text-copy-13 text-muted-foreground leading-relaxed space-y-1">
