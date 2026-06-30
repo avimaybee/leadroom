@@ -29,14 +29,30 @@ export async function encrypt(text: string, secret: string): Promise<string> {
 
 export async function decrypt(hexString: string, secret: string): Promise<string> {
   if (!hexString) return '';
-  const key = await getKey(secret);
-  const bytes = new Uint8Array(hexString.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)));
-  const iv = bytes.slice(0, 12);
-  const data = bytes.slice(12);
-  const decrypted = await crypto.subtle.decrypt(
-    { name: 'AES-GCM', iv },
-    key,
-    data
-  );
-  return new TextDecoder().decode(decrypted);
+  try {
+    const key = await getKey(secret);
+    const matches = hexString.match(/.{1,2}/g);
+    if (!matches) return hexString;
+
+    const parsedBytes = matches.map(byte => parseInt(byte, 16));
+    if (parsedBytes.some(isNaN)) {
+      return hexString;
+    }
+
+    const bytes = new Uint8Array(parsedBytes);
+    if (bytes.length < 13) {
+      return hexString;
+    }
+
+    const iv = bytes.slice(0, 12);
+    const data = bytes.slice(12);
+    const decrypted = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv },
+      key,
+      data
+    );
+    return new TextDecoder().decode(decrypted);
+  } catch (e) {
+    return hexString;
+  }
 }
