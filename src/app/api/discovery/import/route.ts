@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 
 import { getDb } from '@/db';
-import { leads, activities } from '@/db/schema/core';
+import { prospects as leads, activities } from '@/db/schema/core';
 import { discoveryScopes, candidateLeads } from '@/db/schema/discovery';
 import { eq } from 'drizzle-orm';
 import { cookies } from 'next/headers';
@@ -26,6 +26,8 @@ export async function POST(request: Request) {
         region?: string | null;
         industry?: string | null;
         sourceUrl?: string | null;
+        workspaceId?: string | null;
+        marketId?: string | null;
       }>;
       filename?: string;
     };
@@ -71,6 +73,8 @@ export async function POST(request: Request) {
         ownerId: userId,
         stage: 'New',
         status: 'Active',
+        workspaceId: item.workspaceId ?? null,
+        marketId: item.marketId ?? null,
         createdAt: now,
         updatedAt: now,
       });

@@ -65,11 +65,19 @@ export const AIResearchAuditSchema = z.object({
 
 export type AIResearchAuditOutput = z.infer<typeof AIResearchAuditSchema>;
 
+const CitedEvidenceItemSchema = z.object({
+  sentence: z.string(),
+  evidenceQuote: z.string(),
+  sourceUrl: z.string(),
+});
+
 export const AIOutreachDraftSchema = z.object({
   drafts: z.array(z.object({
     subject: z.string().nullable().optional(),
     body: z.string(),
-    variationTone: z.string().optional()
+    variationTone: z.string().optional(),
+    riskFlags: z.array(z.string()).optional(),
+    citedEvidence: z.array(CitedEvidenceItemSchema).optional(),
   })).min(1).max(1)
 });
 
@@ -83,32 +91,44 @@ const VISION_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
  * Cache for active provider config, keyed by Db instance.
  * Avoids redundant DB queries when multiple AI functions are called in the same scope.
  */
-const _providerConfigWeakCache = new WeakMap<object, { config: { provider: string; apiKey: string | null; modelName: string | null } | null; timestamp: number }>();
+const _providerConfigWeakCache = new WeakMap<object, { config: { provider: string; apiKey: string | null; modelName: string | null } | null; timestamp: number; cacheKey?: string }>();
 const PROVIDER_CONFIG_CACHE_TTL_MS = 60_000; // 1 minute
 
 import { IntegrationsService } from '../services/integrations';
+import type { TaskType } from '../services/integrations';
 
 /**
- * Resolves the active provider config once, caching the result by Db instance.
+ * Resolves the active provider config for a given task type, caching the result by Db instance.
  * Subsequent calls within the same scope reuse the cached value.
  */
-export async function getActiveProviderConfig(db: Db) {
+export async function getActiveProviderConfig(db: Db, taskType?: TaskType) {
+  const cacheKey = `${taskType || 'default'}`;
   const cached = _providerConfigWeakCache.get(db);
-  if (cached && Date.now() - cached.timestamp < PROVIDER_CONFIG_CACHE_TTL_MS) {
+  if (cached && cached.cacheKey === cacheKey && Date.now() - cached.timestamp < PROVIDER_CONFIG_CACHE_TTL_MS) {
     return cached.config;
   }
 
   const integrationsService = new IntegrationsService(db);
+
   let config: { provider: string; apiKey: string | null; modelName: string | null } | null = null;
-  for (const p of ['openrouter', 'nvidia', 'groq', 'aiml', 'gemini', 'openai', 'anthropic'] as const) {
-    const pConfig = await integrationsService.getProviderConfig(p);
-    if (pConfig && pConfig.isActive) {
-      config = { provider: pConfig.provider, apiKey: pConfig.apiKey, modelName: pConfig.modelName };
-      break;
+
+  if (taskType) {
+    const taskConfig = await integrationsService.getActiveProviderForTask(taskType);
+    if (taskConfig) {
+      config = { provider: taskConfig.provider, apiKey: taskConfig.apiKey, modelName: taskConfig.modelName };
+    }
+  } else {
+    // Fallback: scan all providers for any active routing flag
+    for (const p of ['openrouter', 'nvidia', 'groq', 'aiml', 'gemini', 'openai', 'anthropic'] as const) {
+      const pConfig = await integrationsService.getProviderConfig(p);
+      if (pConfig && (pConfig.isResearchActive || pConfig.isScoringActive || pConfig.isDraftingActive)) {
+        config = { provider: pConfig.provider, apiKey: pConfig.apiKey, modelName: pConfig.modelName };
+        break;
+      }
     }
   }
 
-  _providerConfigWeakCache.set(db, { config, timestamp: Date.now() });
+  _providerConfigWeakCache.set(db, { config, timestamp: Date.now(), cacheKey });
   return config;
 }
 
@@ -121,7 +141,7 @@ export async function generateResearch(
   scrapedContent?: string | null,
   location?: string | null
 ): Promise<AIResearchOutput> {
-  const config = await getActiveProviderConfig(db);
+  const config = await getActiveProviderConfig(db, 'research');
   let provider = config?.provider || 'gemini';
   let apiKey = config?.apiKey || (process as any).env?.GEMINI_API_KEY;
   let modelName = config?.modelName || (
@@ -392,7 +412,7 @@ export async function generateResearchAndAudit(
   scrapedContent?: string | null,
   location?: string | null
 ): Promise<AIResearchAuditOutput> {
-  const config = await getActiveProviderConfig(db);
+  const config = await getActiveProviderConfig(db, 'research');
   let provider = config?.provider || 'gemini';
   let apiKey = config?.apiKey || (process as any).env?.GEMINI_API_KEY;
   let modelName = config?.modelName || (
@@ -784,7 +804,7 @@ export async function generateAudit(
   scrapedContent?: string | null,
   leadId?: string | null
 ): Promise<AIAuditOutput> {
-  const config = await getActiveProviderConfig(db);
+  const config = await getActiveProviderConfig(db, 'scoring');
   let provider = config?.provider || 'gemini';
   let apiKey = config?.apiKey || (process as any).env?.GEMINI_API_KEY;
   let modelName = config?.modelName || (
@@ -1017,7 +1037,7 @@ export async function generateOutreachDraft(
   customPrompt?: string | null,
   attachments?: Array<{ name: string; type: string; base64: string }>
 ): Promise<AIOutreachDraftOutput> {
-  const config = await getActiveProviderConfig(db);
+  const config = await getActiveProviderConfig(db, 'drafting');
   let provider = config?.provider || 'gemini';
   let apiKey = config?.apiKey || (process as any).env?.GEMINI_API_KEY;
   let modelName = config?.modelName || (
@@ -1065,13 +1085,41 @@ ${customPrompt ? `\nSPECIAL INSTRUCTIONS FROM THE OPERATOR:\n${customPrompt}\n` 
 ${attachments && attachments.length > 0 ? `\nNote: The operator has attached ${attachments.length} files (images or PDFs) showing mockup/branding/website context. Please reference or adapt your feedback specifically incorporating visual details or document findings if vision support is active.\n` : ''}
 ${getChannelPrompt(channel)}
 
+Generate a **strict evidence-backed** draft that any human reviewer can verify. Every claim about the prospect must reference a specific piece of evidence.
+
+**riskFlags** — An array of warning strings. Flag any of the following:
+- If the draft makes a claim that isn't directly supported by the provided research/audit context
+- If contact info is unavailable (e.g., no named contact)
+- If the tone might come across as presumptuous
+- If any assertion about the prospect's business is speculative
+- If personalization is weak or generic
+- If the channel-specific instructions indicate common risks (e.g., cold email deliverability, LinkedIn connection limits)
+
+**citedEvidence** — An array of objects linking draft sentences to their sources. Each item must have:
+- sentence: the exact sentence from the body (or a very close paraphrase)
+- evidenceQuote: the exact quote or data point from the research/audit context that supports this sentence
+- sourceUrl: the URL where this evidence was found (use the prospect's website URL, or a specific page if known)
+
+Rules:
+- Every substantive claim in the body must have a corresponding citedEvidence entry
+- If the research context lacks evidence for a claim, add a riskFlag instead of fabricating an evidence citation
+- The citedEvidence array must have at least 1 entry
+
 Provide your response strictly in JSON format. The response must match the following JSON schema:
 {
   "drafts": [
     {
       "subject": "Compelling subject line (string or null)",
       "body": "The drafted message body or call prep guide (string)",
-      "variationTone": "e.g. Direct/Value-led or Conversational/Soft"
+      "variationTone": "e.g. Direct/Value-led or Conversational/Soft",
+      "riskFlags": ["Warning about unsupported claim", "Missing contact info"],
+      "citedEvidence": [
+        {
+          "sentence": "I noticed your team focuses on X.",
+          "evidenceQuote": "Description from website scraped content about X",
+          "sourceUrl": "https://example.com/about"
+        }
+      ]
     }
   ]
 }`;
@@ -1114,11 +1162,24 @@ Provide your response strictly in JSON format. The response must match the follo
                       properties: {
                         subject: { type: 'STRING' },
                         body: { type: 'STRING' },
-                        variationTone: { type: 'STRING' }
+                        variationTone: { type: 'STRING' },
+                        riskFlags: { type: 'ARRAY', items: { type: 'STRING' } },
+                        citedEvidence: {
+                          type: 'ARRAY',
+                          items: {
+                            type: 'OBJECT',
+                            properties: {
+                              sentence: { type: 'STRING' },
+                              evidenceQuote: { type: 'STRING' },
+                              sourceUrl: { type: 'STRING' },
+                            },
+                            required: ['sentence', 'evidenceQuote', 'sourceUrl'],
+                          },
+                        },
                       },
-                      required: ['body']
-                    }
-                  }
+                      required: ['body'],
+                    },
+                  },
                 },
                 required: ['drafts'],
               },
@@ -1346,7 +1407,7 @@ export async function generateContactExtraction(
   companyName: string | null,
   scrapedContent?: string | null,
 ): Promise<AIContactExtractionOutput> {
-  const config = await getActiveProviderConfig(db);
+  const config = await getActiveProviderConfig(db, 'research');
   let provider = config?.provider || 'gemini';
   let apiKey = config?.apiKey || (process as any).env?.GEMINI_API_KEY;
   let modelName = config?.modelName || (
@@ -1556,7 +1617,7 @@ export async function generateLeadScore(
   researchSnapshot: any | null,
   auditSnapshot: any | null
 ): Promise<AILeadScoreOutput> {
-  const config = await getActiveProviderConfig(db);
+  const config = await getActiveProviderConfig(db, 'scoring');
   let provider = config?.provider || 'gemini';
   let apiKey = config?.apiKey || (process as any).env?.GEMINI_API_KEY;
   let modelName = config?.modelName || 'gemini-2.5-flash';

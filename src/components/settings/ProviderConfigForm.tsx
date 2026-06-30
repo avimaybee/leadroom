@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { ChevronDown, ChevronUp, KeyRound, AlertTriangle } from 'lucide-react';
-import { saveIntegrationConfigAction, deleteIntegrationConfigAction } from '@/app/(dashboard)/settings/integrations/actions';
+import { saveIntegrationConfigAction, deleteIntegrationConfigAction, testIntegrationConnectionAction } from '@/app/(dashboard)/settings/integrations/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,8 +11,20 @@ interface ProviderConfig {
   provider: string;
   apiKey: string;
   modelName: string;
-  isActive: boolean | null;
+  isResearchActive: boolean | null;
+  isScoringActive: boolean | null;
+  isDraftingActive: boolean | null;
 }
+
+const ONBOARDING_URLS: Record<string, string> = {
+  openrouter: 'https://openrouter.ai/keys',
+  gemini: 'https://aistudio.google.com/app/apikey',
+  nvidia: 'https://build.nvidia.com/',
+  groq: 'https://console.groq.com/keys',
+  aiml: 'https://aimlapi.com/',
+  openai: 'https://platform.openai.com/api-keys',
+  anthropic: 'https://console.anthropic.com/keys',
+};
 
 interface Props {
   provider: string;
@@ -73,20 +85,36 @@ const STATIC_MODELS: Record<string, ModelOption[]> = {
 function ApiKeySection({
   provider,
   apiKey,
+  modelName,
   setApiKey,
   onFetchModels,
+  onTestConnection,
   loadingModels,
+  testingConnection,
 }: {
   provider: string;
   apiKey: string;
+  modelName: string;
   setApiKey: (val: string) => void;
   onFetchModels: (key: string) => void;
+  onTestConnection: (key: string, model: string) => void;
   loadingModels: boolean;
+  testingConnection: boolean;
 }) {
+  const onboardingUrl = ONBOARDING_URLS[provider];
+
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={`${provider}-apiKey`} className="text-label-12 uppercase text-muted-foreground">API Key</Label>
-      <div className="flex gap-2">
+      <Label htmlFor={`${provider}-apiKey`} className="text-label-12 uppercase text-muted-foreground flex items-center gap-1.5">
+        API Key
+        {onboardingUrl && (
+          <a href={onboardingUrl} target="_blank" rel="noopener noreferrer"
+             className="text-primary hover:text-primary/80 underline underline-offset-2 text-label-12 font-normal">
+            Get a key
+          </a>
+        )}
+      </Label>
+      <div className="flex flex-wrap gap-2">
         <Input
           type="password"
           id={`${provider}-apiKey`}
@@ -95,12 +123,17 @@ function ApiKeySection({
           onChange={(e) => setApiKey(e.target.value)}
           placeholder="Enter API key"
           required
-          className="text-copy-14"
+          className="text-copy-14 flex-1 min-w-[200px]"
         />
         {apiKey && (
-          <Button type="button" variant="outline" size="sm" onClick={() => onFetchModels(apiKey)} disabled={loadingModels} className="shrink-0">
-            {loadingModels ? 'Fetching...' : 'Fetch Models'}
-          </Button>
+          <>
+            <Button type="button" variant="outline" size="sm" onClick={() => onFetchModels(apiKey)} disabled={loadingModels} className="shrink-0">
+              {loadingModels ? 'Fetching...' : 'Fetch Models'}
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => onTestConnection(apiKey, modelName)} disabled={testingConnection || !modelName} className="shrink-0">
+              {testingConnection ? 'Testing...' : 'Test Connection'}
+            </Button>
+          </>
         )}
       </div>
     </div>
@@ -172,6 +205,8 @@ function ModelSelectSection({
 export function ProviderConfigForm({ provider, displayName, defaultModel, config }: Props) {
   const [loading, setLoading] = useState(false);
   const [loadingModels, setLoadingModels] = useState(false);
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [connectionResult, setConnectionResult] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   
   const [apiKey, setApiKey] = useState(config?.apiKey || '');
@@ -230,6 +265,20 @@ export function ProviderConfigForm({ provider, displayName, defaultModel, config
     return () => clearTimeout(timer);
   }, [apiKey]);
 
+  async function handleTestConnection(keyToTest: string, modelToTest: string) {
+    setTestingConnection(true);
+    setConnectionResult(null);
+
+    const res = await testIntegrationConnectionAction(provider, keyToTest, modelToTest);
+    
+    if (res.error) {
+      setConnectionResult({ type: 'error', text: res.error });
+    } else {
+      setConnectionResult({ type: 'success', text: 'Connection successful — API key is valid and model is accessible.' });
+    }
+    setTestingConnection(false);
+  }
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
@@ -275,7 +324,10 @@ export function ProviderConfigForm({ provider, displayName, defaultModel, config
   }
 
   const isConfigured = !!config?.apiKey;
-  const isActive = !!config?.isActive;
+  const routingRoles: string[] = [];
+  if (config?.isResearchActive) routingRoles.push('Research');
+  if (config?.isScoringActive) routingRoles.push('Scoring');
+  if (config?.isDraftingActive) routingRoles.push('Drafting');
 
   return (
     <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden transition-all duration-200">
@@ -303,10 +355,10 @@ export function ProviderConfigForm({ provider, displayName, defaultModel, config
         </div>
 
         <div className="flex items-center gap-3 self-end sm:self-auto shrink-0">
-          {isActive ? (
+          {routingRoles.length > 0 ? (
             <span className="inline-flex items-center gap-1.5 text-label-12 font-semibold text-chart-2 bg-chart-2/10 border border-chart-2/20 px-2.5 py-0.5 rounded-full">
               <span className="h-1.5 w-1.5 rounded-full bg-chart-2 animate-pulse" />
-              Active Routing
+              {routingRoles.join(', ')}
             </span>
           ) : isConfigured ? (
             <span className="inline-flex items-center gap-1.5 text-label-12 font-semibold text-muted-foreground bg-muted border border-border px-2.5 py-0.5 rounded-full">
@@ -344,10 +396,24 @@ export function ProviderConfigForm({ provider, displayName, defaultModel, config
           <ApiKeySection 
             provider={provider} 
             apiKey={apiKey} 
+            modelName={isCustomModel ? customModelName : selectedModel}
             setApiKey={setApiKey} 
             onFetchModels={loadLiveModels} 
+            onTestConnection={handleTestConnection}
             loadingModels={loadingModels} 
+            testingConnection={testingConnection}
           />
+
+          {connectionResult && (
+            <div className={`p-3 rounded-xl text-label-12 font-semibold flex items-start gap-2 ${
+              connectionResult.type === 'error'
+                ? 'bg-destructive/10 text-destructive border border-destructive/20'
+                : 'bg-chart-2/10 text-chart-2 border border-chart-2/20'
+            }`}>
+              {connectionResult.type === 'error' && <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />}
+              <span className="break-all">{connectionResult.text}</span>
+            </div>
+          )}
 
           <ModelSelectSection 
             provider={provider} 
@@ -359,19 +425,6 @@ export function ProviderConfigForm({ provider, displayName, defaultModel, config
             customModelName={customModelName} 
             setCustomModelName={setCustomModelName} 
           />
-
-          <div className="flex items-center gap-2.5 pt-2">
-            <input
-              type="checkbox"
-              id={`${provider}-isActive`}
-              name="isActive"
-              defaultChecked={config ? (config.isActive ?? true) : true}
-              className="w-4 h-4 text-primary border-input rounded focus:ring-primary focus:ring-offset-2"
-            />
-            <Label htmlFor={`${provider}-isActive`} className="text-label-14 font-semibold text-foreground cursor-pointer">
-              Set as active provider for AI tasks
-            </Label>
-          </div>
 
           <div className="flex gap-2.5 pt-4 border-t border-border">
             <Button type="submit" disabled={loading} size="sm">

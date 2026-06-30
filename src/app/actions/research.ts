@@ -5,7 +5,7 @@ import { LeadService } from '@/services/lead';
 import { getDb } from '@/db';
 import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
-import { decrypt, getUserId } from '@/lib/auth';
+import { decrypt, getUserId, verifyProspectAccess } from '@/lib/auth';
  
 async function getService() {
   const db = getDb();
@@ -20,6 +20,15 @@ export async function saveResearchSnapshotAction(prevState: ActionState, formDat
   if (!userId) return { error: 'Authentication required' };
 
   const leadId = formData.get('leadId') as string;
+  if (!leadId) {
+    return { error: 'Lead ID is required' };
+  }
+
+  const db = getDb();
+  if (!(await verifyProspectAccess(db, leadId, userId))) {
+    return { error: 'Forbidden: you do not own this prospect' };
+  }
+
   const companySummary = formData.get('companySummary') as string;
   const productsServicesSummary = formData.get('productsServicesSummary') as string;
   const digitalPresenceNotes = formData.get('digitalPresenceNotes') as string;
@@ -86,6 +95,11 @@ export async function addContactAction(prevState: ActionState, formData: FormDat
     return { error: 'Lead ID is required' };
   }
 
+  const db = getDb();
+  if (!(await verifyProspectAccess(db, leadId, userId))) {
+    return { error: 'Forbidden: you do not own this prospect' };
+  }
+
   if (!fullName && !email) {
     return { error: 'Either Full Name or Email is required' };
   }
@@ -118,6 +132,11 @@ export async function deleteContactAction(leadId: string, contactId: string) {
   const userId = await getUserId();
   if (!userId) throw new Error('Unauthorized');
 
+  const db = getDb();
+  if (!(await verifyProspectAccess(db, leadId, userId))) {
+    throw new Error('Forbidden: you do not own this prospect');
+  }
+
   const service = await getService();
   await service.deleteContact(leadId, contactId, userId);
   revalidatePath(`/leads/${leadId}`);
@@ -139,6 +158,11 @@ export async function updateContactAction(prevState: ActionState, formData: Form
 
   if (!leadId || !contactId) {
     return { error: 'Lead ID and Contact ID are required' };
+  }
+
+  const db = getDb();
+  if (!(await verifyProspectAccess(db, leadId, userId))) {
+    return { error: 'Forbidden: you do not own this prospect' };
   }
 
   try {

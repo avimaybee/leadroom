@@ -1,12 +1,12 @@
 import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
-import { users, leads } from './core';
+import { users, prospects } from './core';
 
 export const jobRuns = sqliteTable('job_runs', {
   id: text('id').primaryKey(),
   jobType: text('job_type').notNull(), // 'ENRICHMENT' | 'RESEARCH_GENERATION' | 'AUDIT_GENERATION' | 'DISCOVERY_SEARCH'
   status: text('status').notNull(), // 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED'
-  targetLeadId: text('target_lead_id').references(() => leads.id),
+  targetLeadId: text('target_lead_id').references(() => prospects.id),
   triggeredByUserId: text('triggered_by_user_id').references(() => users.id),
   errorSummary: text('error_summary'),
   /** External provider job ID (e.g. Apify actor run ID) for async status polling */
@@ -25,7 +25,7 @@ export const jobRuns = sqliteTable('job_runs', {
 
 export const researchSnapshots = sqliteTable('research_snapshots', {
   id: text('id').primaryKey(),
-  leadId: text('lead_id').notNull().references(() => leads.id),
+  leadId: text('lead_id').notNull().references(() => prospects.id),
   createdByUserId: text('created_by_user_id').references(() => users.id),
   origin: text('origin').notNull().default('AI_GENERATED'), // 'MANUAL' | 'AI_GENERATED'
   snapshotTitle: text('snapshot_title'),
@@ -50,7 +50,7 @@ export const researchSnapshots = sqliteTable('research_snapshots', {
 
 export const contacts = sqliteTable('contacts', {
   id: text('id').primaryKey(),
-  leadId: text('lead_id').notNull().references(() => leads.id),
+  leadId: text('lead_id').notNull().references(() => prospects.id),
   fullName: text('full_name'),
   roleTitle: text('role_title'),
   email: text('email'),

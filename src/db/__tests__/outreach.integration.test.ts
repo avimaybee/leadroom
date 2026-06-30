@@ -4,7 +4,7 @@ import { setupTestDb as initTestDb } from './test-helpers';
 import { OutreachService } from '../../services/outreach';
 import { LeadService } from '../../services/lead';
 import { outreachDrafts, approvals } from '../schema';
-import { leads, activities, users } from '../schema/core';
+import { prospects as leads, activities, users } from '../schema/core';
 import { eq } from 'drizzle-orm';
 
 function setupTestDb() {

@@ -11,13 +11,14 @@ import LeadDetailsWorkspace from './LeadDetailsWorkspace';
 import { OutreachService } from '@/services/outreach';
 import { jobRuns } from '@/db/schema/research';
 
-type LeadWorkspaceView = 'overview' | 'research' | 'audit' | 'outreach' | 'activity';
+type LeadWorkspaceView = 'overview' | 'research' | 'outreach' | 'activity';
 
-const WORKSPACE_VIEWS = new Set<LeadWorkspaceView>(['overview', 'research', 'audit', 'outreach', 'activity']);
+const WORKSPACE_VIEWS = new Set<LeadWorkspaceView>(['overview', 'research', 'outreach', 'activity']);
 
 export default async function LeadDetailPage({ params, searchParams }: { params: Promise<{ id: string }>, searchParams: Promise<{ autoEnrich?: string; view?: string; channel?: string }> }) {
   const { id } = await params;
-  const { view, channel } = await searchParams;
+  let { view, channel } = await searchParams;
+  if (view === 'audit') view = 'research';
   const db = getDb();
   const service = new LeadService(db);
   const researchService = new ResearchService(db);

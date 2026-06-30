@@ -5,8 +5,7 @@ import { CreateDiscoveryScopeSchema } from '@/db/models/discovery';
 import { getDb } from '@/db';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { cookies } from 'next/headers';
-import { verifySession } from '@/lib/auth';
+import { getUserId } from '@/lib/auth';
 
 async function getService() {
   const db = getDb();
@@ -18,13 +17,9 @@ export type ActionState = { error?: string | null, success?: boolean, issues?: u
 export async function createScopeAction(prevState: ActionState, formData: FormData) {
   const service = await getService();
 
-  // Get current session for owner/creator ID
-  const cookieStore = await cookies();
-  const sessionToken = cookieStore.get('session')?.value;
-  const sessionPayload = await verifySession(sessionToken);
-
-  if (!sessionPayload || !sessionPayload.userId) {
-    return { error: 'Unauthorized. Please log in.' };
+  const userId = await getUserId();
+  if (!userId) {
+    return { error: 'Unauthorized' };
   }
 
   let nameInput = (formData.get('name') as string) || '';
@@ -44,7 +39,7 @@ export async function createScopeAction(prevState: ActionState, formData: FormDa
     businessTypeFilter: formData.get('businessTypeFilter') as string,
     digitalPresenceFilter: formData.get('digitalPresenceFilter') as string,
     notes: formData.get('notes') as string,
-    createdByUserId: sessionPayload.userId,
+    createdByUserId: userId,
   };
 
   const validated = CreateDiscoveryScopeSchema.safeParse(rawData);

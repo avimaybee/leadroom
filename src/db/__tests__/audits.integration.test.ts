@@ -5,7 +5,7 @@ import { AuditService } from '../../services/audits';
 import { ScoringService } from '../../services/scoring';
 import { LeadService } from '../../services/lead';
 import { audits, leadScores } from '../schema';
-import { leads, activities, users } from '../schema/core';
+import { prospects as leads, activities, users } from '../schema/core';
 import { eq } from 'drizzle-orm';
 
 function setupTestDb() {

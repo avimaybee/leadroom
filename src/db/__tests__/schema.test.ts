@@ -9,9 +9,9 @@ test('schema definition', async (t) => {
     assert.strictEqual(config.name, 'users');
   });
 
-  await t.test('leads table should be defined', () => {
+  await t.test('leads table should be defined (renamed to prospects)', () => {
     const config = getTableConfig(leads);
-    assert.strictEqual(config.name, 'leads');
+    assert.strictEqual(config.name, 'prospects');
   });
 
   await t.test('tasks table should be defined', () => {

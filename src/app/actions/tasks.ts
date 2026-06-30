@@ -3,7 +3,7 @@
 import { LeadService } from '@/services/lead';
 import { getDb } from '@/db';
 import { revalidatePath } from 'next/cache';
-import { getUserId } from '@/lib/auth';
+import { getUserId, verifyProspectAccess } from '@/lib/auth';
  
 async function getService() {
   const db = getDb();
@@ -26,6 +26,13 @@ export async function createTaskAction(prevState: ActionState, formData: FormDat
 
   if (!title || title.trim() === '') {
     return { error: 'Task title is required' };
+  }
+
+  if (leadId) {
+    const db = getDb();
+    if (!(await verifyProspectAccess(db, leadId, userId))) {
+      return { error: 'Forbidden: you do not own this prospect' };
+    }
   }
 
   try {
@@ -51,6 +58,13 @@ export async function createTaskAction(prevState: ActionState, formData: FormDat
 export async function toggleTaskStatusAction(id: string, currentStatus: string, leadId?: string | null) {
   const userId = await getUserId();
   if (!userId) throw new Error('Unauthorized');
+
+  if (leadId) {
+    const db = getDb();
+    if (!(await verifyProspectAccess(db, leadId, userId))) {
+      throw new Error('Forbidden: you do not own this prospect');
+    }
+  }
 
   const service = await getService();
   await service.toggleTaskStatus(id, currentStatus);

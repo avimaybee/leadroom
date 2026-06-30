@@ -9,7 +9,7 @@ const ORIGINAL_NODE_ENV = process.env.NODE_ENV;
 (process.env as any).NODE_ENV = 'test';
 
 
-import { saveIntegrationConfigAction, setActiveProviderAndModelAction } from '../../app/(dashboard)/settings/integrations/actions';
+import { saveIntegrationConfigAction, setActiveProviderForTaskAction, testIntegrationConnectionAction } from '../../app/(dashboard)/settings/integrations/actions';
 import { MockD1Database } from '@/db/local-mock';
 
 import { setupTestDb as initTestDb } from './test-helpers';
@@ -20,7 +20,7 @@ function setupTestDb() {
   return { mockD1, sqlite };
 }
 
-test('AI Provider Config & Active Picker Integration', async (t) => {
+test('AI Provider Config & Task Routing Integration', async (t) => {
   const { mockD1, sqlite } = setupTestDb();
   
   // Set the DB mock
@@ -70,6 +70,21 @@ test('AI Provider Config & Active Picker Integration', async (t) => {
         })
       } as any;
     }
+    // Mock chat completions for test connection
+    if (urlStr.includes('api.openai.com/v1/chat/completions')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ choices: [{ message: { content: 'OK' } }] }),
+      } as any;
+    }
+    if (urlStr.includes('generativelanguage.googleapis.com/v1beta/models/') && urlStr.includes(':generateContent')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ candidates: [{ content: { parts: [{ text: 'OK' }] } }] }),
+      } as any;
+    }
     return { ok: true, status: 200, json: async () => ({}) } as any;
   };
 
@@ -82,13 +97,11 @@ test('AI Provider Config & Active Picker Integration', async (t) => {
     }
   });
 
-  await t.test('saveIntegrationConfigAction sets isActive mutually exclusively', async () => {
-    // 1. Save Gemini as active
+  await t.test('saveIntegrationConfigAction saves provider config without routing flags', async () => {
     const geminiFormData = new FormData();
     geminiFormData.append('provider', 'gemini');
     geminiFormData.append('apiKey', 'mock-gemini-key');
     geminiFormData.append('modelName', 'gemini-2.5-flash');
-    geminiFormData.append('isActive', 'on');
 
     const res1 = await saveIntegrationConfigAction(geminiFormData);
     assert.strictEqual(res1.success, true);
@@ -96,69 +109,91 @@ test('AI Provider Config & Active Picker Integration', async (t) => {
     const configs1 = await db.select().from(providerConfigs);
     assert.strictEqual(configs1.length, 1);
     assert.strictEqual(configs1[0].provider, 'gemini');
-    assert.strictEqual(configs1[0].isActive, true);
 
-    // 2. Save Nvidia as active - should automatically deactivate Gemini
+    // Should default to false for all routing flags
+    assert.strictEqual(configs1[0].isResearchActive, false);
+    assert.strictEqual(configs1[0].isScoringActive, false);
+    assert.strictEqual(configs1[0].isDraftingActive, false);
+  });
+
+  await t.test('setActiveProviderForTaskAction sets task routing mutually exclusively', async () => {
+    // 1. Save Nvidia config
     const nvidiaFormData = new FormData();
     nvidiaFormData.append('provider', 'nvidia');
     nvidiaFormData.append('apiKey', 'mock-nvidia-key');
     nvidiaFormData.append('modelName', 'meta/llama-3.1-70b-instruct');
-    nvidiaFormData.append('isActive', 'on');
+    await saveIntegrationConfigAction(nvidiaFormData);
 
-    const res2 = await saveIntegrationConfigAction(nvidiaFormData);
+    // 2. Route research to Gemini
+    const res1 = await setActiveProviderForTaskAction('gemini', 'research');
+    assert.strictEqual(res1.success, true);
+
+    const geminiRow = await db.select().from(providerConfigs).where(eq(providerConfigs.provider, 'gemini')).limit(1);
+    const nvidiaRow = await db.select().from(providerConfigs).where(eq(providerConfigs.provider, 'nvidia')).limit(1);
+
+    assert.strictEqual(geminiRow[0].isResearchActive, true);
+    assert.strictEqual(nvidiaRow[0].isResearchActive, false);
+
+    // 3. Route research to Nvidia - should deactivate Gemini for research
+    const res2 = await setActiveProviderForTaskAction('nvidia', 'research');
     assert.strictEqual(res2.success, true);
 
-    const geminiRow = await db.select().from(providerConfigs).where(eq(providerConfigs.provider, 'gemini')).limit(1);
-    const nvidiaRow = await db.select().from(providerConfigs).where(eq(providerConfigs.provider, 'nvidia')).limit(1);
+    const geminiRow2 = await db.select().from(providerConfigs).where(eq(providerConfigs.provider, 'gemini')).limit(1);
+    const nvidiaRow2 = await db.select().from(providerConfigs).where(eq(providerConfigs.provider, 'nvidia')).limit(1);
 
-    assert.strictEqual(geminiRow[0].isActive, false); // Automatically deactivated
-    assert.strictEqual(nvidiaRow[0].isActive, true);  // Newly active
+    assert.strictEqual(geminiRow2[0].isResearchActive, false);
+    assert.strictEqual(nvidiaRow2[0].isResearchActive, true);
+
+    // 4. Route scoring and drafting to Gemini (different task types can have different providers)
+    const res3 = await setActiveProviderForTaskAction('gemini', 'scoring');
+    assert.strictEqual(res3.success, true);
+    const res4 = await setActiveProviderForTaskAction('gemini', 'drafting');
+    assert.strictEqual(res4.success, true);
+
+    const geminiFinal = await db.select().from(providerConfigs).where(eq(providerConfigs.provider, 'gemini')).limit(1);
+    assert.strictEqual(geminiFinal[0].isResearchActive, false);
+    assert.strictEqual(geminiFinal[0].isScoringActive, true);
+    assert.strictEqual(geminiFinal[0].isDraftingActive, true);
   });
 
-  await t.test('setActiveProviderAndModelAction updates the chosen active provider and deactivates others', async () => {
-    // 1. Activate Gemini via the active picker action
-    const res = await setActiveProviderAndModelAction('gemini', 'gemini-2.5-pro');
-    assert.strictEqual(res.success, true);
-
-    const geminiRow = await db.select().from(providerConfigs).where(eq(providerConfigs.provider, 'gemini')).limit(1);
-    const nvidiaRow = await db.select().from(providerConfigs).where(eq(providerConfigs.provider, 'nvidia')).limit(1);
-
-    assert.strictEqual(geminiRow[0].isActive, true);
-    assert.strictEqual(geminiRow[0].modelName, 'gemini-2.5-pro'); // Model name updated
-    assert.strictEqual(nvidiaRow[0].isActive, false); // Deactivated
-  });
-
-  await t.test('setActiveProviderAndModelAction fails when target provider is not configured (missing key)', async () => {
-    // groq is not configured in the db yet
-    const res = await setActiveProviderAndModelAction('groq', 'llama3-70b-8192');
+  await t.test('setActiveProviderForTaskAction fails when target provider is not configured', async () => {
+    const res = await setActiveProviderForTaskAction('groq', 'research');
     assert.ok(res.error);
     assert.ok(res.error.includes('no saved configuration'));
   });
 
-  await t.test('saveIntegrationConfigAction works with aiml provider and validates model', async () => {
-    // 1. Try to save aiml with invalid model
+  await t.test('testIntegrationConnectionAction works with mocked API', async () => {
+    const res = await testIntegrationConnectionAction('openai', 'sk-test-key', 'gpt-4o-mini');
+    assert.strictEqual(res.success, true);
+  });
+
+  await t.test('testIntegrationConnectionAction fails with unsupported provider', async () => {
+    const res = await testIntegrationConnectionAction('unknown', 'key', 'model');
+    assert.ok(res.error);
+    assert.ok(res.error.includes('Unsupported provider'));
+  });
+
+  await t.test('saveIntegrationConfigAction validates model name', async () => {
+    // Try to save aiml with invalid model
     const aimlInvalidData = new FormData();
     aimlInvalidData.append('provider', 'aiml');
     aimlInvalidData.append('apiKey', 'mock-aiml-key');
     aimlInvalidData.append('modelName', 'invalid-model-name');
-    aimlInvalidData.append('isActive', 'on');
 
     const resFail = await saveIntegrationConfigAction(aimlInvalidData);
     assert.ok(resFail.error);
     assert.ok(resFail.error.includes('Invalid AIML model name'));
 
-    // 2. Save aiml with valid model name
+    // Save aiml with valid model name
     const aimlValidData = new FormData();
     aimlValidData.append('provider', 'aiml');
     aimlValidData.append('apiKey', 'mock-aiml-key');
     aimlValidData.append('modelName', 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning');
-    aimlValidData.append('isActive', 'on');
 
     const resSuccess = await saveIntegrationConfigAction(aimlValidData);
     assert.strictEqual(resSuccess.success, true);
 
     const aimlRow = await db.select().from(providerConfigs).where(eq(providerConfigs.provider, 'aiml')).limit(1);
-    assert.strictEqual(aimlRow[0].isActive, true);
     assert.strictEqual(aimlRow[0].modelName, 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning');
   });
 });

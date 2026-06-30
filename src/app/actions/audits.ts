@@ -3,7 +3,7 @@
 import { getDb } from '@/db';
 import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
-import { decrypt, getUserId } from '@/lib/auth';
+import { decrypt, getUserId, verifyProspectAccess } from '@/lib/auth';
 import { jobRuns } from '@/db/schema/research';
 import { triggerResearchWorkflow, CloudflareWorkflow } from '@/lib/workflow-client';
 import { ScoringService } from '@/services/scoring';
@@ -24,6 +24,10 @@ export async function triggerAuditAction(leadId: string) {
 
   if (!userId) {
     return { error: 'Unauthorized' };
+  }
+
+  if (!(await verifyProspectAccess(db, leadId, userId))) {
+    return { error: 'Forbidden: you do not own this prospect' };
   }
 
   try {
@@ -97,6 +101,10 @@ export async function manualOverrideScoreAction(prevState: ActionState, formData
     return { error: 'Lead ID is required' };
   }
 
+  if (!(await verifyProspectAccess(db, leadId, userId))) {
+    return { error: 'Forbidden: you do not own this prospect' };
+  }
+
   const scoreValue = parseInt(scoreValueStr, 10);
   if (isNaN(scoreValue) || scoreValue < 0 || scoreValue > 100) {
     return { error: 'Priority score must be a valid integer between 0 and 100' };
@@ -124,6 +132,11 @@ export async function manualOverrideScoreAction(prevState: ActionState, formData
  */
 export async function getAuditAndScoreDetails(leadId: string) {
   const db = getDb();
+  const userId = await getUserId();
+  if (!userId || !(await verifyProspectAccess(db, leadId, userId))) {
+    return { audit: null, score: null, error: 'Forbidden' };
+  }
+
   const auditService = new AuditService(db);
   const scoringService = new ScoringService(db);
 

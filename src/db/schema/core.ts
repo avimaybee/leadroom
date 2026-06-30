@@ -1,5 +1,6 @@
 import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
+import { workspaces, markets } from './strategy';
 
 export const users = sqliteTable('users', {
   id: text('id').primaryKey(),
@@ -10,7 +11,7 @@ export const users = sqliteTable('users', {
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
 });
 
-export const leads = sqliteTable('leads', {
+export const prospects = sqliteTable('prospects', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   company: text('company'),
@@ -23,6 +24,13 @@ export const leads = sqliteTable('leads', {
   stage: text('stage').notNull().default('New'),
   isRead: integer('is_read', { mode: 'boolean' }).notNull().default(false),
   status: text('status').notNull().default('Active'),
+  workspaceId: text('workspace_id').references(() => workspaces.id),
+  marketId: text('market_id').references(() => markets.id),
+  fitScore: integer('fit_score'),
+  confidenceScore: integer('confidence_score'),
+  priorityTier: text('priority_tier'),
+  disqualifiedReason: text('disqualified_reason'),
+  fitReasoning: text('fit_reasoning'),
   ownerId: text('owner_id').references(() => users.id),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
@@ -30,8 +38,10 @@ export const leads = sqliteTable('leads', {
   lastActivityAt: integer('last_activity_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   scoreDirty: integer('score_dirty', { mode: 'boolean' }).default(true).notNull(),
 }, (table) => ({
-  statusUpdatedAtIndex: index('leads_status_updated_at_idx').on(table.status, table.updatedAt),
+  statusUpdatedAtIndex: index('prospects_status_updated_at_idx').on(table.status, table.updatedAt),
 }));
+
+// leads backward-compat alias is in src/db/schema.ts
 
 export const stageThresholds = sqliteTable('stage_thresholds', {
   id: text('id').primaryKey(),
@@ -44,7 +54,7 @@ export const tasks = sqliteTable('tasks', {
   id: text('id').primaryKey(),
   title: text('title').notNull(),
   description: text('description'),
-  leadId: text('lead_id').references(() => leads.id),
+  leadId: text('lead_id').references(() => prospects.id),
   dueDate: integer('due_date', { mode: 'timestamp' }),
   status: text('status').notNull().default('Open'),
   isRead: integer('is_read', { mode: 'boolean' }).notNull().default(false),
@@ -67,7 +77,7 @@ export const tasks = sqliteTable('tasks', {
 
 export const notes = sqliteTable('notes', {
   id: text('id').primaryKey(),
-  leadId: text('lead_id').notNull().references(() => leads.id),
+  leadId: text('lead_id').notNull().references(() => prospects.id),
   authorId: text('author_id').references(() => users.id),
   body: text('body').notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
@@ -77,7 +87,7 @@ export const notes = sqliteTable('notes', {
 
 export const activities = sqliteTable('activities', {
   id: text('id').primaryKey(),
-  leadId: text('lead_id').notNull().references(() => leads.id),
+  leadId: text('lead_id').notNull().references(() => prospects.id),
   type: text('type').notNull(),
   summary: text('summary').notNull(),
   metadata: text('metadata', { mode: 'json' }).$type<{
@@ -92,7 +102,7 @@ export const activities = sqliteTable('activities', {
 
 export const leadStageHistory = sqliteTable('lead_stage_history', {
   id: text('id').primaryKey(),
-  leadId: text('lead_id').notNull().references(() => leads.id),
+  leadId: text('lead_id').notNull().references(() => prospects.id),
   stage: text('stage').notNull(),
   enteredAt: integer('entered_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   exitedAt: integer('exited_at', { mode: 'timestamp' }),
@@ -114,7 +124,9 @@ export const providerConfigs = sqliteTable('provider_configs', {
   provider: text('provider').notNull().unique(), // 'gemini' | 'nvidia'
   apiKey: text('api_key').notNull(),
   modelName: text('model_name').notNull(),
-  isActive: integer('is_active', { mode: 'boolean' }).default(true),
+  isResearchActive: integer('is_research_active', { mode: 'boolean' }).default(false),
+  isScoringActive: integer('is_scoring_active', { mode: 'boolean' }).default(false),
+  isDraftingActive: integer('is_drafting_active', { mode: 'boolean' }).default(false),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
 });
@@ -143,7 +155,7 @@ export const googleCalendarTokens = sqliteTable('google_calendar_tokens', {
 
 export const reminders = sqliteTable('reminders', {
   id: text('id').primaryKey(),
-  leadId: text('lead_id').references(() => leads.id),
+  leadId: text('lead_id').references(() => prospects.id),
   userId: text('user_id').notNull().references(() => users.id),
   title: text('title').notNull(),
   message: text('message'),
@@ -157,7 +169,7 @@ export const reminders = sqliteTable('reminders', {
 
 export const nbaActionLogs = sqliteTable('nba_action_logs', {
   id: text('id').primaryKey(),
-  leadId: text('lead_id').notNull().references(() => leads.id),
+  leadId: text('lead_id').notNull().references(() => prospects.id),
   userId: text('user_id').notNull().references(() => users.id),
   signal: text('signal').notNull(),
   actionTakenAt: integer('action_taken_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),

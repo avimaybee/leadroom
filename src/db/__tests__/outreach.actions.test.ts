@@ -47,6 +47,7 @@ test('Outreach Server Actions Integration', async (t) => {
     website: 'clientbusiness.com',
     stage: 'Researching',
     status: 'Active',
+    ownerId: 'user-admin',
   });
 
   let draftId = '';

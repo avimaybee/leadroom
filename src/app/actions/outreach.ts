@@ -3,7 +3,7 @@
 import { getDb } from '@/db';
 import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
-import { decrypt, getUserId } from '@/lib/auth';
+import { decrypt, getUserId, verifyProspectAccess } from '@/lib/auth';
 import { OutreachService } from '@/services/outreach';
 import { LeadService } from '@/services/lead';
 import { ResearchService } from '@/services/research';
@@ -43,6 +43,10 @@ export async function generateOutreachDraftAction(
 
   if (!userId) {
     return { error: 'Unauthorized' };
+  }
+
+  if (!(await verifyProspectAccess(db, leadId, userId))) {
+    return { error: 'Forbidden: you do not own this prospect' };
   }
 
   try {
@@ -89,6 +93,8 @@ export async function generateOutreachDraftAction(
         createdByUserId: userId,
         attachments: attachments && attachments.length > 0 ? JSON.stringify(attachments) : null,
         origin: 'AI_GENERATED',
+        citedEvidence: draft.citedEvidence ? JSON.stringify(draft.citedEvidence) : null,
+        riskFlags: draft.riskFlags ? JSON.stringify(draft.riskFlags) : null,
       });
       newDrafts.push(newDraft);
     }
@@ -123,6 +129,10 @@ export async function duplicateDraftAction(draftId: string) {
       return { error: 'Draft not found' };
     }
 
+    if (!(await verifyProspectAccess(db, oldDraft.leadId, userId))) {
+      return { error: 'Forbidden: you do not own this prospect' };
+    }
+
     const duplicatedDraft = await outreachService.createDraft({
       leadId: oldDraft.leadId,
       channel: oldDraft.channel,
@@ -155,11 +165,18 @@ export async function updateDraftAction(draftId: string, subject: string | null,
 
   try {
     const outreachService = new OutreachService(db);
+    const draft = await outreachService.getDraftById(draftId);
+    if (!draft) {
+      return { error: 'Draft not found' };
+    }
+    if (!(await verifyProspectAccess(db, draft.leadId, userId))) {
+      return { error: 'Forbidden: you do not own this prospect' };
+    }
+
     await outreachService.updateDraftContent(draftId, subject, body);
 
-    const draft = await outreachService.getDraftById(draftId);
     try {
-      if (draft) revalidatePath(`/leads/${draft.leadId}`);
+      revalidatePath(`/leads/${draft.leadId}`);
       revalidatePath('/');
       revalidatePath('/');
     } catch (e) {}
@@ -183,6 +200,10 @@ export async function recordApprovalAction(draftId: string, decision: 'APPROVED'
     const draft = await outreachService.getDraftById(draftId);
     if (!draft) {
       return { error: 'Draft not found' };
+    }
+
+    if (!(await verifyProspectAccess(db, draft.leadId, userId))) {
+      return { error: 'Forbidden: you do not own this prospect' };
     }
 
     await outreachService.recordApproval(draftId, userId, decision, feedback);
@@ -213,6 +234,14 @@ export async function deleteDraftAction(draftId: string) {
 
   try {
     const outreachService = new OutreachService(db);
+    const draft = await outreachService.getDraftById(draftId);
+    if (!draft) {
+      return { error: 'Draft not found' };
+    }
+    if (!(await verifyProspectAccess(db, draft.leadId, userId))) {
+      return { error: 'Forbidden: you do not own this prospect' };
+    }
+
     const deleted = await outreachService.deleteDraft(draftId);
 
     if (!deleted) {
@@ -244,6 +273,10 @@ export async function markAsSentAction(draftId: string) {
     const draft = await outreachService.getDraftById(draftId);
     if (!draft) {
       return { error: 'Draft not found' };
+    }
+
+    if (!(await verifyProspectAccess(db, draft.leadId, userId))) {
+      return { error: 'Forbidden: you do not own this prospect' };
     }
 
     if (draft.status !== 'APPROVED') {

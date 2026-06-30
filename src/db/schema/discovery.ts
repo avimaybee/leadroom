@@ -1,4 +1,5 @@
 import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
+import { workspaces, markets } from './strategy';
 
 export const discoveryScopes = sqliteTable('discovery_scopes', {
   id: text('id').primaryKey(),
@@ -10,6 +11,8 @@ export const discoveryScopes = sqliteTable('discovery_scopes', {
   businessTypeFilter: text('business_type_filter'),
   digitalPresenceFilter: text('digital_presence_filter'),
   notes: text('notes'),
+  workspaceId: text('workspace_id').references(() => workspaces.id),
+  marketId: text('market_id').references(() => markets.id),
   autoResearchPromotedLeads: integer('auto_research_promoted_leads', { mode: 'boolean' }).default(true).notNull(),
   createdByUserId: text('created_by_user_id').notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { leads } from '../schema/core';
+import { prospects as leads } from '../schema/core';
 
 export const CreateLeadSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -13,6 +13,8 @@ export const CreateLeadSchema = z.object({
   stage: z.string().optional(),
   ownerId: z.string().optional().nullable(),
   sourceName: z.string().optional().nullable(),
+  workspaceId: z.string().optional().nullable(),
+  marketId: z.string().optional().nullable(),
 });
 
 export type Lead = typeof leads.$inferSelect;
@@ -28,4 +30,6 @@ export type CreateLeadInput = {
   stage?: string;
   ownerId?: string | null;
   sourceName?: string | null;
+  workspaceId?: string | null;
+  marketId?: string | null;
 };

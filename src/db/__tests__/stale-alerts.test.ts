@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 import { setupTestDb as initTestDb } from './test-helpers';
 import { LeadService } from '../../services/lead';
-import { leads, stageThresholds, users, notifications } from '../schema/core';
+import { prospects as leads, stageThresholds, users, notifications } from '../schema/core';
 import { eq, like } from 'drizzle-orm';
 
 function setupTestDb() {

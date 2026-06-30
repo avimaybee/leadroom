@@ -2,13 +2,21 @@ export const dynamic = 'force-dynamic';
 import { LeadService } from '@/services/lead';
 import { DiscoveryService } from '@/services/discovery';
 import { getDb } from '@/db';
-import { stageThresholds } from '@/db/schema/core';
+import { prospects, stageThresholds } from '@/db/schema/core';
 import { getUserId } from '@/lib/auth';
-import { eq } from 'drizzle-orm';
+import { eq, sql, count } from 'drizzle-orm';
 import Link from 'next/link';
-import { Users, Search, AlertTriangle, CheckSquare, Clock, ArrowRight, Layers, FileText, CheckCircle2 } from 'lucide-react';
+import { Users, Search, AlertTriangle, CheckSquare, Clock, ArrowRight, Layers, FileText, CheckCircle2, Target } from 'lucide-react';
 import UnifiedFeedLoader from '@/app/(dashboard)/UnifiedFeedLoader';
 import { buttonVariants } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+
+const TIER_BADGE: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; label: string }> = {
+  tier1: { variant: 'default', label: 'Tier 1' },
+  tier2: { variant: 'secondary', label: 'Tier 2' },
+  tier3: { variant: 'outline', label: 'Tier 3' },
+  disqualified: { variant: 'destructive', label: 'Disqualified' },
+};
 
 export default async function DashboardPage() {
   const db = getDb();
@@ -17,73 +25,86 @@ export default async function DashboardPage() {
   const leadService = new LeadService(db);
   const discoveryService = new DiscoveryService(db);
 
-  const [leads, scopes, dashboardTasks, thresholds, funnel] = await Promise.all([
-    leadService.listLeads(),
-    discoveryService.listScopes(),
-    leadService.getDashboardTasks(),
-    db.select().from(stageThresholds),
-    leadService.getStageFunnel(),
-  ]);
+  const NOW = Date.now();
+  const NOW_SECONDS = Math.floor(NOW / 1000);
 
-  const totalLeads = leads.length;
-  const activeScopesCount = scopes.length;
-  const pendingCandidatesCount = await discoveryService.countPendingCandidates();
+  // SQL aggregation: stage counts for pipeline distribution
+  const stageCountRows = await db
+    .select({
+      stage: prospects.stage,
+      count: count(),
+    })
+    .from(prospects)
+    .where(eq(prospects.status, 'Active'))
+    .groupBy(prospects.stage);
 
-  const overdueTasksCount = dashboardTasks.filter(
-    (t) => t.dueDate && new Date(t.dueDate) < new Date()
-  ).length;
+  // SQL aggregation: stale leads by stage (using stageUpdatedAt)
+  const staleRows = await db
+    .select({
+      stage: prospects.stage,
+      count: count(),
+    })
+    .from(prospects)
+    .innerJoin(stageThresholds, eq(prospects.stage, stageThresholds.stage))
+    .where(
+      sql`${prospects.status} = 'Active'
+          AND ${prospects.stageUpdatedAt} IS NOT NULL
+          AND (${NOW_SECONDS} - ${prospects.stageUpdatedAt}) > ${stageThresholds.days} * 86400`
+    )
+    .groupBy(prospects.stage);
 
-  const leadsNeedingResearch = leads.filter(
-    (l) => l.stage === 'New' || l.stage === 'In Research'
-  ).length;
+  // SQL aggregation: research/audit/outreach stage counts
+  const [needResearchRow] = await db
+    .select({ count: count() })
+    .from(prospects)
+    .where(sql`${prospects.status} = 'Active' AND (${prospects.stage} = 'New' OR ${prospects.stage} = 'In Research')`);
 
-  const leadsNeedingAudit = leads.filter(
-    (l) => l.stage === 'Auditing' || l.stage === 'Audited'
-  ).length;
+  const [needAuditRow] = await db
+    .select({ count: count() })
+    .from(prospects)
+    .where(sql`${prospects.status} = 'Active' AND (${prospects.stage} = 'Auditing' OR ${prospects.stage} = 'Audited')`);
 
-  const leadsOutreachReady = leads.filter(
-    (l) => l.stage === 'Drafting' || l.stage === 'Ready to Send'
-  ).length;
+  const [outreachReadyRow] = await db
+    .select({ count: count() })
+    .from(prospects)
+    .where(sql`${prospects.status} = 'Active' AND (${prospects.stage} = 'Drafting' OR ${prospects.stage} = 'Ready to Send')`);
 
-  const STAGE_MAP: Record<string, string> = {
-    'NEW': 'New',
-    'Researching': 'In Research',
-    'Qualified': 'Audited',
-    'Outreach in Progress': 'Outreach Sent',
-    'Meeting / Call': 'Meeting',
-  };
+  const [totalActiveRow] = await db
+    .select({ count: count() })
+    .from(prospects)
+    .where(eq(prospects.status, 'Active'));
 
-  const stageCounts = leads.reduce((acc: Record<string, number>, lead: { stage: string }) => {
-    const raw = lead.stage || 'New';
-    const stage = STAGE_MAP[raw] || raw;
-    acc[stage] = (acc[stage] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
+  const totalLeads = totalActiveRow?.count ?? 0;
+  const leadsNeedingResearch = needResearchRow?.count ?? 0;
+  const leadsNeedingAudit = needAuditRow?.count ?? 0;
+  const leadsOutreachReady = outreachReadyRow?.count ?? 0;
+  let staleLeadsCount = staleRows.reduce((s, r) => s + r.count, 0);
+
+  const stageCounts: Record<string, number> = {};
+  for (const r of stageCountRows) {
+    stageCounts[r.stage] = r.count;
+  }
+
+  const staleByStage = staleRows.map((r) => ({ stage: r.stage, count: r.count, maxDays: 0 }));
 
   const stages = [
     'New', 'In Research', 'Auditing', 'Audited', 'Drafting',
     'Ready to Send', 'Outreach Sent', 'Meeting', 'Won', 'Lost',
   ];
 
-  // Stale leads by stage aggregation
-  const staleByStageMap = new Map<string, { count: number; maxDays: number }>();
-  let staleLeadsCount = 0;
-  for (const lead of leads) {
-    if (lead.status !== 'Active') continue;
-    const threshold = thresholds.find(t => t.stage === lead.stage)?.days ?? 5;
-    const stageAgeMs = lead.stageUpdatedAt ? Date.now() - new Date(lead.stageUpdatedAt).getTime() : 0;
-    const stageAgeDays = stageAgeMs / (24 * 60 * 60 * 1000);
-    if (stageAgeDays > threshold) {
-      staleLeadsCount++;
-      const entry = staleByStageMap.get(lead.stage) || { count: 0, maxDays: 0 };
-      entry.count++;
-      entry.maxDays = Math.max(entry.maxDays, Math.round(stageAgeDays));
-      staleByStageMap.set(lead.stage, entry);
-    }
-  }
-  const staleByStage = Array.from(staleByStageMap.entries())
-    .map(([stage, data]) => ({ stage, ...data }))
-    .sort((a, b) => b.count - a.count);
+  const [scopes, funnel, scoredProspects] = await Promise.all([
+    discoveryService.listScopes(),
+    leadService.getStageFunnel(),
+    userId ? leadService.getDashboardProspects(userId) : Promise.resolve([]),
+  ]);
+
+  const activeScopesCount = scopes.length;
+  const pendingCandidatesCount = await discoveryService.countPendingCandidates();
+
+  const dashboardTasks = await leadService.getDashboardTasks();
+  const overdueTasksCount = dashboardTasks.filter(
+    (t) => t.dueDate && new Date(t.dueDate) < new Date()
+  ).length;
 
   // My Tasks
   let myTasks: any[] = [];
@@ -222,6 +243,74 @@ export default async function DashboardPage() {
             <p className="text-label-12 text-muted-foreground mt-1">Candidates to triage</p>
           </div>
         </Link>
+      </div>
+
+      {/* Ready to Review — Command Center */}
+      <div className="bg-card rounded-xl border border-border overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <div className="flex items-center gap-2">
+            <Target className="w-4 h-4 text-primary" />
+            <h2 className="text-label-14 text-foreground uppercase">Ready to Review</h2>
+          </div>
+          <span className="text-label-12 text-muted-foreground">{scoredProspects.length} prospect{scoredProspects.length === 1 ? '' : 's'}</span>
+        </div>
+        {scoredProspects.length === 0 ? (
+          <div className="px-6 py-12 text-center">
+            <Target className="w-8 h-8 mx-auto mb-3 text-muted-foreground/40" />
+            <p className="text-copy-14 text-muted-foreground">Add prospects and run research to see your command center.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-copy-13">
+              <thead>
+                <tr className="text-label-12 text-muted-foreground border-b border-border">
+                  <th className="text-left py-3 px-6">Company</th>
+                  <th className="text-right py-3 px-4">Fit Score</th>
+                  <th className="text-right py-3 px-4">Confidence</th>
+                  <th className="text-center py-3 px-4">Priority</th>
+                  <th className="text-left py-3 px-4">Top Signal</th>
+                  <th className="text-right py-3 px-4">Updated</th>
+                  <th className="text-center py-3 px-4">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {scoredProspects.slice(0, 20).map((p, idx) => {
+                  const tier = TIER_BADGE[p.priorityTier as keyof typeof TIER_BADGE] || TIER_BADGE.tier3;
+                  return (
+                    <tr key={p.id} className="border-b border-border/40 hover:bg-muted/30 transition-colors">
+                      <td className="py-3 px-6 font-medium text-foreground">{p.company || p.name}</td>
+                      <td className={`text-right py-3 px-4 font-semibold ${(p.fitScore ?? 0) >= 70 ? 'text-chart-2' : (p.fitScore ?? 0) >= 40 ? 'text-chart-5' : 'text-muted-foreground'}`}>
+                        {p.fitScore}
+                      </td>
+                      <td className="text-right py-3 px-4">
+                        <div className="inline-flex items-center gap-1.5">
+                          <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
+                            <div className="h-full rounded-full bg-primary" style={{ width: `${p.confidenceScore ?? 0}%` }} />
+                          </div>
+                          <span className="text-label-12 text-muted-foreground">{p.confidenceScore ?? '--'}</span>
+                        </div>
+                      </td>
+                      <td className="text-center py-3 px-4">
+                        <Badge variant={tier.variant}>{tier.label}</Badge>
+                      </td>
+                      <td className="py-3 px-4 text-muted-foreground truncate max-w-[200px]">
+                        {p.disqualifiedReason || '--'}
+                      </td>
+                      <td className="text-right py-3 px-4 text-label-12 text-muted-foreground">
+                        {p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : '--'}
+                      </td>
+                      <td className="text-center py-3 px-4">
+                        <Link href={`/prospects/${p.id}`} className={buttonVariants({ variant: 'outline', size: 'xs' })}>
+                          Review
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Main Split Layout */}

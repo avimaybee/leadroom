@@ -87,8 +87,11 @@ export class ScoringService {
 
     await this.db.insert(leadScores).values(newScore);
 
-    // Clear score dirty flag
-    await this.db.update(leads).set({ scoreDirty: false }).where(eq(leads.id, leadId));
+    // Generate fit reasoning from factors
+    const fitReasoning = this.generateFitReasoning(scoreValue, scoreLabel, lead, latestResearch, latestAudit, factors);
+
+    // Clear score dirty flag and update fit reasoning
+    await this.db.update(leads).set({ scoreDirty: false, fitReasoning }).where(eq(leads.id, leadId));
 
     // Insert activity log
     await new LoggingService(this.db).log({
@@ -174,6 +177,36 @@ export class ScoringService {
     return { scoreValue: Math.min(100, scoreValue), factors };
   }
 
+  private generateFitReasoning(
+    scoreValue: number,
+    scoreLabel: string,
+    lead: any,
+    latestResearch: any,
+    latestAudit: any,
+    factors: string[],
+  ): string {
+    if (scoreValue >= 80) {
+      const hasResearch = !!latestResearch;
+      const hasAudit = !!latestAudit;
+      if (hasResearch && hasAudit) {
+        return `Strong profile: complete research and audit data, score ${scoreValue}/100`;
+      }
+      return `Strong profile: score ${scoreValue}/100 based on complete data`;
+    }
+    if (scoreValue >= 50) {
+      const missingFields: string[] = [];
+      if (!lead.website) missingFields.push('website');
+      if (!lead.email) missingFields.push('email');
+      if (!lead.phone) missingFields.push('phone');
+      if (!latestResearch) missingFields.push('research');
+      if (!latestAudit) missingFields.push('audit');
+      const detail = missingFields.length > 0 ? ` — missing ${missingFields.join(', ')}` : '';
+      return `Moderate profile: score ${scoreValue}/100${detail}`;
+    }
+    const filled = [lead.website, lead.email, lead.phone].filter(Boolean).length;
+    return `Minimal profile: only ${filled}/3 key contact fields filled, score ${scoreValue}/100`;
+  }
+
   /**
    * Allows operator to manually override a score with a specific value and custom justification.
    */
@@ -219,6 +252,10 @@ export class ScoringService {
     };
 
     await this.db.insert(leadScores).values(overrideScore);
+
+    // Persist fit reasoning on prospect
+    const fitReasoning = `Score manually overridden to ${value}: ${rationale}`;
+    await this.db.update(leads).set({ fitReasoning }).where(eq(leads.id, leadId));
 
     // Log Activity
     await new LoggingService(this.db).log({

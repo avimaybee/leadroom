@@ -1,6 +1,6 @@
 import { Db } from '../db';
 import { eq, desc, and, or, isNull, isNotNull, count, gt, gte, lte, like, sql, inArray } from 'drizzle-orm';
-import { leads, activities, activityMetadata, tasks, notes, leadStageHistory, pipelineConfig, stageThresholds, notifications, nbaActionLogs, playbooks, playbookTasks } from '../db/schema/core';
+import { prospects as leads, activities, activityMetadata, tasks, notes, leadStageHistory, pipelineConfig, stageThresholds, notifications, nbaActionLogs, playbooks, playbookTasks } from '../db/schema/core';
 import { researchSnapshots } from '../db/schema/research';
 import { audits } from '../db/schema/audits';
 import { outreachDrafts } from '../db/schema/outreach';
@@ -165,9 +165,37 @@ export class LeadService {
     return lead;
   }
 
-async listLeads() {
+  async listLeads() {
   return this.db.select().from(leads).where(eq(leads.status, 'Active')).orderBy(desc(leads.updatedAt));
 }
+
+  async getDashboardProspects(userId: string) {
+    return this.db
+      .select({
+        id: leads.id,
+        name: leads.name,
+        company: leads.company,
+        fitScore: leads.fitScore,
+        confidenceScore: leads.confidenceScore,
+        priorityTier: leads.priorityTier,
+        updatedAt: leads.updatedAt,
+        disqualifiedReason: leads.disqualifiedReason,
+        fitReasoning: leads.fitReasoning,
+      })
+      .from(leads)
+      .where(sql`${leads.fitScore} IS NOT NULL AND ${leads.ownerId} = ${userId}`)
+      .orderBy(desc(leads.fitScore))
+      .limit(100);
+  }
+
+  async getProspectDetail(id: string, userId: string) {
+    const [row] = await this.db
+      .select()
+      .from(leads)
+      .where(and(eq(leads.id, id), eq(leads.ownerId, userId)))
+      .limit(1);
+    return row || null;
+  }
 
   async getLead(id: string) {
     const [row] = await this.db

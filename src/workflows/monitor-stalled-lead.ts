@@ -2,7 +2,7 @@ import { WorkflowEntrypoint, WorkflowStep, WorkflowEvent } from 'cloudflare:work
 import { getDb } from '../db';
 import { LeadService } from '../services/lead';
 import { eq } from 'drizzle-orm';
-import { leads } from '../db/schema/core';
+import { prospects as leads } from '../db/schema/core';
 
 type MonitorParams = {
   leadId: string;

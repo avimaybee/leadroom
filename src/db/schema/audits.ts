@@ -1,11 +1,11 @@
 import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
-import { users, leads } from './core';
+import { users, prospects } from './core';
 import { jobRuns } from './research';
 
 export const audits = sqliteTable('audits', {
   id: text('id').primaryKey(),
-  leadId: text('lead_id').notNull().references(() => leads.id),
+  leadId: text('lead_id').notNull().references(() => prospects.id),
   createdByUserId: text('created_by_user_id').references(() => users.id),
   origin: text('origin').notNull().default('AI_GENERATED'), // 'MANUAL' | 'AI_GENERATED'
   keyStrengths: text('key_strengths'), // Markdown-enabled text or paragraph
@@ -23,7 +23,7 @@ export const audits = sqliteTable('audits', {
 
 export const leadScores = sqliteTable('lead_scores', {
   id: text('id').primaryKey(),
-  leadId: text('lead_id').notNull().references(() => leads.id),
+  leadId: text('lead_id').notNull().references(() => prospects.id),
   scoreValue: integer('score_value').notNull(), // 0 to 100
   scoreLabel: text('score_label'), // 'High' | 'Medium' | 'Low'
   rationaleSummary: text('rationale_summary'), // Explanation of the score

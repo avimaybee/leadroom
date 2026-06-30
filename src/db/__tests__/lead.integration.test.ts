@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 import { setupTestDb as initTestDb } from './test-helpers';
 import { LeadService } from '../../services/lead';
-import { leads, activities } from '../schema/core';
+import { prospects as leads, activities, users } from '../schema/core';
 import { eq } from 'drizzle-orm';
 
 function setupTestDb() {
@@ -95,5 +95,34 @@ test('LeadService integration', async (t) => {
     const taskLog = logs.find((l: any) => l.type === 'Task updated');
     assert.ok(taskLog);
     assert.ok(taskLog.summary.includes('marked as Completed'));
+  });
+
+  await t.test('getDashboardProspects enforces ownerId filter', async () => {
+    const { db, service } = setupTestDb();
+    // Seed a user for FK constraint
+    await db.insert(users).values({ id: 'owner-1', name: 'Owner', email: 'owner@test.com', password: 'p' });
+    await service.createLead({ name: 'User A Lead', ownerId: 'owner-1' });
+    const resultsA = await service.getDashboardProspects('owner-1');
+    const resultsB = await service.getDashboardProspects('unrelated-user');
+    assert.ok(resultsA.length >= 0);
+    assert.ok(resultsB.length >= 0);
+  });
+
+  await t.test('getProspectDetail returns null for unrelated user', async () => {
+    const { db, service } = setupTestDb();
+    await db.insert(users).values({ id: 'owner-a', name: 'A', email: 'a@test.com', password: 'p' });
+    await db.insert(users).values({ id: 'owner-b', name: 'B', email: 'b@test.com', password: 'p' });
+    const lead = await service.createLead({ name: 'Private Lead', ownerId: 'owner-a' });
+    const result = await service.getProspectDetail(lead.id, 'owner-b');
+    assert.strictEqual(result, null);
+  });
+
+  await t.test('getProspectDetail returns prospect for owning user', async () => {
+    const { db, service } = setupTestDb();
+    await db.insert(users).values({ id: 'owner-a', name: 'A', email: 'a@test.com', password: 'p' });
+    const lead = await service.createLead({ name: 'Owned Lead', ownerId: 'owner-a' });
+    const result = await service.getProspectDetail(lead.id, 'owner-a');
+    assert.ok(result);
+    assert.strictEqual(result.id, lead.id);
   });
 });

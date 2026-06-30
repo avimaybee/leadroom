@@ -127,6 +127,48 @@
       "when": 1782714396222,
       "tag": "0017_oval_the_leader",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1782715000000,
+      "tag": "0018_phase1_strategy_and_prospects",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1782731444272,
+      "tag": "0019_lowly_lightspeed",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1782740846079,
+      "tag": "0020_remarkable_tag",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1782753272110,
+      "tag": "0021_spooky_odin",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1783123456789,
+      "tag": "0022_phase6_byok_routing",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1783300000000,
+      "tag": "0023_phase3_fit_reasoning",
+      "breakpoints": true
     }
   ]
 }

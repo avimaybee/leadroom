@@ -2,10 +2,13 @@ export const dynamic = 'force-dynamic';
 
 import { getDb } from '@/db';
 import { LeadService } from '@/services/lead';
+import { LearningService } from '@/services/learning';
 import { StageThresholdsTable } from '@/components/settings/StageThresholdsTable';
 import { PlaybooksEditor } from '@/components/settings/PlaybooksEditor';
 import { StageRequirementsEditor } from '@/components/settings/StageRequirementsEditor';
+import { LearningSuggestionsInbox } from '@/components/prospects/LearningSuggestionsInbox';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { workspaces } from '@/db/schema/strategy';
 import { playbooks, playbookTasks, pipelineConfig } from '@/db/schema/core';
 import { eq } from 'drizzle-orm';
 
@@ -15,11 +18,12 @@ export const metadata = {
 
 export default async function PipelineSettingsPage() {
   const db = getDb();
-  const [thresholdRows, playbookRows, taskRows, pcRow] = await Promise.all([
+  const [thresholdRows, playbookRows, taskRows, pcRow, workspaceRows] = await Promise.all([
     new LeadService(db).getStageThresholds(),
     db.select().from(playbooks),
     db.select().from(playbookTasks),
     db.select().from(pipelineConfig).where(eq(pipelineConfig.id, 'global')).limit(1).then((r) => r[0] || null),
+    db.select().from(workspaces).limit(1),
   ]);
 
   const tasksByPlaybook = new Map<string, typeof taskRows>();
@@ -93,6 +97,28 @@ export default async function PipelineSettingsPage() {
           <StageRequirementsEditor initialRequirements={(pcRow?.stageRequirements as Record<string, string[]>) || {}} />
         </CardContent>
       </Card>
+
+      {workspaceRows.length > 0 && (
+        <Card className="border border-border shadow-sm">
+          <CardHeader className="border-b border-border bg-muted/20 pb-4">
+            <CardTitle className="text-heading-lg">ICP Optimization Suggestions</CardTitle>
+            <CardDescription className="text-copy-14 mt-1">
+              Based on outcome data, the system suggests adjustments to your ICP profile.
+              Review and apply suggestions to improve scoring accuracy.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <LearningSuggestionsInbox
+              suggestions={(await new LearningService(db).getPendingSuggestions(workspaceRows[0].id)).map((s) => ({
+                id: s.id,
+                suggestedChange: s.suggestedChange ?? '{}',
+                supportingEvidence: s.supportingEvidence ?? '{}',
+                createdAt: s.createdAt,
+              }))}
+            />
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

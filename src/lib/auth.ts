@@ -109,6 +109,20 @@ export async function verifyPassword(password: string, hashedPasswordHex: string
  * Returns null if unauthenticated.
  * In test mode, returns a fixed test user ID.
  */
+import { Db } from '@/db';
+import { prospects } from '@/db/schema/core';
+import { eq } from 'drizzle-orm';
+
+export async function verifyProspectAccess(db: Db, prospectId: string, userId: string): Promise<boolean> {
+  if (!prospectId || !userId) return false;
+  const [prospect] = await db
+    .select({ ownerId: prospects.ownerId })
+    .from(prospects)
+    .where(eq(prospects.id, prospectId))
+    .limit(1);
+  return prospect ? prospect.ownerId === userId : false;
+}
+
 export async function getUserId(): Promise<string | null> {
   if (process.env.NODE_ENV === 'test') {
     return (globalThis as any).mockUserId || 'user_123';

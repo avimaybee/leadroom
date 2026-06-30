@@ -3,7 +3,7 @@
 import { getDb } from '@/db';
 import { ReminderService } from '@/services/reminders';
 import { revalidatePath } from 'next/cache';
-import { getUserId } from '@/lib/auth';
+import { getUserId, verifyProspectAccess } from '@/lib/auth';
 
 export type ActionState = { error?: string | null; success?: boolean } | null | undefined;
 
@@ -29,6 +29,13 @@ export async function createReminderAction(prevState: ActionState, formData: For
   }
   if (remindAt <= new Date()) {
     return { error: 'Reminder must be set in the future' };
+  }
+
+  if (leadId) {
+    const db = getDb();
+    if (!(await verifyProspectAccess(db, leadId, userId))) {
+      return { error: 'Forbidden: you do not own this prospect' };
+    }
   }
 
   try {

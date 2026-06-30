@@ -1,7 +1,12 @@
 import { Db } from '../db';
 import { googleCalendarTokens, tasks, reminders } from '../db/schema/core';
 import { eq, and, or, isNull, ne } from 'drizzle-orm';
-import { leads } from '../db/schema/core';
+import { prospects as leads } from '../db/schema/core';
+import { encrypt, decrypt } from '@/lib/crypto';
+
+function getEncryptionSecret(): string {
+  return process.env.DB_ENCRYPTION_KEY || 'fallback_key_dev';
+}
 
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const GOOGLE_CALENDAR_URL = 'https://www.googleapis.com/calendar/v3/calendars/primary/events';
@@ -76,12 +81,15 @@ export class CalendarService {
 
     const data = await resp.json() as any;
     const expiryDate = new Date(Date.now() + (data.expires_in || 3600) * 1000);
+    const secret = getEncryptionSecret();
+    const encryptedAccessToken = await encrypt(data.access_token, secret);
+    const encryptedRefreshToken = data.refresh_token ? await encrypt(data.refresh_token, secret) : null;
 
     const existing = await this.db.select({ id: googleCalendarTokens.id }).from(googleCalendarTokens).where(eq(googleCalendarTokens.userId, userId)).limit(1);
     if (existing.length > 0) {
       await this.db.update(googleCalendarTokens).set({
-        accessToken: data.access_token,
-        refreshToken: data.refresh_token || undefined,
+        accessToken: encryptedAccessToken,
+        refreshToken: encryptedRefreshToken ?? undefined,
         scope: data.scope,
         expiryDate,
         updatedAt: new Date(),
@@ -90,8 +98,8 @@ export class CalendarService {
       await this.db.insert(googleCalendarTokens).values({
         id: crypto.randomUUID(),
         userId,
-        accessToken: data.access_token,
-        refreshToken: data.refresh_token || null,
+        accessToken: encryptedAccessToken,
+        refreshToken: encryptedRefreshToken,
         scope: data.scope,
         expiryDate,
       });
@@ -101,11 +109,13 @@ export class CalendarService {
   }
 
   async saveCredentials(userId: string, googleClientId: string, googleClientSecret: string) {
+    const secret = getEncryptionSecret();
+    const encryptedClientSecret = await encrypt(googleClientSecret, secret);
     const existing = await this.db.select({ id: googleCalendarTokens.id }).from(googleCalendarTokens).where(eq(googleCalendarTokens.userId, userId)).limit(1);
     if (existing.length > 0) {
       await this.db.update(googleCalendarTokens).set({
         googleClientId,
-        googleClientSecret,
+        googleClientSecret: encryptedClientSecret,
         updatedAt: new Date(),
       }).where(eq(googleCalendarTokens.userId, userId));
     } else {
@@ -114,7 +124,7 @@ export class CalendarService {
         userId,
         accessToken: '',
         googleClientId,
-        googleClientSecret,
+        googleClientSecret: encryptedClientSecret,
       });
     }
   }
@@ -124,20 +134,31 @@ export class CalendarService {
       googleClientId: googleCalendarTokens.googleClientId,
       googleClientSecret: googleCalendarTokens.googleClientSecret,
     }).from(googleCalendarTokens).where(eq(googleCalendarTokens.userId, userId)).limit(1);
-    return row || null;
+    if (!row) return null;
+    const secret = getEncryptionSecret();
+    return {
+      ...row,
+      googleClientSecret: row.googleClientSecret ? await decrypt(row.googleClientSecret, secret) : null,
+    };
   }
 
   private async getValidToken(userId: string): Promise<string | null> {
     const [row] = await this.db.select().from(googleCalendarTokens).where(eq(googleCalendarTokens.userId, userId)).limit(1);
     if (!row) return null;
 
+    const secret = getEncryptionSecret();
+    const accessToken = row.accessToken ? await decrypt(row.accessToken, secret) : null;
+    const refreshToken = row.refreshToken ? await decrypt(row.refreshToken, secret) : null;
+
+    if (!accessToken) return null;
+
     if (row.expiryDate && new Date(row.expiryDate) <= new Date()) {
-      if (!row.refreshToken) return null;
-      const refreshed = await this.refreshAccessToken(row.refreshToken, userId);
+      if (!refreshToken) return null;
+      const refreshed = await this.refreshAccessToken(refreshToken, userId);
       return refreshed;
     }
 
-    return row.accessToken;
+    return accessToken;
   }
 
   private async refreshAccessToken(refreshToken: string, userId: string): Promise<string | null> {
@@ -159,9 +180,11 @@ export class CalendarService {
     if (!resp.ok) return null;
     const data = await resp.json() as any;
     const expiryDate = new Date(Date.now() + (data.expires_in || 3600) * 1000);
+    const secret = getEncryptionSecret();
+    const encryptedAccessToken = await encrypt(data.access_token, secret);
 
     await this.db.update(googleCalendarTokens).set({
-      accessToken: data.access_token,
+      accessToken: encryptedAccessToken,
       expiryDate,
       updatedAt: new Date(),
     }).where(eq(googleCalendarTokens.userId, userId));

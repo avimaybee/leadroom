@@ -2,7 +2,7 @@ import { Db } from '../db';
 import { ReminderService } from './reminders';
 import { LeadService } from './lead';
 import { ScoringService } from './scoring';
-import { tasks, notifications, leads } from '../db/schema/core';
+import { tasks, notifications, prospects as leads } from '../db/schema/core';
 import { createNotification } from '@/lib/notifications';
 import { eq, and, isNotNull, lt, gte, count } from 'drizzle-orm';
 

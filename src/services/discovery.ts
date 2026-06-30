@@ -2,7 +2,7 @@ import { LoggingService } from './logging';
 import { Db } from '../db';
 import { eq, sql, desc } from 'drizzle-orm';
 import { discoveryScopes, candidateLeads } from '../db/schema/discovery';
-import { leads, activities } from '../db/schema/core';
+import { prospects as leads, activities } from '../db/schema/core';
 import { CreateDiscoveryScopeInput, CreateCandidateLeadInput } from '../db/models/discovery';
 import { ScoringService } from './scoring';
 
@@ -155,6 +155,13 @@ export class DiscoveryService {
       }
     }
 
+    const [scopeFull] = candidate.discoveryScopeId
+      ? await this.db.select({
+          workspaceId: discoveryScopes.workspaceId,
+          marketId: discoveryScopes.marketId,
+        }).from(discoveryScopes).where(eq(discoveryScopes.id, candidate.discoveryScopeId)).limit(1)
+      : [{ workspaceId: null as string | null, marketId: null as string | null }];
+
     await this.db.insert(leads).values({
       id: leadId,
       name: candidate.rawName,
@@ -164,6 +171,8 @@ export class DiscoveryService {
       stage: 'New',
       status: 'Active',
       ownerId: ownerId,
+      workspaceId: scopeFull?.workspaceId ?? null,
+      marketId: scopeFull?.marketId ?? null,
       createdAt: now,
       updatedAt: now,
     });

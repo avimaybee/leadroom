@@ -1,8 +1,9 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert';
 import { setupTestDb as initTestDb } from './test-helpers';
-import { googleCalendarTokens, users, leads, tasks } from '../schema/core';
+import { googleCalendarTokens, users, prospects as leads, tasks } from '../schema/core';
 import { eq, sql } from 'drizzle-orm';
+import { encrypt } from '@/lib/crypto';
 
 async function createTestUser(db: any): Promise<string> {
   const id = crypto.randomUUID();
@@ -92,11 +93,12 @@ test('CalendarService', async (t) => {
     const { CalendarService } = await import('../../services/calendar');
     const service = new CalendarService(db as any);
     const userId = await createTestUser(db);
+    const secret = process.env.DB_ENCRYPTION_KEY || 'fallback_key_dev';
 
     await db.insert(googleCalendarTokens).values({
       id: crypto.randomUUID(),
       userId,
-      accessToken: 'valid-token',
+      accessToken: await encrypt('valid-token', secret),
     });
 
     const leadId = crypto.randomUUID();

@@ -1,8 +1,6 @@
-'use server';
-
 import { getDb } from '@/db';
 import { eq, desc, and } from 'drizzle-orm';
-import { leads, tasks, stageThresholds } from '@/db/schema/core';
+import { prospects as leads, tasks, stageThresholds } from '@/db/schema/core';
 import { outreachDrafts } from '@/db/schema/outreach';
 import UnifiedActionFeed, { UnifiedItem } from '@/components/dashboard/UnifiedActionFeed';
 

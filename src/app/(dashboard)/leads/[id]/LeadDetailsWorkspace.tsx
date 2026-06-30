@@ -55,7 +55,7 @@ import { saveResearchSnapshotAction, addContactAction, updateContactAction, dele
 import { manualOverrideScoreAction, triggerAuditAction } from '@/app/actions/audits';
 import { generateOutreachDraftAction } from '@/app/actions/outreach';
 
-type WorkspaceView = 'overview' | 'research' | 'audit' | 'outreach' | 'activity';
+type WorkspaceView = 'overview' | 'research' | 'outreach' | 'activity';
 
 interface LeadDetailsWorkspaceProps {
   lead: any;
@@ -80,8 +80,7 @@ interface LeadDetailsWorkspaceProps {
 
 const WORKSPACE_NAV: Array<{ value: WorkspaceView; label: string; icon: typeof Building2 }> = [
   { value: 'overview', label: 'Overview', icon: Building2 },
-  { value: 'research', label: 'Research', icon: FileSearch },
-  { value: 'audit', label: 'Audit', icon: Radar },
+  { value: 'research', label: 'Research & Audit', icon: FileSearch },
   { value: 'outreach', label: 'Outreach', icon: MessageSquareText },
   { value: 'activity', label: 'Activity', icon: Activity },
 ];
@@ -513,9 +512,9 @@ export default function LeadDetailsWorkspace({
                           setExecutingAction('audit');
                           try {
                             await triggerAuditAction(lead.id);
-                            navigateTo('audit');
+                            navigateTo('research');
                           } catch {
-                            window.location.href = `/leads/${lead.id}?tab=audit`;
+                            window.location.href = `/leads/${lead.id}?tab=research`;
                           } finally {
                             setExecutingAction(null);
                           }
@@ -553,7 +552,7 @@ export default function LeadDetailsWorkspace({
                     <Button 
                       variant="outline" 
                       size="sm" 
-                      className="border-background/30 text-background hover:bg-background/10"
+                      className="bg-transparent border-background/30 text-background hover:bg-background hover:text-foreground"
                       onClick={() => {
                         logNbaActionAction(lead.id, nbaTop.action, nbaTop.priority).catch(() => {});
                         window.location.href = nbaTop.link;
@@ -665,10 +664,7 @@ export default function LeadDetailsWorkspace({
                     </p>
                     <div className="flex justify-center gap-2 pt-2">
                       <Button variant="outline" size="xs" onClick={() => navigateTo('research')}>
-                        Go to Research
-                      </Button>
-                      <Button variant="outline" size="xs" onClick={() => navigateTo('audit')}>
-                        Go to Audit
+                        Go to Research & Audit
                       </Button>
                     </div>
                   </div>
@@ -693,11 +689,10 @@ export default function LeadDetailsWorkspace({
         ) : null}
 
         {activeView === 'research' ? (
-          <ClientResearchView leadId={lead.id} initialSnapshot={latestSnapshot} saveResearchSnapshotAction={saveResearchSnapshotAction} pollingJobId={pollingJobId} setPollingJobId={setPollingJobId} jobStatus={jobStatus} setJobStatus={setJobStatus} isEnriching={isEnriching} setIsEnriching={setIsEnriching} jobError={jobError} setJobError={setJobError} handleCancelResearch={handleCancelResearch} />
-        ) : null}
-
-        {activeView === 'audit' ? (
-          <ClientAuditView leadId={lead.id} initialAudit={latestAudit} initialScore={currentScore} manualOverrideScoreAction={manualOverrideScoreAction} />
+          <div className="space-y-6">
+            <ClientResearchView leadId={lead.id} initialSnapshot={latestSnapshot} saveResearchSnapshotAction={saveResearchSnapshotAction} pollingJobId={pollingJobId} setPollingJobId={setPollingJobId} jobStatus={jobStatus} setJobStatus={setJobStatus} isEnriching={isEnriching} setIsEnriching={setIsEnriching} jobError={jobError} setJobError={setJobError} handleCancelResearch={handleCancelResearch} />
+            <ClientAuditView leadId={lead.id} initialAudit={latestAudit} initialScore={currentScore} manualOverrideScoreAction={manualOverrideScoreAction} />
+          </div>
         ) : null}
 
         {activeView === 'outreach' ? (

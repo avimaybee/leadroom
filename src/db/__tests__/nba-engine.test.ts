@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 import { setupTestDb as initTestDb } from './test-helpers';
 import { LeadService } from '../../services/lead';
-import { leads, stageThresholds, users, nbaActionLogs } from '../schema/core';
+import { prospects as leads, stageThresholds, users, nbaActionLogs } from '../schema/core';
 import { researchSnapshots } from '../schema/research';
 import { outreachDrafts } from '../schema/outreach';
 import { eq, sql } from 'drizzle-orm';

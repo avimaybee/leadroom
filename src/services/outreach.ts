@@ -15,6 +15,8 @@ export interface CreateDraftInput {
   createdByUserId?: string | null;
   attachments?: string | null;
   origin?: 'AI_GENERATED' | 'MANUAL';
+  citedEvidence?: string | null;
+  riskFlags?: string | null;
 }
 
 export class OutreachService {
@@ -145,6 +147,8 @@ export class OutreachService {
       createdAt: now,
       updatedAt: now,
       attachments: input.attachments || null,
+      citedEvidence: input.citedEvidence ?? null,
+      riskFlags: input.riskFlags ?? null,
     };
 
     await this.db.insert(outreachDrafts).values(newDraft);
@@ -236,7 +240,7 @@ leadId: draft.leadId,
 
     // Log activity if transitioning to SENT
     if (status === 'SENT') {
-      const { leads } = await import('../db/schema/core');
+      const { prospects: leads } = await import('../db/schema/core');
       await this.db.update(leads).set({ lastActivityAt: now, updatedAt: now }).where(eq(leads.id, draft.leadId));
 
       await new LoggingService(this.db).log({
@@ -312,11 +316,15 @@ leadId: draft.leadId,
     await this.db.insert(approvals).values(newApproval);
 
     // Update the draft status to match the decision
-    const updates: any = {
+    const updates: Record<string, unknown> = {
       status: decision,
       updatedAt: now,
       isRead: true,
     };
+
+    if (decision === 'REJECTED' && feedback) {
+      updates.rejectionReason = feedback;
+    }
 
     await this.db
       .update(outreachDrafts)

@@ -4,7 +4,7 @@ import { setupTestDb as initTestDb } from './test-helpers';
 import { ScoringService } from '../../services/scoring';
 import { LeadService } from '../../services/lead';
 import { audits, leadScores } from '../schema';
-import { leads, activities, users } from '../schema/core';
+import { prospects as leads, activities, users } from '../schema/core';
 import { eq } from 'drizzle-orm';
 
 function setupTestDb() {
@@ -18,7 +18,7 @@ function setupTestDb() {
 
 test('ScoringService Integration Tests', async (t) => {
   await t.test('Base Scoring: Lead with minimal details', async () => {
-    const { leadService, scoringService } = setupTestDb();
+    const { leadService, scoringService, db } = setupTestDb();
     const lead = await leadService.createLead({
       name: 'Minimal Lead',
     });
@@ -28,10 +28,15 @@ test('ScoringService Integration Tests', async (t) => {
     // Base score is 10. No email (+0), website (+0), phone (+0), location (+0).
     assert.strictEqual(score.scoreValue, 10);
     assert.strictEqual(score.scoreLabel, 'Low');
+
+    // fitReasoning should be populated on the prospect
+    const [updated] = await db.select({ fitReasoning: leads.fitReasoning }).from(leads).where(eq(leads.id, lead.id)).limit(1);
+    assert.ok(updated.fitReasoning);
+    assert.match(updated.fitReasoning, /Minimal profile/);
   });
 
   await t.test('Profile Completeness Scoring: Lead with email, website, phone, and city', async () => {
-    const { leadService, scoringService } = setupTestDb();
+    const { leadService, scoringService, db } = setupTestDb();
     const lead = await leadService.createLead({
       name: 'Detailed Lead',
       email: 'hello@example.com',
@@ -46,6 +51,10 @@ test('ScoringService Integration Tests', async (t) => {
     // Base 10 + Website (15) + Email (10) + Phone (10) + Location (5) = 50
     assert.strictEqual(score.scoreValue, 50);
     assert.strictEqual(score.scoreLabel, 'Medium');
+
+    const [updated] = await db.select({ fitReasoning: leads.fitReasoning }).from(leads).where(eq(leads.id, lead.id)).limit(1);
+    assert.ok(updated.fitReasoning);
+    assert.match(updated.fitReasoning, /Moderate profile/);
   });
 
   await t.test('Manual override saves the exact score and deactivates old scores', async () => {
@@ -87,5 +96,10 @@ test('ScoringService Integration Tests', async (t) => {
     const deactivated = all.find(s => s.id === baseScore.id);
     assert.ok(deactivated);
     assert.strictEqual(deactivated.isCurrent, 0);
+
+    // fitReasoning should reflect the manual override
+    const [updated] = await db.select({ fitReasoning: leads.fitReasoning }).from(leads).where(eq(leads.id, lead.id)).limit(1);
+    assert.ok(updated.fitReasoning);
+    assert.match(updated.fitReasoning, /manually overridden/i);
   });
 });

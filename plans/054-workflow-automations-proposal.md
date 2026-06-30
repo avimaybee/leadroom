@@ -4,26 +4,21 @@
 
 ---
 
-## 1. Auto-Research on Discovery Promotion ✅ DONE
+## 1. Auto-Research on Discovery Promotion
+Currently, users promote a candidate to a Lead, navigate to the Lead page, click "Start Research", and wait 30 seconds for the AI snapshot.
+**Automation:**
+- In `DiscoveryService.promoteCandidate`, check if the candidate has a `rawWebsiteUrl`.
+- If a URL exists, immediately queue a `RESEARCH_GENERATION` job and trigger the `RESEARCH_SNAPSHOT_WORKFLOW`.
+- **UX Impact:** When the operator navigates to the new lead, the research is either already complete or actively streaming in. They can jump straight into analysis.
+- **Cost Control:** Add a boolean toggle to `discoveryScopes` (`autoResearchPromotedLeads`). This allows operators to turn off auto-research for low-quality scopes where they prefer manual triage.
 
-**Implemented:**
-- Added `autoResearchPromotedLeads` boolean column to `discovery_scopes` table (default `true`)
-- `DiscoveryService.promoteCandidate()` now checks candidate's `rawWebsiteUrl` before queuing research — skips if no URL
-- If candidate belongs to a scope, checks scope's `autoResearchPromotedLeads` toggle — skips if `false`
-- Added migration `0017_silent_art.sql`
-- Added toggle checkbox to scope creation UI (`/scopes/new`)
-- Added `autoResearchPromotedLeads` to `CreateDiscoveryScopeSchema` (Zod)
-
-## 2. Playbook-Triggered Background Jobs ✅ DONE
-
-**Implemented:**
-- Added `actionType` (`'TASK' | 'JOB'`) and `jobType` columns to `playbookTasks` schema (migration `0019_copper_storm.sql`)
-- `triggerStagePlaybook` in `LeadService` now branches on `template.actionType`:
-  - `'TASK'` — existing behavior (create a task with due date offset)
-  - `'JOB'` — inserts `jobRuns` record with the specified `jobType` (idempotency-guarded against duplicate QUEUED/RUNNING), triggers `researchWorkflow` for `RESEARCH_GENERATION` jobs
-- Pipeline settings page updated: `upsertPlaybookAction` persists the new fields
-- PlaybooksEditor UI updated: each task row has a "Type" dropdown (Task/Job) and conditional "Job Type" selector with options: `RESEARCH_GENERATION`, `AUDIT_GENERATION`, `OUTREACH_DRAFT`
-- Existing playbook tasks default to `actionType: 'TASK'` preserving backward compatibility
+## 2. Playbook-Triggered Background Jobs
+Currently, Playbooks (triggered on stage entry) only generate `tasks` (e.g., "Review Lead").
+**Automation:**
+- Expand the `playbookTasks` schema to support an `actionType` column (`'TASK' | 'JOB'`) and a `jobType` column (e.g., `'AUDIT'`, `'OUTREACH_DRAFT'`).
+- Update `triggerStagePlaybook` in `LeadService`: if a playbook rule specifies a `JOB`, seamlessly insert a `jobRuns` record and trigger the respective Cloudflare Workflow.
+- **UX Impact:** Moving a lead to the "Audit" stage automatically spins up the website crawler. Moving a lead to "Proposal" stage automatically queues a draft generation based on previous notes.
+- **Cost Control:** Entirely predictable. Jobs only fire based on explicit stage movements dictated by the operator.
 
 ## 3. Proactive Stale Nurturing (Draft Pre-computation)
 Currently, `MonitorStalledLeadWorkflow` identifies leads stuck in a stage for >7 days and creates a passive "Stale" signal.
@@ -33,17 +28,12 @@ Currently, `MonitorStalledLeadWorkflow` identifies leads stuck in a stage for >7
 - **UX Impact:** The operator clicks the task, reviews the pre-written draft, edits it, and hits send. Zero prompt engineering required.
 - **Cost Control:** Add a global setting `autoDraftStaleFollowUps` in the integrations config. Ensure a lead only gets ONE auto-draft per stage to prevent infinite looping.
 
-## 4. Next-Best-Action (NBA) "One-Click Execution" ✅ DONE
-
-**Implemented:**
-- Primary CTA button in the Next Action banner now executes the action directly instead of just navigating:
-  - `no_research` → fires `POST /api/leads/[id]/research`, sets polling job ID, navigates to research tab
-  - `no_audit` → calls `triggerAuditAction()` server action, navigates to audit tab
-  - `unsent_draft` → calls `generateOutreachDraftAction(leadId, 'EMAIL')`, navigates to outreach tab
-- Button shows spinner + contextual label ("Starting research...", "Starting audit...", "Generating draft...") during execution
-- Falls back to tab navigation on error
-- "View details" link remains available for manual navigation
-- Collapses the funnel from `Read Signal → Navigate → Act → Wait` to `Read Signal → Act → Review`
+## 4. Next-Best-Action (NBA) "One-Click Execution"
+Currently, NBA suggests an action (e.g., "Draft Outreach"), and clicking it navigates the user to a blank outreach tab where they must click "Generate" again.
+**Automation:**
+- Wire the Next Action banner directly to Job Execution APIs. 
+- If the NBA is "Draft Outreach", clicking the button immediately fires `POST /api/leads/[id]/outreach/generate`, spins the button, and drops the user into the tab with the result ready.
+- **UX Impact:** Collapses the funnel from `Read Signal -> Navigate -> Act -> Wait` to `Read Signal -> Act -> Review`.
 
 ## 5. Automated Contact Discovery (Enrichment)
 Currently, if a lead lacks a stakeholder email, the user must manually search the web.
@@ -74,33 +64,37 @@ Currently, if a lead lacks a stakeholder email, the user must manually search th
   - *Why?* Keeping prompts narrow ensures cheap models can actually succeed at outputting valid JSON. Running in parallel cuts latency in half.
 - **Deterministic Scoring (Zero AI):** Eliminate `generateLeadScore` entirely. Compute the score purely in TypeScript using rules applied to the structured JSON returned by the parallel calls (e.g. `hasMissingCTA = +15`).
 - **Context Pruning:** Before fanning out, run a fast regex-based HTML-to-Markdown cleaner to strip navbars/footers/inline-styles. This drastically reduces the context window, directly minimizing the cost when we send the HTML multiple times to frontier models.
-- **Debounce Scoring:** Added `scoreDirty` column to `leads`. `updateLead` only triggers `recalculateScore` when score-affecting fields (website, email, phone, city, region, industry) actually change. Background `runScoreSweep()` handles any remaining dirty leads. Migration `0018_silver_rain.sql`.
 
 **Cost/Latency Impact:** Eliminates 1 entire LLM call per lead. Drops latency by ~50%. Safely supports dumb/cheap models without sacrificing frontier model speed.
 
 ---
 
-## 8. Reliable Background Sweeps (Reminders, Stale Checks, Overdue Tasks) ✅ DONE
+## 8. Reliable Background Sweeps (Reminders, Stale Checks, Overdue Tasks)
 
-**Fix applied:**
-- Extracted sweep functions into `src/services/sweeps.ts` — `runReminderSweep()`, `runStaleLeadSweep()`, `runOverdueTaskSweep()`, `runAllSweeps()`
-- Created `GET /api/cron/sweeps` — standalone auth-free endpoint that runs all sweeps. Can be called by Cloudflare Cron Triggers, cron-job.org, Vercel Cron, or any external scheduler.
-- Added **overdue task sweep** — notifies assignees about tasks past due date, deduplicated to once per 24h per task.
-- Updated SSE endpoint (`/api/notifications/sse`) to use shared sweep functions instead of inline ReminderService/LeadService calls.
-- SSE also runs the overdue task sweep on the same 60s interval as stale checks.
+**Discovery:** Reminder firing (`fireDueReminders`) and stale lead checking (`checkAndAlertStaleLeads`) only run when a user has an active SSE connection (`/api/notifications/sse`). If all users close their tabs, no reminders fire and no stale alerts trigger. This is a reliability gap — the system appears dormant until someone opens the app.
+
+**Automation:**
+- Extract sweeps into a standalone cron-able function (e.g., a Next.js route that can be called by an external cron service like CronJobs, Cloudflare Scheduler, or `setInterval` on the first SSE connection).
+- Add a new sweep: **overdue task escalation** — if a task is overdue > N days (configurable per playbook or globally), auto-increase priority or create a notification for the assignee.
+- Add a new sweep: **upcoming task reminder** — if a task is due within 24h and the user has SSE connected, push a notification.
+
+**Cost:** Free (DB-only).
 
 ---
 
-## 9. Batch Operations Expansion ✅ DONE
+## 9. Batch Operations Expansion
 
-**Implemented:**
-- `bulkAdvanceStageToAction(leadIds, targetStage)` — move to any pipeline stage via "Stage..." dropdown dialog
-- `bulkResearchTriggerAction(leadIds)` — queue research jobs for all selected leads (idempotency-guarded)
-- `bulkArchiveAction(leadIds)` — archive leads in one transaction with activity logging
-- `bulkReassignAction(leadIds, ownerId)` — change assignee via user-picker dialog (`/api/users` endpoint created)
-- `bulkExportAction(leadIds)` — CSV export with auto-download blob
-- Fixed existing `bulkAdvanceStageAction` to report per-lead errors instead of silent skip (returns structured `{ advanced, skipped: [{id, reason}], errors: [{id, reason}] }`)
-- All new buttons added to `BulkActionBar`: Stage..., Research, Reassign, Archive, Export
+**Discovery:** Current bulk operations (`bulk.ts`) only support: advance one stage, add same task to multiple leads, set same reminder. There's no way to: move leads to an arbitrary stage, re-trigger research for multiple leads, archive/delete in bulk, reassign owners, or bulk-export.
+
+**Automation:**
+- Add `bulkAdvanceStageToAction(leadIds, targetStage)` — move to any stage (not just next).
+- Add `bulkResearchTriggerAction(leadIds)` — queue research jobs for all leads.
+- Add `bulkArchiveAction(leadIds)` — archive leads in one transaction.
+- Add `bulkReassignAction(leadIds, ownerId)` — change assignee.
+- Add `bulkExportAction(leadIds)` — CSV/JSON export of lead data.
+- Fix existing `bulkAdvanceStageAction` to batch DB queries and report per-lead errors instead of silent skip.
+
+**Cost:** Free (DB-only, no AI calls).
 
 ---
 
@@ -110,7 +104,7 @@ Currently, if a lead lacks a stakeholder email, the user must manually search th
 
 **Automation:**
 - On lead creation (`createLead`), check existing leads for same `website`, `email`, or normalized `company` name. Show a warning: "A lead with this website already exists. Continue anyway?"
-- On candidate promotion, auto-detect `industry` from website content (extract `<title>`, meta description, Open Graph tags) — cheaper than full research. ✅ DONE
+- On candidate promotion, auto-detect `industry` from website content (extract `<title>`, meta description, Open Graph tags) — cheaper than full research.
 - Wire `generateContactExtraction` into the research workflow via the parallel fan-out (Section 7).
 - On promotion, normalize website URL and pre-fill company name from webpage `<title>` tag (free fetch, no AI).
 
@@ -124,20 +118,15 @@ Currently, if a lead lacks a stakeholder email, the user must manually search th
 
 **Automation:**
 - Auto-sync on task creation: after `addTask` succeeds, fire-and-forget `syncTasksToCalendar(userId)` for the assignee.
-- Auto-sync on task update: same for `toggleTaskStatus` — syncs when task is marked complete or reopened.
+- Auto-sync on task update: same for `updateTaskStatus` or dueDate changes.
 - Task completion sweep: when all open playbook tasks for a lead are completed, create a notification: "All playbook tasks for [stage] are done — advance to next stage?"
 - Business-day-aware due dates: `triggerStagePlaybook` currently adds `daysOffset` in calendar days. Optionally calculate business days so Monday tasks aren't due on weekends.
-
-**Fixed:**
-- `LeadService.addTask()` now auto-syncs to Google Calendar after task creation (`src/services/lead.ts:402-406`)
-- `LeadService.toggleTaskStatus()` now auto-syncs after status change (`src/services/lead.ts:455-459`)
-- Sync is fire-and-forget with `.catch(() => {})` — never blocks task creation. Only fires if assignee has calendar connected (handled internally by CalendarService).
 
 **Cost:** Free (Google Calendar API quota, DB-only task sweep).
 
 ---
 
-## 12. Max-Efficiency AI Consolidation (Single-Call Research) ✅ DONE (other agent)
+## 12. Max-Efficiency AI Consolidation (Single-Call Research)
 
 **Discovery:** The full lead lifecycle currently makes **4 LLM calls** (research → audit → score → outreach draft). Research and audit analyze the **exact same website content** with largely overlapping output dimensions. AI scoring (`generateLeadScore`) is a wasteful meta-analysis.
 
@@ -232,21 +221,17 @@ At 100 leads/month: ~$15 → ~$4 (GPT-4o), or ~$0.29 → ~$0.08 (Gemini Flash).
 
 | Priority | Item | Section | Effort | AI Cost Impact |
 |----------|------|---------|--------|----------------|
-| **P0** | **Merge research + audit + contacts into 1 call + prune HTML** | **§12** | **M** | **-72% AI spend** | ✅ |
+| **P0** | **Merge research + audit + contacts into 1 call + prune HTML** | **§12** | **M** | **-72% AI spend** |
 | P0 | Auto-advance stage after research workflow completes | §6 | S | None | ✅ |
 | P0 | Add `recalculateScore` to `updateStage` | §6 | S | None (rule-based) | ✅ |
-| P0 | Eliminate AI `generateLeadScore` (use deterministic) | §12 | S | -25% AI spend | ✅ |
-| P0 | Extract sweeps to be cron-reliable (not SSE-dependent) | §8 | M | None | ✅ |
-| P1 | Debounce scoring (dirty flag or field-diff) | §7 | S | Saves AI cost | ✅ |
-| P1 | Auto-sync calendar on task create/update | §11 | S | None | ✅ |
-| P1 | Batch operations expansion (bulk to stage, archive, reassign) | §9 | M | None | ✅ |
-| P2 | Auto-research on discovery promotion | §1 | S | None | ✅ |
-| P2 | Playbook-triggered background jobs | §2 | M | None | ✅ |
-| P2 | Duplicate detection on lead creation | §10 | S | None | ✅ |
-| P2 | Overdue task escalation sweep | §8 | S | None | ✅ |
-| P2 | NBA one-click execution | §4 | S | None | ✅ |
-| P2 | Auto-detect industry from website on promotion | §10 | S | ~$0.01/lead | ✅ |
-| P2 | Task completion → prompt stage advancement | §11 | S | None | ✅ |
-| P3 | Cache audit results (skip if data unchanged) | §7 | M | Saves AI cost | ✅ |
-| P3 | Business-day-aware playbook due dates | §11 | S | None | ✅ |
-| P3 | Automated contact discovery (email-finder API integration) | §5 | L | $$$ API cost | ⏭️ Deferred |
+| P0 | Eliminate AI `generateLeadScore` (use deterministic) | §12 | S | -25% AI spend |
+| P0 | Extract sweeps to be cron-reliable (not SSE-dependent) | §8 | M | None |
+| P1 | Debounce scoring (dirty flag or field-diff) | §7 | S | Saves AI cost |
+| P1 | Auto-sync calendar on task create/update | §11 | S | None |
+| P1 | Batch operations expansion (bulk to stage, archive, reassign) | §9 | M | None |
+| P2 | Duplicate detection on lead creation | §10 | S | None |
+| P2 | Overdue task escalation sweep | §8 | S | None |
+| P2 | Auto-detect industry from website on promotion | §10 | S | ~$0.01/lead |
+| P2 | Task completion → prompt stage advancement | §11 | S | None |
+| P3 | Cache audit results (skip if data unchanged) | §7 | M | Saves AI cost |
+| P3 | Business-day-aware playbook due dates | §11 | S | None |

@@ -6,7 +6,7 @@ import { LeadService, PIPELINE_STAGES, type PipelineStage } from '@/services/lea
 import { ReminderService } from '@/services/reminders';
 import { revalidatePath } from 'next/cache';
 import { eq, and, inArray, or, isNull } from 'drizzle-orm';
-import { leads, users } from '@/db/schema/core';
+import { prospects as leads, users } from '@/db/schema/core';
 import { LoggingService } from '@/services/logging';
 import { triggerResearchWorkflow } from '@/lib/workflow-client';
 import { jobRuns } from '@/db/schema/research';

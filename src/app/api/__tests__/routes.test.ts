@@ -12,7 +12,7 @@ import { eq } from 'drizzle-orm';
 import { POST as triggerResearch } from '../leads/[id]/research/route';
 import { GET as getJobStatus } from '../jobs/[id]/route';
 import { jobRuns, researchSnapshots } from '@/db/schema/research';
-import { leads, users } from '@/db/schema/core';
+import { prospects as leads, users } from '@/db/schema/core';
 import { MockD1Database } from '@/db/local-mock';
 
 function setupTestDb() {
@@ -28,7 +28,48 @@ function setupTestDb() {
       updated_at INTEGER DEFAULT (strftime('%s', 'now'))
     );
 
-    CREATE TABLE leads (
+    CREATE TABLE workspaces (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      created_at INTEGER DEFAULT (strftime('%s', 'now')),
+      updated_at INTEGER DEFAULT (strftime('%s', 'now'))
+    );
+
+    CREATE TABLE offers (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+      name TEXT NOT NULL,
+      target_pain TEXT,
+      desired_outcome TEXT,
+      proof_points TEXT,
+      forbidden_claims TEXT,
+      created_at INTEGER DEFAULT (strftime('%s', 'now')),
+      updated_at INTEGER DEFAULT (strftime('%s', 'now'))
+    );
+
+    CREATE TABLE icp_profiles (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+      name TEXT NOT NULL,
+      positive_signals TEXT,
+      negative_signals TEXT,
+      disqualifiers TEXT,
+      created_at INTEGER DEFAULT (strftime('%s', 'now')),
+      updated_at INTEGER DEFAULT (strftime('%s', 'now'))
+    );
+
+    CREATE TABLE markets (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+      name TEXT NOT NULL,
+      icp_profile_id TEXT REFERENCES icp_profiles(id),
+      offer_id TEXT REFERENCES offers(id),
+      status TEXT DEFAULT 'active',
+      created_at INTEGER DEFAULT (strftime('%s', 'now')),
+      updated_at INTEGER DEFAULT (strftime('%s', 'now'))
+    );
+
+    CREATE TABLE prospects (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       company TEXT,
@@ -39,10 +80,17 @@ function setupTestDb() {
       region TEXT,
       industry TEXT,
       stage TEXT NOT NULL DEFAULT 'New',
-      status TEXT NOT NULL DEFAULT 'Active',
       is_read INTEGER DEFAULT 0 NOT NULL,
-      score_dirty INTEGER DEFAULT 1 NOT NULL,
+      status TEXT NOT NULL DEFAULT 'Active',
+      workspace_id TEXT REFERENCES workspaces(id),
+      market_id TEXT REFERENCES markets(id),
+      fit_score INTEGER,
+      confidence_score INTEGER,
+      priority_tier TEXT,
+      disqualified_reason TEXT,
+      fit_reasoning TEXT,
       owner_id TEXT REFERENCES users(id),
+      score_dirty INTEGER DEFAULT 1 NOT NULL,
       created_at INTEGER DEFAULT (strftime('%s', 'now')),
       updated_at INTEGER DEFAULT (strftime('%s', 'now')),
       stage_updated_at INTEGER DEFAULT (strftime('%s', 'now')),
@@ -51,7 +99,7 @@ function setupTestDb() {
 
     CREATE TABLE activities (
       id TEXT PRIMARY KEY,
-      lead_id TEXT NOT NULL REFERENCES leads(id),
+      lead_id TEXT NOT NULL REFERENCES prospects(id),
       type TEXT NOT NULL,
       summary TEXT NOT NULL,
       metadata TEXT,
@@ -64,6 +112,9 @@ function setupTestDb() {
       api_key TEXT NOT NULL,
       model_name TEXT NOT NULL,
       is_active INTEGER DEFAULT 1,
+      is_research_active INTEGER DEFAULT 0,
+      is_scoring_active INTEGER DEFAULT 0,
+      is_drafting_active INTEGER DEFAULT 0,
       created_at INTEGER DEFAULT (strftime('%s', 'now')),
       updated_at INTEGER DEFAULT (strftime('%s', 'now'))
     );
@@ -72,7 +123,7 @@ function setupTestDb() {
       id TEXT PRIMARY KEY,
       job_type TEXT NOT NULL,
       status TEXT NOT NULL,
-      target_lead_id TEXT REFERENCES leads(id),
+      target_lead_id TEXT REFERENCES prospects(id),
       triggered_by_user_id TEXT REFERENCES users(id),
       error_summary TEXT,
       external_run_id TEXT,
@@ -87,7 +138,7 @@ function setupTestDb() {
 
     CREATE TABLE research_snapshots (
       id TEXT PRIMARY KEY,
-      lead_id TEXT NOT NULL REFERENCES leads(id),
+      lead_id TEXT NOT NULL REFERENCES prospects(id),
       created_by_user_id TEXT REFERENCES users(id),
       origin TEXT NOT NULL DEFAULT 'AI_GENERATED',
       snapshot_title TEXT,
@@ -109,7 +160,7 @@ function setupTestDb() {
 
     CREATE TABLE contacts (
       id TEXT PRIMARY KEY,
-      lead_id TEXT NOT NULL REFERENCES leads(id),
+      lead_id TEXT NOT NULL REFERENCES prospects(id),
       full_name TEXT,
       role_title TEXT,
       email TEXT,
@@ -127,7 +178,7 @@ function setupTestDb() {
 
     CREATE TABLE audits (
       id TEXT PRIMARY KEY,
-      lead_id TEXT NOT NULL REFERENCES leads(id),
+      lead_id TEXT NOT NULL REFERENCES prospects(id),
       created_by_user_id TEXT REFERENCES users(id),
       origin TEXT NOT NULL DEFAULT 'AI_GENERATED',
       key_strengths TEXT,
@@ -155,7 +206,7 @@ function setupTestDb() {
 
     CREATE TABLE lead_scores (
       id TEXT PRIMARY KEY,
-      lead_id TEXT NOT NULL REFERENCES leads(id),
+      lead_id TEXT NOT NULL REFERENCES prospects(id),
       score_value INTEGER NOT NULL,
       score_label TEXT,
       rationale_summary TEXT,
@@ -200,7 +251,7 @@ function setupTestDb() {
 
     CREATE TABLE lead_stage_history (
       id TEXT PRIMARY KEY,
-      lead_id TEXT NOT NULL REFERENCES leads(id),
+      lead_id TEXT NOT NULL REFERENCES prospects(id),
       stage TEXT NOT NULL,
       entered_at INTEGER,
       exited_at INTEGER
@@ -222,7 +273,7 @@ function setupTestDb() {
 
     CREATE TABLE nba_action_logs (
       id TEXT PRIMARY KEY,
-      lead_id TEXT NOT NULL REFERENCES leads(id),
+      lead_id TEXT NOT NULL REFERENCES prospects(id),
       user_id TEXT NOT NULL REFERENCES users(id),
       signal TEXT NOT NULL,
       action_taken_at INTEGER,

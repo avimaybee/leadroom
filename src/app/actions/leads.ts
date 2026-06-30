@@ -5,7 +5,7 @@ import { CreateLeadSchema, CreateLeadInput } from '@/db/models/lead';
 import { getDb } from '@/db';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { getUserId } from '@/lib/auth';
+import { getUserId, verifyProspectAccess } from '@/lib/auth';
 
 
 async function getService() {
@@ -66,6 +66,11 @@ export async function archiveLeadAction(id: string) {
   const userId = await getUserId();
   if (!userId) throw new Error('Unauthorized');
 
+  const db = getDb();
+  if (!(await verifyProspectAccess(db, id, userId))) {
+    throw new Error('Forbidden: you do not own this prospect');
+  }
+
   const service = await getService();
   await service.archiveLead(id);
   revalidatePath('/leads');
@@ -75,8 +80,13 @@ export async function updateStageAction(formData: FormData) {
   const userId = await getUserId();
   if (!userId) throw new Error('Unauthorized');
 
-  const service = await getService();
+  const db = getDb();
   const id = formData.get('leadId') as string;
+  if (id && !(await verifyProspectAccess(db, id, userId))) {
+    throw new Error('Forbidden: you do not own this prospect');
+  }
+
+  const service = await getService();
   const stage = formData.get('stage') as string;
   
   if (id && stage) {
@@ -94,6 +104,11 @@ export async function updateLeadAction(prevState: ActionState, formData: FormDat
   const service = await getService();
   const id = formData.get('leadId') as string;
   if (!id) return { error: 'Lead ID is required' };
+
+  const db = getDb();
+  if (!(await verifyProspectAccess(db, id, userId))) {
+    return { error: 'Forbidden: you do not own this prospect' };
+  }
 
   const rawData = {
     name: formData.get('name') as string,
@@ -133,8 +148,14 @@ export async function addNoteAction(prevState: ActionState, formData: FormData) 
   const leadId = formData.get('leadId') as string;
   const body = formData.get('body') as string;
 
+  if (!leadId) return { error: 'Lead ID is required' };
   if (!body || body.trim() === '') {
     return { error: 'Note content cannot be empty' };
+  }
+
+  const db = getDb();
+  if (!(await verifyProspectAccess(db, leadId, userId))) {
+    return { error: 'Forbidden: you do not own this prospect' };
   }
 
   try {
