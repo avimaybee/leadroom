@@ -1389,7 +1389,7 @@ export async function checkModelVisionCapability(provider: string, modelName: st
 export async function getModelInfo(db: Db): Promise<{ provider: string; modelName: string; hasVision: boolean }> {
   const config = await getActiveProviderConfig(db);
   const provider = config?.provider || 'gemini';
-  const apiKey = config?.apiKey || (process as any).env?.GEMINI_API_KEY;
+  const apiKey = config?.apiKey || getEnvApiKey(provider);
   const modelName = config?.modelName || (
     provider === 'openrouter' ? 'google/gemini-2.5-flash' : 
     provider === 'nvidia' ? 'meta/llama-3.1-70b-instruct' : 
