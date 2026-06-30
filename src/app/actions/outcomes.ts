@@ -31,7 +31,7 @@ export async function approveDraftAction(draftId: string) {
     await outreachService.recordApproval(draftId, userId, 'APPROVED');
 
     try {
-      revalidatePath(`/prospects/${draft.leadId}`);
+      revalidatePath(`/leads/${draft.leadId}`);
       revalidatePath('/');
     } catch (e) {}
 
@@ -75,7 +75,7 @@ export async function rejectDraftAction(draftId: string, reason: string) {
     await outreachService.recordApproval(draftId, userId, 'REJECTED', reason);
 
     try {
-      revalidatePath(`/prospects/${draft.leadId}`);
+      revalidatePath(`/leads/${draft.leadId}`);
       revalidatePath('/');
     } catch (e) {}
 
@@ -138,7 +138,7 @@ export async function logOutcomeAction(data: {
     }
 
     try {
-      revalidatePath(`/prospects/${data.prospectId}`);
+      revalidatePath(`/leads/${data.prospectId}`);
       revalidatePath('/');
     } catch (e) {}
 

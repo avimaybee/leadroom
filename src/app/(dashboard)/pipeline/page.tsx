@@ -197,7 +197,7 @@ export default function PipelinePage() {
                             className="rounded-lg border border-border bg-background p-3 space-y-1.5 cursor-grab active:cursor-grabbing hover:shadow-sm transition-shadow group"
                           >
                             <div className="flex items-center justify-between">
-                              <Link href={`/prospects/${prospect.id}`} className="text-copy-14 font-medium text-foreground truncate hover:underline">
+                              <Link href={`/leads/${prospect.id}`} className="text-copy-14 font-medium text-foreground truncate hover:underline">
                                 {prospect.company || prospect.name}
                               </Link>
                               {actionLoading === prospect.id && (
@@ -280,7 +280,7 @@ export default function PipelinePage() {
                         {p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : '--'}
                       </td>
                       <td className="text-center py-3 px-4">
-                        <Link href={`/prospects/${p.id}`} className={buttonVariants({ variant: 'outline', size: 'xs' })}>
+                        <Link href={`/leads/${p.id}`} className={buttonVariants({ variant: 'outline', size: 'xs' })}>
                           Review
                         </Link>
                       </td>

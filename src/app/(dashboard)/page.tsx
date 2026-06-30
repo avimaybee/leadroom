@@ -300,7 +300,7 @@ export default async function DashboardPage() {
                         {p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : '--'}
                       </td>
                       <td className="text-center py-3 px-4">
-                        <Link href={`/prospects/${p.id}`} className={buttonVariants({ variant: 'outline', size: 'xs' })}>
+                        <Link href={`/leads/${p.id}`} className={buttonVariants({ variant: 'outline', size: 'xs' })}>
                           Review
                         </Link>
                       </td>

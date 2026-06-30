@@ -600,8 +600,14 @@ export class LeadService {
 
         if (template.jobType === 'RESEARCH_GENERATION' || !template.jobType) {
           const { triggerResearchWorkflow } = await import('../lib/workflow-client');
-          const env = (process.env as unknown as Record<string, unknown>);
-          const workflowBinding = env?.RESEARCH_SNAPSHOT_WORKFLOW as any;
+          let workflowBinding: any = undefined;
+          try {
+            const { getCloudflareContext } = require('@opennextjs/cloudflare');
+            workflowBinding = getCloudflareContext().env?.RESEARCH_SNAPSHOT_WORKFLOW;
+          } catch (e) {}
+          if (!workflowBinding) {
+            workflowBinding = (process.env as any)?.RESEARCH_SNAPSHOT_WORKFLOW;
+          }
           await triggerResearchWorkflow(this.db, workflowBinding, leadId, jobId, lead?.ownerId);
         }
         continue;

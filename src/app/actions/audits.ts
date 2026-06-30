@@ -66,8 +66,14 @@ export async function triggerAuditAction(leadId: string) {
       createdAt: now,
     });
 
-    const env = (process.env as unknown as Record<string, unknown>);
-    const workflowBinding = env?.RESEARCH_SNAPSHOT_WORKFLOW as CloudflareWorkflow | undefined;
+    let workflowBinding: any = undefined;
+    try {
+      const { getCloudflareContext } = require('@opennextjs/cloudflare');
+      workflowBinding = getCloudflareContext().env?.RESEARCH_SNAPSHOT_WORKFLOW;
+    } catch (e) {}
+    if (!workflowBinding) {
+      workflowBinding = (process.env as any)?.RESEARCH_SNAPSHOT_WORKFLOW;
+    }
 
     await triggerResearchWorkflow(db, workflowBinding, leadId, jobId, userId);
 

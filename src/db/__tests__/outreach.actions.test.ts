@@ -6,8 +6,49 @@ import { setupTestDb as initTestDb } from './test-helpers';
 
 // Setup environment variable so getDb works
 process.env.AUTH_SECRET = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+process.env.GEMINI_API_KEY = 'mock_key';
 (process.env as any).NODE_ENV = 'test';
 (globalThis as any).mockUserId = 'user-admin';
+
+// Mock global fetch for Gemini API draft generation
+globalThis.fetch = async (url: any) => {
+  const urlStr = String(url);
+  if (urlStr.includes('generativelanguage.googleapis.com')) {
+    return {
+      ok: true,
+      json: async () => ({
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  text: JSON.stringify({
+                    drafts: [
+                      {
+                        subject: 'Mock Subject',
+                        body: 'Mock draft body. MEETING PREP GUIDE: mock content.',
+                        variationTone: 'Professional',
+                        riskFlags: [],
+                        citedEvidence: [
+                          {
+                            sentence: 'Mock draft body.',
+                            evidenceQuote: 'Mock quote.',
+                            sourceUrl: 'https://example.com',
+                          },
+                        ],
+                      },
+                    ],
+                  }),
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    } as any;
+  }
+  return { ok: true, json: async () => ({}) } as any;
+};
 
 const { sqlite } = initTestDb();
 

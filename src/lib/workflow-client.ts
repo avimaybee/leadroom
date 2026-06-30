@@ -118,7 +118,7 @@ export async function triggerResearchWorkflow(
           'Research Completed',
           `Research workflow for lead completed.`,
           'SUCCESS',
-          `/dashboard/leads/${leadId}/research`
+          `/leads/${leadId}?view=research`
         );
       }
 
@@ -165,7 +165,7 @@ export async function triggerResearchWorkflow(
             isCancelled ? 'Research Cancelled' : 'Research Failed',
             isCancelled ? 'Research workflow was cancelled by operator.' : `AI research generation failed: ${errMsg}`,
             'ERROR',
-            `/dashboard/leads/${leadId}/research`
+            `/leads/${leadId}?view=research`
           );
         }
       } catch (dbErr: unknown) {
@@ -307,7 +307,7 @@ export async function triggerDiscoverySearchWorkflow(
           'Discovery Completed',
           `Found ${results.length} leads for ${niche} in ${location}.`,
           'SUCCESS',
-          scopeId ? `/dashboard/discovery/scopes/${scopeId}` : `/dashboard/discovery`
+          scopeId ? `/scopes/${scopeId}` : `/scopes`
         );
       }
 
@@ -328,7 +328,7 @@ export async function triggerDiscoverySearchWorkflow(
             'Discovery Failed',
             `Discovery search failed: ${errMsg}`,
             'ERROR',
-            scopeId ? `/dashboard/discovery/scopes/${scopeId}` : `/dashboard/discovery`
+            scopeId ? `/scopes/${scopeId}` : `/scopes`
           );
         }
       } catch (dbErr) {

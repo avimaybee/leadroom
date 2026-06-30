@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, use } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Loader2, ExternalLink, Search, FileText, Trash2, X, AlertTriangle, Clock, ShieldAlert, Settings, Info } from 'lucide-react';
+import { ArrowLeft, Loader2, ExternalLink, Search, FileText, Trash2, X, AlertTriangle, Clock, ShieldAlert, Settings, Info, Edit } from 'lucide-react';
 import { formatUTC } from '@/lib/date';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -116,6 +116,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
   const [isSettingsSheetOpen, setIsSettingsSheetOpen] = useState(false);
   const [newScopeName, setNewScopeName] = useState('');
   const [isRenaming, setIsRenaming] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
 
   // Custom Alert Dialog for Bulk Discard
   const [isBulkDiscardOpen, setIsBulkDiscardOpen] = useState(false);
@@ -245,24 +246,27 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
     }
   };
 
-  const handleRename = async () => {
-    const trimmed = newScopeName.trim();
-    if (!trimmed || !scope) return;
+  const handleRename = async (overrideName?: string) => {
+    const nameToUse = (overrideName !== undefined ? overrideName : newScopeName).trim();
+    if (!nameToUse || !scope) return;
     setIsRenaming(true);
     try {
       const res = await fetch('/api/scopes', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: scope.id, name: trimmed }),
+        body: JSON.stringify({ id: scope.id, name: nameToUse }),
       });
       if (!res.ok) {
         const errData = (await res.json()) as { error?: string };
         throw new Error(errData.error || 'Failed to rename campaign');
       }
-      setScope(prev => prev ? { ...prev, name: trimmed } : prev);
+      setScope(prev => prev ? { ...prev, name: nameToUse } : prev);
+      setNewScopeName(nameToUse);
       setIsSettingsSheetOpen(false);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error renaming campaign';
+      alert(msg);
+      setNewScopeName(scope.name);
       alert(msg);
     } finally {
       setIsRenaming(false);
@@ -470,7 +474,40 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
 
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 flex-1">
-            <h1 className="text-heading-3xl text-card-foreground capitalize">{scope.name}</h1>
+            {isEditingName ? (
+              <Input
+                autoFocus
+                value={newScopeName}
+                onChange={(e) => setNewScopeName(e.target.value)}
+                onBlur={async () => {
+                  setIsEditingName(false);
+                  if (newScopeName.trim() && newScopeName.trim() !== scope.name) {
+                    await handleRename(newScopeName);
+                  }
+                }}
+                onKeyDown={async (e) => {
+                  if (e.key === 'Enter') {
+                    setIsEditingName(false);
+                    if (newScopeName.trim() && newScopeName.trim() !== scope.name) {
+                      await handleRename(newScopeName);
+                    }
+                  } else if (e.key === 'Escape') {
+                    setNewScopeName(scope.name);
+                    setIsEditingName(false);
+                  }
+                }}
+                className="text-heading-3xl font-bold bg-transparent border-b border-dashed border-border focus:border-primary focus:ring-0 outline-none w-full max-w-xl p-0 h-auto rounded-none capitalize"
+              />
+            ) : (
+              <h1 
+                onClick={() => setIsEditingName(true)}
+                className="text-heading-3xl text-card-foreground capitalize font-bold cursor-pointer hover:text-primary/80 transition-colors flex items-center gap-2 group w-fit"
+                title="Click to rename"
+              >
+                {scope.name}
+                <Edit className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground" />
+              </h1>
+            )}
             <p className="text-copy-14 text-muted-foreground mt-1.5 leading-relaxed">
               {specsHeaderSummary}
             </p>
@@ -526,21 +563,6 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                 </SheetHeader>
 
                 <div className="space-y-3 border-t border-border/50 pt-3 text-label-12">
-                  {/* Rename Form */}
-                  <div className="space-y-1">
-                    <Label htmlFor="sheet-rename-input" className="text-label-12 text-muted-foreground">Rename Campaign</Label>
-                    <div className="flex gap-2">
-                        <Input
-                          id="sheet-rename-input"
-                          value={newScopeName}
-                          onChange={e => setNewScopeName(e.target.value)}
-                          className="text-copy-14"
-                      />
-                      <Button size="sm" onClick={handleRename} disabled={isRenaming}>
-                        {isRenaming ? 'Saving...' : 'Rename'}
-                      </Button>
-                    </div>
-                  </div>
 
                   {/* Specifications (Read-Only context details) */}
                   <div className="space-y-2 pt-2 border-t border-border/40">
@@ -652,7 +674,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                 variant="ghost"
                 className={`pb-4 px-6 font-semibold text-label-14 border-b-2 transition-all duration-200 rounded-none focus-visible:outline-none focus-visible:ring-0 ${
                   activeTab === tab.key
-                    ? 'border-primary text-primary font-semibold'
+                    ? 'border-b-primary border-t-transparent border-x-transparent text-primary font-semibold'
                     : 'border-transparent text-muted-foreground hover:text-foreground'
                 }`}
               >
@@ -761,7 +783,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                 <>
                   {/* Skip candidates cleanup notice and Action button */}
                   {activeTab === 'pending' && candidates.some(c => (c.status === 'NEW' || c.status === 'REVIEWED') && c.triagePriority === 'SKIP') && (
-                    <div className="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center bg-muted border border-border/60 p-4 rounded-2xl shadow-sm mb-4">
+                    <div className="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center bg-muted border border-border/60 p-4 rounded-xl shadow-sm mb-4">
                       <div className="text-label-12 text-muted-foreground font-semibold leading-relaxed flex items-center gap-1.5">
                         <Info className="w-4 h-4 text-muted-foreground/80 shrink-0" />
                         <span>Low-priority prospects (outdated sites or offline) are pushed to the bottom. Discard them in bulk to clear.</span>
@@ -798,11 +820,8 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                   {filteredCandidates.map((candidate) => (
                     <div
                       key={candidate.id}
-                      className={`bg-card border border-border rounded-xl p-5 flex flex-col md:flex-row justify-between md:items-start gap-5 transition-all duration-200 border-l-4 ${
-                        candidate.triagePriority === 'HIGH' ? 'border-l-destructive/80' :
-                        candidate.triagePriority === 'MEDIUM' ? 'border-l-chart-3/80' :
-                        candidate.triagePriority === 'SKIP' ? 'opacity-60 bg-muted/20 border-l-muted' :
-                        'border-l-blue-400/40'
+                      className={`bg-card border border-border rounded-xl p-5 flex flex-col md:flex-row justify-between md:items-start gap-5 transition-all duration-200 ${
+                        candidate.triagePriority === 'SKIP' ? 'opacity-60 bg-muted/20' : ''
                       }`}
                     >
                       <div className="space-y-2.5 flex-1 min-w-0">
@@ -903,7 +922,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                         )}
                         {candidate.status === 'PROMOTED' && candidate.promotedLeadId && (
                           <Link
-                            href={`/leads/${candidate.promotedLeadId}?autoEnrich=true`}
+                            href={`/leads/${candidate.promotedLeadId}`}
                             className="inline-flex items-center justify-center px-3 py-1.5 rounded-md text-label-12 font-semibold bg-chart-2/10 text-chart-2 border border-chart-2/20 hover:bg-chart-2/15 transition-colors text-center"
                           >
                             Research Lead &rarr;
@@ -936,15 +955,6 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                   Add a candidate prospect to triage for promotion.
                 </DialogDescription>
               </div>
-              <Button
-                onClick={() => setIsModalOpen(false)}
-                variant="ghost"
-                size="icon"
-                className="w-7 h-7"
-                aria-label="Close dialog"
-              >
-                <X className="w-4 h-4" aria-hidden="true" />
-              </Button>
             </DialogHeader>
 
             <form onSubmit={handleAddCandidate} className="space-y-4">
@@ -1035,15 +1045,6 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                   Re-scan Google Maps to discover new prospect candidate businesses.
                 </DialogDescription>
               </div>
-              <Button
-                onClick={() => setIsRefineModalOpen(false)}
-                variant="ghost"
-                size="icon"
-                className="w-7 h-7"
-                aria-label="Close dialog"
-              >
-                <X className="w-4 h-4" aria-hidden="true" />
-              </Button>
             </DialogHeader>
 
             <div className="bg-chart-5/10 border border-chart-5/20 text-chart-5 p-4 rounded-xl text-label-12 font-semibold leading-relaxed flex gap-3">

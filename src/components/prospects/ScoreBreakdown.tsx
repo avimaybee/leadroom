@@ -30,42 +30,21 @@ const TIER_COLORS: Record<string, string> = {
 };
 
 const TIER_LABELS: Record<string, string> = {
-  tier1: 'Tier 1',
-  tier2: 'Tier 2',
-  tier3: 'Tier 3',
+  tier1: 'Tier 1 (Strong)',
+  tier2: 'Tier 2 (Medium)',
+  tier3: 'Tier 3 (Low)',
   disqualified: 'Disqualified',
 };
 
-function CircularGauge({ value, label, color }: { value: number; label: string; color: string }) {
-  const radius = 36;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (value / 100) * circumference;
-  return (
-    <div className="flex flex-col items-center gap-1">
-      <svg width="88" height="88" className="-rotate-90">
-        <circle cx="44" cy="44" r={radius} fill="none" stroke="hsl(var(--muted))" strokeWidth="6" />
-        <circle
-          cx="44" cy="44" r={radius}
-          fill="none" stroke={color}
-          strokeWidth="6"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          strokeLinecap="round"
-          className="transition-all duration-700"
-        />
-        <text x="44" y="44" textAnchor="middle" dy="0.35em" className="fill-foreground text-lg font-bold" transform="rotate(90 44 44)">
-          {value}
-        </text>
-      </svg>
-      <span className="text-label-12 text-muted-foreground">{label}</span>
-    </div>
-  );
-}
-
-export function ScoreBreakdown({ fitScore, confidenceScore, priorityTier, breakdown, isOverridden, overrideReason, fitReasoning }: ScoreBreakdownProps) {
+export function ScoreBreakdown({
+  confidenceScore,
+  priorityTier,
+  breakdown,
+  isOverridden,
+  overrideReason,
+  fitReasoning,
+}: ScoreBreakdownProps) {
   const [expanded, setExpanded] = useState<number | null>(null);
-
-  const fitColor = fitScore >= 70 ? 'hsl(var(--chart-2))' : fitScore >= 40 ? 'hsl(var(--chart-5))' : 'hsl(var(--muted-foreground))';
 
   return (
     <div className="space-y-6">
@@ -82,12 +61,23 @@ export function ScoreBreakdown({ fitScore, confidenceScore, priorityTier, breakd
         </div>
       )}
 
-      <div className="flex items-center justify-around">
-        <CircularGauge value={fitScore} label="Fit Score" color={fitColor} />
-        <CircularGauge value={confidenceScore} label="Confidence" color="hsl(var(--primary))" />
-        <Badge className={cn('text-label-12 px-3 py-1', TIER_COLORS[priorityTier] || 'bg-muted-foreground')}>
-          {TIER_LABELS[priorityTier] || priorityTier}
-        </Badge>
+      <div className="flex flex-wrap items-center gap-6 pb-2">
+        <div className="flex flex-col gap-1">
+          <span className="text-label-12 text-muted-foreground uppercase">Fit Assessment</span>
+          <Badge className={cn('text-label-12 px-3 py-1 font-semibold w-fit', TIER_COLORS[priorityTier] || 'bg-muted-foreground')}>
+            {TIER_LABELS[priorityTier] || priorityTier}
+          </Badge>
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-label-12 text-muted-foreground uppercase">Data Confidence</span>
+          <Badge className={cn('text-label-12 px-3 py-1 font-semibold w-fit', 
+            confidenceScore >= 70 ? 'bg-chart-2/10 text-chart-2 border border-chart-2/20' : 
+            confidenceScore >= 40 ? 'bg-chart-5/10 text-chart-5 border border-chart-5/20' : 
+            'bg-destructive/10 text-destructive border border-destructive/20'
+          )}>
+            {confidenceScore >= 70 ? 'High Confidence' : confidenceScore >= 40 ? 'Medium Confidence' : 'Low Confidence'}
+          </Badge>
+        </div>
       </div>
 
       <div className="space-y-1">
@@ -106,8 +96,12 @@ export function ScoreBreakdown({ fitScore, confidenceScore, priorityTier, breakd
                   {expanded === i ? <ChevronDown className="w-3.5 h-3.5 shrink-0 text-muted-foreground" /> : <ChevronRight className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />}
                   <span className="text-copy-14 truncate">{item.factor}</span>
                 </div>
-                <span className={cn('text-label-12 font-semibold shrink-0 ml-2', item.contribution < 0 ? 'text-destructive' : item.contribution > 0 ? 'text-chart-2' : 'text-muted-foreground')}>
-                  {item.contribution > 0 ? `+${item.contribution}` : item.contribution}
+                <span className={cn('text-label-12 font-semibold shrink-0 ml-2 px-2 py-0.5 rounded border', 
+                  item.contribution < 0 ? 'bg-destructive/10 border-destructive/20 text-destructive' : 
+                  item.contribution > 0 ? 'bg-chart-2/10 border-chart-2/20 text-chart-2' : 
+                  'bg-muted border-border text-muted-foreground'
+                )}>
+                  {item.contribution < 0 ? 'Negative Signal' : item.contribution > 0 ? 'Positive Match' : 'Neutral'}
                 </span>
               </button>
               {expanded === i && (

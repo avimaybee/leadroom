@@ -266,9 +266,7 @@ export default function LeadsTableClient({
                   nextActionType = 'stale';
                 }
                 return (
-                  <div key={lead.id} className={`bg-card rounded-xl border border-border p-5 space-y-4 relative overflow-hidden border-l-4 ${
-                    lead.scoreLabel === 'High' ? 'border-l-destructive' : lead.scoreLabel === 'Medium' ? 'border-l-chart-3' : 'border-l-muted'
-                  }`}>
+                  <div key={lead.id} className="bg-card rounded-xl border border-border p-5 space-y-4 relative overflow-hidden">
                     <div className="flex items-center gap-2 mb-2"><LeadCheckbox leadId={lead.id} /></div>
                     <div className="flex justify-between items-start gap-4">
                       <div>

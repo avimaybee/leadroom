@@ -8,7 +8,32 @@ interface ResearchLoadingStateProps {
   onCancel: () => void;
 }
 
+const PIPELINE_STEPS = [
+  {
+    label: 'Job Queued',
+    desc: 'Research task created and submitted to the workflow',
+    activeWhen: ['QUEUED', 'RUNNING', 'COMPLETED'],
+  },
+  {
+    label: 'Scraping Website',
+    desc: 'Fetching and parsing the prospect\'s website content',
+    activeWhen: ['RUNNING', 'COMPLETED'],
+  },
+  {
+    label: 'Running AI Analysis',
+    desc: 'Research engine analysing company profile, brand presence, and pain signals',
+    activeWhen: ['RUNNING', 'COMPLETED'],
+  },
+  {
+    label: 'Persisting Evidence',
+    desc: 'Storing research snapshot, audit findings, contacts, and fit score',
+    activeWhen: ['COMPLETED'],
+  },
+];
+
 export function ResearchLoadingState({ jobStatus, leadId, onCancel }: ResearchLoadingStateProps) {
+  const status = jobStatus || 'QUEUED';
+
   return (
     <div className="bg-card p-8 rounded-2xl border border-border max-w-xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
@@ -17,61 +42,42 @@ export function ResearchLoadingState({ jobStatus, leadId, onCancel }: ResearchLo
             <Loader2 className="h-5 w-5 animate-spin" />
           </div>
           <div>
-            <h4 className="text-label-14 text-foreground uppercase">Research Pipeline Executing</h4>
-            <p className="text-label-12 text-muted-foreground mt-0.5">Cloudflare Workflows durable agent run</p>
+            <h4 className="text-label-14 text-foreground uppercase">Research In Progress</h4>
+            <p className="text-label-12 text-muted-foreground mt-0.5">AI agent is gathering evidence on this prospect</p>
           </div>
         </div>
         <span className="px-2 py-0.5 rounded-lg text-label-12 uppercase bg-chart-5/10 text-chart-5 border border-chart-5/20 animate-pulse">
-          {jobStatus || 'QUEUED'}
+          {status}
         </span>
       </div>
 
       {/* Timeline Steps */}
       <div className="relative pl-6 border-l border-border space-y-5 ml-4">
-        {[
-          {
-            label: 'Queueing Background Work',
-            desc: 'Acquiring sandbox instance',
-            activeStatus: 'QUEUED',
-          },
-          {
-            label: 'Fetching Website Contents',
-            desc: 'Extracting clean markdown via Jina Reader',
-            activeStatus: 'RUNNING',
-          },
-          {
-            label: 'LLM Footprint & Branding Audit',
-            desc: 'Analyzing layout, copywriting, positioning, and pain points',
-            activeStatus: 'RUNNING',
-          },
-          {
-            label: 'Finalizing Snapshot',
-            desc: 'Storing research, evidence URLs, and opportunity hypotheses',
-            activeStatus: 'COMPLETED',
-          },
-        ].map((step, idx) => {
-          const stepStatuses = ['QUEUED', 'RUNNING', 'RUNNING', 'COMPLETED'];
-          const isStepActive = stepStatuses.indexOf(jobStatus || '') >= idx;
-          const isStepCompleted = stepStatuses.indexOf('COMPLETED') >= idx && (jobStatus === 'COMPLETED');
-          const isCurrentStep = stepStatuses.indexOf(jobStatus || '') === idx;
+        {PIPELINE_STEPS.map((step, idx) => {
+          const isActive = step.activeWhen.includes(status);
+          const isCompleted = status === 'COMPLETED';
+          // The "current" step is the last active step when not yet completed
+          const isCurrentStep = isActive && !isCompleted && idx === PIPELINE_STEPS.filter(s => s.activeWhen.includes(status)).length - 1;
 
           return (
             <div key={idx} className="relative">
               <div className={`absolute -left-[31px] top-0.5 w-4 h-4 rounded-full border flex items-center justify-center ${
-                isStepCompleted
+                isCompleted && isActive
                   ? 'bg-chart-2 border-chart-2 text-white'
                   : isCurrentStep
                     ? 'bg-primary border-primary text-white animate-pulse'
-                    : 'bg-card border-border'
+                    : isActive
+                      ? 'bg-primary/30 border-primary/50'
+                      : 'bg-card border-border'
               }`}>
-                {isStepCompleted ? (
+                {isCompleted && isActive ? (
                   <Check className="w-2.5 h-2.5" />
                 ) : isCurrentStep ? (
                   <div className="w-1.5 h-1.5 bg-card rounded-full" />
                 ) : null}
               </div>
               <div>
-                <p className={`text-label-12 ${isCurrentStep ? 'text-primary' : isStepCompleted ? 'text-foreground' : 'text-muted-foreground'}`}>
+                <p className={`text-label-12 ${isCurrentStep ? 'text-primary' : (isCompleted && isActive) ? 'text-foreground' : isActive ? 'text-foreground/70' : 'text-muted-foreground'}`}>
                   {step.label}
                 </p>
                 <p className="text-label-12 text-muted-foreground">{step.desc}</p>

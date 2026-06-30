@@ -76,6 +76,7 @@ interface LeadDetailsWorkspaceProps {
   nbaResults?: any[];
   autoFollowUpDue?: Date | null;
   unmetRequirements?: Record<string, string>;
+  researchTasks: any[];
 }
 
 const WORKSPACE_NAV: Array<{ value: WorkspaceView; label: string; icon: typeof Building2 }> = [
@@ -130,6 +131,7 @@ export default function LeadDetailsWorkspace({
   nbaResults,
   autoFollowUpDue,
   unmetRequirements,
+  researchTasks,
 }: LeadDetailsWorkspaceProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -691,19 +693,53 @@ export default function LeadDetailsWorkspace({
         {activeView === 'research' ? (
           <div className="space-y-6">
             <ClientResearchView leadId={lead.id} initialSnapshot={latestSnapshot} saveResearchSnapshotAction={saveResearchSnapshotAction} pollingJobId={pollingJobId} setPollingJobId={setPollingJobId} jobStatus={jobStatus} setJobStatus={setJobStatus} isEnriching={isEnriching} setIsEnriching={setIsEnriching} jobError={jobError} setJobError={setJobError} handleCancelResearch={handleCancelResearch} />
-            <ClientAuditView leadId={lead.id} initialAudit={latestAudit} initialScore={currentScore} manualOverrideScoreAction={manualOverrideScoreAction} />
+            <ClientAuditView 
+              leadId={lead.id} 
+              initialAudit={latestAudit} 
+              initialScore={currentScore} 
+              manualOverrideScoreAction={manualOverrideScoreAction}
+              fitScore={lead.fitScore}
+              confidenceScore={lead.confidenceScore}
+              priorityTier={lead.priorityTier}
+              fitReasoning={lead.fitReasoning}
+              researchTasks={researchTasks}
+              isResearchRunning={!!pollingJobId || jobStatus === 'QUEUED' || jobStatus === 'RUNNING'}
+            />
           </div>
         ) : null}
 
         {activeView === 'outreach' ? (
-          <OutreachAssistant
-            leadId={lead.id}
-            initialDrafts={outreachDrafts.map((draft: any) => ({ ...draft, createdAt: draft.createdAt ? new Date(draft.createdAt) : null, updatedAt: draft.updatedAt ? new Date(draft.updatedAt) : null }))}
-            researchSnapshot={latestSnapshot}
-            auditSnapshot={latestAudit}
-            contacts={contactsList}
-            initialChannel={initialChannel}
-          />
+          !latestSnapshot ? (
+            <div className="rounded-xl border border-border bg-card p-10 text-center space-y-3">
+              <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted mb-2">
+                <FileSearch className="w-5 h-5 text-muted-foreground" />
+              </div>
+              <h3 className="text-label-14 font-semibold text-foreground">
+                {pollingJobId || jobStatus === 'QUEUED' || jobStatus === 'RUNNING'
+                  ? 'Research in progress'
+                  : 'No research yet'}
+              </h3>
+              <p className="text-copy-13 text-muted-foreground max-w-sm mx-auto">
+                {pollingJobId || jobStatus === 'QUEUED' || jobStatus === 'RUNNING'
+                  ? 'Drafts will be available once the AI research agent finishes collecting evidence.'
+                  : 'Run research first to give the AI enough context to generate a meaningful outreach draft.'}
+              </p>
+              {!(pollingJobId || jobStatus === 'QUEUED' || jobStatus === 'RUNNING') && (
+                <Button variant="outline" size="sm" onClick={() => navigateTo('research')} className="mt-2">
+                  Go to Research &amp; Audit
+                </Button>
+              )}
+            </div>
+          ) : (
+            <OutreachAssistant
+              leadId={lead.id}
+              initialDrafts={outreachDrafts.map((draft: any) => ({ ...draft, createdAt: draft.createdAt ? new Date(draft.createdAt) : null, updatedAt: draft.updatedAt ? new Date(draft.updatedAt) : null }))}
+              researchSnapshot={latestSnapshot}
+              auditSnapshot={latestAudit}
+              contacts={contactsList}
+              initialChannel={initialChannel}
+            />
+          )
         ) : null}
 
         {activeView === 'activity' ? (

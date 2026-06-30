@@ -405,6 +405,8 @@ test('API Route Handlers & Integration Pipeline', async (t) => {
 
 
   await t.test('Local Simulation should run, complete, and create a research snapshot', async () => {
+    process.env.GEMINI_API_KEY = 'mock_key';
+
     // Use a separate lead so the idempotency guard does not block this test
     await db.insert(leads).values({
       id: 'lead_sim',
@@ -414,9 +416,48 @@ test('API Route Handlers & Integration Pipeline', async (t) => {
       industry: 'Financial Technology',
     });
 
-    // Mock global fetch for Jina Reader website scraper
+    // Mock global fetch for Jina Reader website scraper and Gemini API
     const originalFetch = globalThis.fetch;
     globalThis.fetch = async (url: any) => {
+      const urlStr = String(url);
+      if (urlStr.includes('generativelanguage.googleapis.com')) {
+        return {
+          ok: true,
+          json: async () => ({
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    {
+                      text: JSON.stringify({
+                        companySummary: 'Stripe is a payments infrastructure company.',
+                        productsServicesSummary: 'Payments API, Billing, Checkout.',
+                        digitalPresenceNotes: 'Active on Twitter and LinkedIn.',
+                        websiteNotes: 'Very clean landing page.',
+                        brandingNotes: 'Excellent branding.',
+                        painPointsHypotheses: '- Some pain point',
+                        opportunityHypotheses: '- Some opportunity',
+                        confidenceLevel: 'HIGH',
+                        keyStrengths: '- Fast load times',
+                        keyWeaknesses: '- High fees',
+                        recommendedImprovements: '- Lower fees',
+                        contacts: {
+                          people: [],
+                          socialLinks: {},
+                          emails: [],
+                          phones: []
+                        },
+                        sources: ['https://stripe.com']
+                      })
+                    }
+                  ]
+                }
+              }
+            ]
+          })
+        } as any;
+      }
+
       return {
         ok: true,
         json: async () => ({

@@ -97,6 +97,20 @@ const PROVIDER_CONFIG_CACHE_TTL_MS = 60_000; // 1 minute
 import { IntegrationsService } from '../services/integrations';
 import type { TaskType } from '../services/integrations';
 
+function getEnvApiKey(provider: string): string | undefined {
+  const env = process.env as any;
+  switch (provider) {
+    case 'gemini': return env.GEMINI_API_KEY;
+    case 'openai': return env.OPENAI_API_KEY;
+    case 'anthropic': return env.ANTHROPIC_API_KEY;
+    case 'groq': return env.GROQ_API_KEY;
+    case 'openrouter': return env.OPENROUTER_API_KEY;
+    case 'nvidia': return env.NVIDIA_API_KEY;
+    case 'aiml': return env.AIML_API_KEY;
+    default: return undefined;
+  }
+}
+
 /**
  * Resolves the active provider config for a given task type, caching the result by Db instance.
  * Subsequent calls within the same scope reuse the cached value.
@@ -143,7 +157,7 @@ export async function generateResearch(
 ): Promise<AIResearchOutput> {
   const config = await getActiveProviderConfig(db, 'research');
   let provider = config?.provider || 'gemini';
-  let apiKey = config?.apiKey || (process as any).env?.GEMINI_API_KEY;
+  let apiKey = config?.apiKey || getEnvApiKey(provider);
   let modelName = config?.modelName || (
     provider === 'openrouter' ? 'google/gemini-2.5-flash' : 
     provider === 'nvidia' ? 'meta/llama-3.1-70b-instruct' : 
@@ -155,7 +169,7 @@ export async function generateResearch(
   );
 
   if (!apiKey || apiKey === 'placeholder' || apiKey === '') {
-    return generateMockResearch(leadName, companyName, websiteUrl, industry);
+    throw new Error(`API key for provider "${provider}" is not configured. Please set it in Settings -> Integrations.`);
   }
 
   const name = companyName || leadName;
@@ -278,8 +292,8 @@ Provide your response strictly in JSON format matching this schema:
       const parsed = JSON.parse(textResult);
       return AIResearchSchema.parse(parsed);
     } catch (error: unknown) {
-      console.error('Gemini API call failed, falling back to mock generator:', error);
-      return generateMockResearch(leadName, companyName, websiteUrl, industry);
+      console.error('Gemini API call failed:', error);
+      throw error;
     }
   }
 
@@ -292,8 +306,8 @@ Provide your response strictly in JSON format matching this schema:
       const parsed = JSON.parse(textResult);
       return AIResearchSchema.parse(parsed);
     } catch (error: unknown) {
-      console.error('Anthropic API call failed, falling back to mock generator:', error);
-      return generateMockResearch(leadName, companyName, websiteUrl, industry);
+      console.error('Anthropic API call failed:', error);
+      throw error;
     }
   }
 
@@ -325,8 +339,8 @@ Provide your response strictly in JSON format matching this schema:
 
     return AIResearchSchema.parse(parsed);
   } catch (error: unknown) {
-    console.error(`${provider} API call failed, falling back to mock generator:`, error);
-    return generateMockResearch(leadName, companyName, websiteUrl, industry);
+    console.error(`${provider} API call failed:`, error);
+    throw error;
   }
 }
 
@@ -414,7 +428,7 @@ export async function generateResearchAndAudit(
 ): Promise<AIResearchAuditOutput> {
   const config = await getActiveProviderConfig(db, 'research');
   let provider = config?.provider || 'gemini';
-  let apiKey = config?.apiKey || (process as any).env?.GEMINI_API_KEY;
+  let apiKey = config?.apiKey || getEnvApiKey(provider);
   let modelName = config?.modelName || (
     provider === 'openrouter' ? 'google/gemini-2.5-flash' : 
     provider === 'nvidia' ? 'meta/llama-3.1-70b-instruct' : 
@@ -426,7 +440,7 @@ export async function generateResearchAndAudit(
   );
 
   if (!apiKey || apiKey === 'placeholder' || apiKey === '') {
-    return generateMockResearchAndAudit(leadName, companyName, websiteUrl, industry);
+    throw new Error(`API key for provider "${provider}" is not configured. Please set it in Settings -> Integrations.`);
   }
 
   const name = companyName || leadName;
@@ -564,8 +578,8 @@ Provide your response strictly in JSON format matching this schema:
       const parsed = JSON.parse(textResult);
       return AIResearchAuditSchema.parse(parsed);
     } catch (error: unknown) {
-      console.error('Gemini API call failed, falling back to mock generator:', error);
-      return generateMockResearchAndAudit(leadName, companyName, websiteUrl, industry);
+      console.error('Gemini API call failed:', error);
+      throw error;
     }
   }
 
@@ -578,8 +592,8 @@ Provide your response strictly in JSON format matching this schema:
       const parsed = JSON.parse(textResult);
       return AIResearchAuditSchema.parse(parsed);
     } catch (error: unknown) {
-      console.error('Anthropic API call failed, falling back to mock generator:', error);
-      return generateMockResearchAndAudit(leadName, companyName, websiteUrl, industry);
+      console.error('Anthropic API call failed:', error);
+      throw error;
     }
   }
 
@@ -593,8 +607,8 @@ Provide your response strictly in JSON format matching this schema:
     const parsed = JSON.parse(textResult);
     return AIResearchAuditSchema.parse(parsed);
   } catch (error: unknown) {
-    console.error(`${provider} API call failed, falling back to mock generator:`, error);
-    return generateMockResearchAndAudit(leadName, companyName, websiteUrl, industry);
+    console.error(`${provider} API call failed:`, error);
+    throw error;
   }
 }
 
@@ -689,7 +703,7 @@ async function callOpenAICompatible(
           { role: 'user', content: prompt },
         ],
         temperature: 0.2,
-        max_tokens: 24000,
+        max_tokens: 4096,
         response_format: format,
       }),
     });
@@ -806,7 +820,7 @@ export async function generateAudit(
 ): Promise<AIAuditOutput> {
   const config = await getActiveProviderConfig(db, 'scoring');
   let provider = config?.provider || 'gemini';
-  let apiKey = config?.apiKey || (process as any).env?.GEMINI_API_KEY;
+  let apiKey = config?.apiKey || getEnvApiKey(provider);
   let modelName = config?.modelName || (
     provider === 'openrouter' ? 'google/gemini-2.5-flash' : 
     provider === 'nvidia' ? 'meta/llama-3.1-70b-instruct' : 
@@ -818,7 +832,7 @@ export async function generateAudit(
   );
 
   if (!apiKey || apiKey === 'placeholder' || apiKey === '') {
-    return generateMockAudit(leadName, companyName, websiteUrl, industry);
+    throw new Error(`API key for provider "${provider}" is not configured. Please set it in Settings -> Integrations.`);
   }
 
   // Load research snapshot — used as PRIMARY context when scraping fails,
@@ -1002,8 +1016,8 @@ Provide your response strictly in JSON format matching this schema:
     const parsed = JSON.parse(textResult);
     return AIAuditSchema.parse(parsed);
   } catch (error: unknown) {
-    console.error(`generateAudit API call failed for ${provider}, falling back to mock:`, error);
-    return generateMockAudit(leadName, companyName, websiteUrl, industry);
+    console.error(`generateAudit API call failed for ${provider}:`, error);
+    throw error;
   }
 }
 
@@ -1039,7 +1053,7 @@ export async function generateOutreachDraft(
 ): Promise<AIOutreachDraftOutput> {
   const config = await getActiveProviderConfig(db, 'drafting');
   let provider = config?.provider || 'gemini';
-  let apiKey = config?.apiKey || (process as any).env?.GEMINI_API_KEY;
+  let apiKey = config?.apiKey || getEnvApiKey(provider);
   let modelName = config?.modelName || (
     provider === 'openrouter' ? 'google/gemini-2.5-flash' : 
     provider === 'nvidia' ? 'meta/llama-3.1-70b-instruct' : 
@@ -1051,7 +1065,7 @@ export async function generateOutreachDraft(
   );
 
   if (!apiKey || apiKey === 'placeholder' || apiKey === '') {
-    return generateMockOutreachDraft(leadName, companyName, websiteUrl, industry, channel, contactsList, researchSnapshot, auditSnapshot);
+    throw new Error(`API key for provider "${provider}" is not configured. Please set it in Settings -> Integrations.`);
   }
 
   const name = companyName || leadName;
@@ -1259,8 +1273,8 @@ Provide your response strictly in JSON format. The response must match the follo
     const parsed = JSON.parse(textResult);
     return AIOutreachDraftSchema.parse(parsed);
   } catch (error: unknown) {
-    console.error(`generateOutreachDraft API call failed for ${provider}, falling back to mock:`, error);
-    return generateMockOutreachDraft(leadName, companyName, websiteUrl, industry, channel, contactsList, researchSnapshot, auditSnapshot);
+    console.error(`generateOutreachDraft API call failed for ${provider}:`, error);
+    throw error;
   }
 }
 
@@ -1409,7 +1423,7 @@ export async function generateContactExtraction(
 ): Promise<AIContactExtractionOutput> {
   const config = await getActiveProviderConfig(db, 'research');
   let provider = config?.provider || 'gemini';
-  let apiKey = config?.apiKey || (process as any).env?.GEMINI_API_KEY;
+  let apiKey = config?.apiKey || getEnvApiKey(provider);
   let modelName = config?.modelName || (
     provider === 'openrouter' ? 'google/gemini-2.5-flash' : 
     provider === 'nvidia' ? 'meta/llama-3.1-70b-instruct' : 
@@ -1421,7 +1435,7 @@ export async function generateContactExtraction(
   );
 
   if (!apiKey || apiKey === 'placeholder' || apiKey === '') {
-    return { people: null, socialLinks: null, emails: null, phones: null };
+    throw new Error(`API key for provider "${provider}" is not configured. Please set it in Settings -> Integrations.`);
   }
 
   const name = companyName || leadName;
@@ -1619,11 +1633,11 @@ export async function generateLeadScore(
 ): Promise<AILeadScoreOutput> {
   const config = await getActiveProviderConfig(db, 'scoring');
   let provider = config?.provider || 'gemini';
-  let apiKey = config?.apiKey || (process as any).env?.GEMINI_API_KEY;
+  let apiKey = config?.apiKey || getEnvApiKey(provider);
   let modelName = config?.modelName || 'gemini-2.5-flash';
 
   if (!apiKey || apiKey === 'placeholder' || apiKey === '') {
-    return { score: 50, rationaleSummary: 'Default score due to missing AI config.', factors: ['Missing AI configuration'] };
+    throw new Error(`API key for provider "${provider}" is not configured. Please set it in Settings -> Integrations.`);
   }
 
   const prompt = `Evaluate the following lead and assign a priority score from 0 to 100.
@@ -1712,6 +1726,6 @@ Provide your response strictly in JSON format matching this schema:
     return AILeadScoreSchema.parse(JSON.parse(textResult));
   } catch (error) {
     console.error('Lead scoring failed:', error);
-    return { score: 50, rationaleSummary: 'Scoring failed.', factors: ['Error during generation'] };
+    throw error;
   }
 }

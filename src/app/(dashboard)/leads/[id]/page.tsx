@@ -9,7 +9,7 @@ import { and, eq, or, like } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import LeadDetailsWorkspace from './LeadDetailsWorkspace';
 import { OutreachService } from '@/services/outreach';
-import { jobRuns } from '@/db/schema/research';
+import { jobRuns, researchTasks } from '@/db/schema';
 
 type LeadWorkspaceView = 'overview' | 'research' | 'outreach' | 'activity';
 
@@ -30,7 +30,7 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
   const scoringService = new ScoringService(db);
   const outreachService = new OutreachService(db);
 
-  const [notes, tasksData, activities, latestSnapshot, contactsList, latestAudit, currentScore, outreachDrafts, activeResearchJob, stageThresholdRow, pcRow, nextFollowUp, unmetRequirements] = await Promise.all([
+  const [notes, tasksData, activities, latestSnapshot, contactsList, latestAudit, currentScore, outreachDrafts, activeResearchJob, stageThresholdRow, pcRow, nextFollowUp, unmetRequirements, leadResearchTasks] = await Promise.all([
     service.getNotes(id),
     service.getTasks(id),
     service.getActivities(id),
@@ -55,6 +55,17 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
     db.select().from(pipelineConfig).where(eq(pipelineConfig.id, 'global')).limit(1).then(r => r[0] || null),
     db.select({ dueDate: tasks.dueDate }).from(tasks).where(and(eq(tasks.leadId, id), eq(tasks.status, 'Open'), like(tasks.title, 'Follow up on %'))).orderBy(tasks.dueDate).limit(1).then(r => r[0] || null),
     service.getUnmetStageRequirements(id, lead.email || null),
+    db
+      .select({
+        taskType: researchTasks.taskType,
+        status: researchTasks.status,
+        extractedSignals: researchTasks.extractedSignals,
+        confidence: researchTasks.confidence,
+        errorMessage: researchTasks.errorMessage,
+      })
+      .from(researchTasks)
+      .where(eq(researchTasks.prospectId, id))
+      .orderBy(researchTasks.createdAt),
   ]);
 
   const stageThreshold = stageThresholdRow?.days ?? 5;
@@ -94,6 +105,7 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
       nbaResults={nbaResults}
       autoFollowUpDue={nextFollowUp?.dueDate ?? null}
       unmetRequirements={unmetRequirements}
+      researchTasks={leadResearchTasks}
     />
   );
 }

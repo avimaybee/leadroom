@@ -148,7 +148,7 @@ export class DiscoverySearchWorkflow extends WorkflowEntrypoint<Env, DiscoveryPa
               title: 'Discovery Completed',
               message: `Found ${results.length} leads for ${niche} in ${location}.`,
               status: 'SUCCESS',
-              link: scopeId ? `/dashboard/discovery/scopes/${scopeId}` : `/dashboard/discovery`,
+              link: scopeId ? `/scopes/${scopeId}` : `/scopes`,
               isRead: false,
               createdAt: now,
             });
@@ -178,7 +178,7 @@ export class DiscoverySearchWorkflow extends WorkflowEntrypoint<Env, DiscoveryPa
             title: 'Discovery Failed',
             message: `Discovery search failed: ${errMsg}`,
             status: 'ERROR',
-            link: scopeId ? `/dashboard/discovery/scopes/${scopeId}` : `/dashboard/discovery`,
+            link: scopeId ? `/scopes/${scopeId}` : `/scopes`,
             isRead: false,
             createdAt: new Date(),
           });
