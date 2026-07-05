@@ -71,7 +71,7 @@ import {
   deleteDraftAction,
 } from '../../app/actions/outreach';
 
-import { users, leads, outreachDrafts, approvals, activities } from '../schema';
+import { users, leads, outreachDrafts, approvals, activities, researchSnapshots } from '../schema';
 
 test('Outreach Server Actions Integration', async (t) => {
   // Seed test database
@@ -90,6 +90,9 @@ test('Outreach Server Actions Integration', async (t) => {
     status: 'Active',
     ownerId: 'user-admin',
   });
+
+  // Seed research snapshot so stage advancement to Drafting succeeds (enforced by default)
+  await testDb.insert(researchSnapshots).values({ id: crypto.randomUUID(), leadId: 'lead-client', companySummary: 'Test', confidenceLevel: 'HIGH', createdAt: new Date() });
 
   let draftId = '';
 

@@ -4,10 +4,8 @@ import { createContext, useContext, useCallback, useState } from 'react';
 
 interface BulkSelectContextType {
   selectedIds: Set<string>;
-  isSelecting: boolean;
   toggleSelect: (id: string) => void;
   clearSelection: () => void;
-  toggleSelectionMode: () => void;
   selectAll: (ids: string[]) => void;
   selectionCount: number;
 }
@@ -15,7 +13,6 @@ interface BulkSelectContextType {
 const BulkSelectContext = createContext<BulkSelectContextType | null>(null);
 
 export function BulkSelectProvider({ children }: { children: React.ReactNode }) {
-  const [isSelecting, setIsSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const toggleSelect = useCallback((id: string) => {
@@ -29,22 +26,15 @@ export function BulkSelectProvider({ children }: { children: React.ReactNode }) 
 
   const clearSelection = useCallback(() => {
     setSelectedIds(new Set());
-    setIsSelecting(false);
-  }, []);
-
-  const toggleSelectionMode = useCallback(() => {
-    setIsSelecting((prev) => !prev);
-    setSelectedIds(new Set());
   }, []);
 
   const selectAll = useCallback((ids: string[]) => {
     setSelectedIds(new Set(ids));
-    if (!isSelecting) setIsSelecting(true);
-  }, [isSelecting]);
+  }, []);
 
   return (
     <BulkSelectContext.Provider
-      value={{ selectedIds, isSelecting, toggleSelect, clearSelection, toggleSelectionMode, selectAll, selectionCount: selectedIds.size }}
+      value={{ selectedIds, toggleSelect, clearSelection, selectAll, selectionCount: selectedIds.size }}
     >
       {children}
     </BulkSelectContext.Provider>
@@ -58,8 +48,7 @@ export function useBulkSelect() {
 }
 
 export function LeadCheckbox({ leadId }: { leadId: string }) {
-  const { isSelecting, selectedIds, toggleSelect } = useBulkSelect();
-  if (!isSelecting) return null;
+  const { selectedIds, toggleSelect } = useBulkSelect();
   return (
     <input
       type="checkbox"

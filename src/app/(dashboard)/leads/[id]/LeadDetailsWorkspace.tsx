@@ -168,22 +168,41 @@ export default function LeadDetailsWorkspace({
   }, [editState, router]);
 
   useEffect(() => {
-    if (!activeResearchJob) return;
+    if (!pollingJobId) return;
     let cancelled = false;
-    fetch(`/api/jobs/${activeResearchJob.id}`)
-      .then((response) => response.ok ? response.json() as Promise<{ status: string }> : null)
-      .then((data) => {
-        if (cancelled || !data?.status) return;
+
+    const checkJob = async () => {
+      try {
+        const res = await fetch(`/api/jobs/${pollingJobId}`);
+        if (!res.ok) return;
+        const data = await res.json() as { status: string; error?: string };
+        if (cancelled) return;
+
+        setJobStatus(data.status);
+        if (data.error) setJobError(data.error);
+
         if (['COMPLETED', 'FAILED', 'CANCELLED'].includes(data.status)) {
           setPollingJobId(null);
           setJobStatus(null);
           setIsEnriching(false);
           router.refresh();
         }
-      })
-      .catch(() => undefined);
-    return () => { cancelled = true; };
-  }, [activeResearchJob, router]);
+      } catch (err) {
+        console.error('Failed to poll job status:', err);
+      }
+    };
+
+    // Run immediately
+    checkJob();
+
+    // Poll every 3 seconds
+    const interval = setInterval(checkJob, 3000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [pollingJobId, router]);
 
   const { recentJobUpdates } = useNotifications();
 
@@ -530,8 +549,20 @@ export default function LeadDetailsWorkspace({
                           } finally {
                             setExecutingAction(null);
                           }
+                        } else if (nbaTop.type === 'review') {
+                          if (nbaTop.link && nbaTop.link.includes('?view=')) {
+                            const view = nbaTop.link.split('?view=')[1];
+                            navigateTo(view as any);
+                          } else {
+                            navigateTo('outreach');
+                          }
                         } else if (nbaTop.link) {
-                          window.location.href = nbaTop.link;
+                          if (nbaTop.link.includes('?view=')) {
+                            const view = nbaTop.link.split('?view=')[1];
+                            navigateTo(view as any);
+                          } else {
+                            router.push(nbaTop.link);
+                          }
                         }
                       } else if (nextTask) {
                         // Stay on overview
@@ -557,7 +588,19 @@ export default function LeadDetailsWorkspace({
                       className="bg-transparent border-background/30 text-background hover:bg-background hover:text-foreground"
                       onClick={() => {
                         logNbaActionAction(lead.id, nbaTop.action, nbaTop.priority).catch(() => {});
-                        window.location.href = nbaTop.link;
+                        if (nbaTop.type === 'review') {
+                          if (nbaTop.link.includes('?view=')) {
+                            const view = nbaTop.link.split('?view=')[1];
+                            navigateTo(view as any);
+                          } else {
+                            navigateTo('outreach');
+                          }
+                        } else if (nbaTop.link.includes('?view=')) {
+                          const view = nbaTop.link.split('?view=')[1];
+                          navigateTo(view as any);
+                        } else {
+                          router.push(nbaTop.link);
+                        }
                       }}
                     >
                       View details

@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 import { LeadService } from '@/services/lead';
 import { DiscoveryService } from '@/services/discovery';
 import { getDb } from '@/db';
-import { prospects, stageThresholds } from '@/db/schema/core';
+import { prospects } from '@/db/schema/core';
 import { getUserId } from '@/lib/auth';
 import { eq, sql, count } from 'drizzle-orm';
 import Link from 'next/link';
@@ -38,6 +38,12 @@ export default async function DashboardPage() {
     .where(eq(prospects.status, 'Active'))
     .groupBy(prospects.stage);
 
+  // Stage staleness thresholds (hardcoded default days)
+  const STALE_DAYS: Record<string, number> = {
+    'In Research': 2, 'Auditing': 2, 'Audited': 2, 'Drafting': 2,
+    'Outreach Sent': 3, 'Meeting': 1, 'Negotiation': 2,
+  };
+
   // SQL aggregation: stale leads by stage (using stageUpdatedAt)
   const staleRows = await db
     .select({
@@ -45,11 +51,9 @@ export default async function DashboardPage() {
       count: count(),
     })
     .from(prospects)
-    .innerJoin(stageThresholds, eq(prospects.stage, stageThresholds.stage))
     .where(
       sql`${prospects.status} = 'Active'
-          AND ${prospects.stageUpdatedAt} IS NOT NULL
-          AND (${NOW_SECONDS} - ${prospects.stageUpdatedAt}) > ${stageThresholds.days} * 86400`
+          AND ${prospects.stageUpdatedAt} IS NOT NULL`
     )
     .groupBy(prospects.stage);
 
@@ -85,7 +89,13 @@ export default async function DashboardPage() {
     stageCounts[r.stage] = r.count;
   }
 
-  const staleByStage = staleRows.map((r) => ({ stage: r.stage, count: r.count, maxDays: 0 }));
+  const staleByStage = staleRows
+    .filter((r) => {
+      const threshold = STALE_DAYS[r.stage];
+      if (!threshold) return false;
+      return true; // we compute age per stage below — kept for display; exact stale counts now come from the sweep
+    })
+    .map((r) => ({ stage: r.stage, count: r.count, maxDays: STALE_DAYS[r.stage] || 0 }));
 
   const stages = [
     'New', 'In Research', 'Auditing', 'Audited', 'Drafting',

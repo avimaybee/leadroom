@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { useBulkSelect } from './BulkSelectProvider';
 import {
@@ -23,7 +23,6 @@ export function BulkActionBar() {
   const [activeDialog, setActiveDialog] = useState<'task' | 'reminder' | 'advance-to' | 'reassign' | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  if (selectionCount === 0) return null;
 
   const ids = Array.from(selectedIds);
 
@@ -97,6 +96,8 @@ export function BulkActionBar() {
       setIsLoading(false);
     }
   }, [ids, clearSelection]);
+
+  if (selectionCount === 0) return null;
 
   return (
     <>
@@ -330,10 +331,7 @@ function BulkReassignForm({ leadIds, onSuccess }: { leadIds: string[]; onSuccess
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [users, setUsers] = useState<{ id: string; name: string }[]>([]);
   const [ownerId, setOwnerId] = useState('');
-  const [loaded, setLoaded] = useState(false);
-
-  if (!loaded) {
-    setLoaded(true);
+  useEffect(() => {
     fetch('/api/users')
       .then((r) => r.json() as Promise<{ data?: { id: string; name: string }[]; users?: { id: string; name: string }[] }>)
       .then((data) => {
@@ -342,7 +340,7 @@ function BulkReassignForm({ leadIds, onSuccess }: { leadIds: string[]; onSuccess
         if (list.length > 0) setOwnerId(list[0].id);
       })
       .catch(() => toast.error('Failed to load users'));
-  }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

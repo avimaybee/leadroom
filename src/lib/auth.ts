@@ -120,7 +120,7 @@ export async function verifyProspectAccess(db: Db, prospectId: string, userId: s
     .from(prospects)
     .where(eq(prospects.id, prospectId))
     .limit(1);
-  return prospect ? prospect.ownerId === userId : false;
+  return prospect ? (!prospect.ownerId || prospect.ownerId === userId) : false;
 }
 
 export async function getUserId(): Promise<string | null> {

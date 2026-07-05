@@ -213,7 +213,6 @@ export default async function ScopesPage({ searchParams }: { searchParams: Promi
                 )}
               </div>
 
-              <div className="absolute left-0 top-0 bottom-0 w-1 bg-transparent group-hover:bg-primary transition-all duration-200" />
             </div>
           ))}
         </div>

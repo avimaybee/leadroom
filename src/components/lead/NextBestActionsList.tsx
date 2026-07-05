@@ -70,7 +70,6 @@ export function NextBestActionsList({ recommendations, leadId }: Props) {
               <p className="text-copy-13 text-muted-foreground mt-0.5">{r.rationale}</p>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
-              <span className="text-label-12 text-muted-foreground mr-1">{r.score}</span>
               {leadId && (
                 <Button 
                   variant="ghost" 

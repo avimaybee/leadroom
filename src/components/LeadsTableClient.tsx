@@ -30,12 +30,12 @@ interface LeadData {
 }
 
 function SelectAllCheckbox({ leadIds }: { leadIds: string[] }) {
-  const { isSelecting, selectedIds, selectAll, clearSelection } = useBulkSelect();
+  const { selectedIds, selectAll, clearSelection } = useBulkSelect();
   const allSelected = leadIds.length > 0 && leadIds.every(id => selectedIds.has(id));
   return (
     <input
       type="checkbox"
-      checked={isSelecting && allSelected}
+      checked={allSelected}
       onChange={() => allSelected ? clearSelection() : selectAll(leadIds)}
       className="h-4 w-4 rounded border-input text-primary focus:ring-primary cursor-pointer"
     />

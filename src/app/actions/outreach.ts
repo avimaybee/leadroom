@@ -8,7 +8,7 @@ import { OutreachService } from '@/services/outreach';
 import { LeadService } from '@/services/lead';
 import { ResearchService } from '@/services/research';
 import { AuditService } from '@/services/audits';
-import { generateOutreachDraft, getModelInfo } from '@/lib/ai';
+import { generateOutreachDraft, getModelInfo, type FailoverEvent } from '@/lib/ai';
 
 // Module-level cache for model info (5-min TTL)
 let cachedModelInfo: { provider: string; modelName: string; hasVision: boolean } | null = null;
@@ -66,6 +66,7 @@ export async function generateOutreachDraftAction(
       return { error: 'Lead not found' };
     }
 
+    const failoverHistory: FailoverEvent[] = [];
     const draftContent = await generateOutreachDraft(
       db,
       lead.name,
@@ -79,7 +80,8 @@ export async function generateOutreachDraftAction(
       researchSnapshot,
       auditSnapshot,
       customPrompt,
-      attachments
+      attachments,
+      (event) => failoverHistory.push(event)
     );
 
     const newDrafts = [];
@@ -107,7 +109,11 @@ export async function generateOutreachDraftAction(
       revalidatePath('/');
     } catch (e) {}
 
-    return { success: true, drafts: newDrafts };
+    const result: any = { success: true, drafts: newDrafts };
+    if (failoverHistory.length > 0) {
+      result.failoverWarning = `Model "${failoverHistory[0].provider}" failed. Automatically switched to next configured model. Error: ${failoverHistory[0].error}`;
+    }
+    return result;
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'Failed to generate outreach draft';
     return { error: msg };

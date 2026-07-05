@@ -74,7 +74,12 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
   if (pcRow?.nbaRules) {
     try { nbaRules = JSON.parse(pcRow.nbaRules); } catch {}
   }
-  const nbaResults = await service.getNextBestActions(id, nbaRules);
+  const nbaResults = await service.getNextBestActions(id, nbaRules, {
+    tasks: tasksData,
+    hasResearch: !!latestSnapshot,
+    hasAudit: !!latestAudit,
+    hasDraft: outreachDrafts.some(d => d.status === 'DRAFT'),
+  });
 
   const STAGE_MAP: Record<string, string> = {
     'Researching': 'In Research',

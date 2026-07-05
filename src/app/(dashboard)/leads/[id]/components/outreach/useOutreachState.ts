@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import {
@@ -104,6 +104,8 @@ export function useOutreachState(
   const [drafts, setDrafts] = useState<OutreachDraft[]>(() => initialDrafts.map(normalizeDraft));
   const [selectedChannel, setSelectedChannel] = useState<Channel>(() => normalizeChannel(initialChannel));
   const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
+  // Tracks the ID of a draft just created/duplicated so we auto-select it after router.refresh() lands
+  const pendingSelectRef = useRef<string | null>(null);
   
   const [subjectInput, setSubjectInput] = useState('');
   const [bodyInput, setBodyInput] = useState('');
@@ -141,7 +143,16 @@ export function useOutreachState(
   }, [initialChannel]);
 
   useEffect(() => {
-    setDrafts(initialDrafts.map(normalizeDraft));
+    const normalized = initialDrafts.map(normalizeDraft);
+    setDrafts(normalized);
+    // If a new draft was just created, auto-select it as soon as it appears in the refreshed data
+    if (pendingSelectRef.current) {
+      const exists = normalized.some((d) => d.id === pendingSelectRef.current);
+      if (exists) {
+        setActiveDraftId(pendingSelectRef.current);
+        pendingSelectRef.current = null;
+      }
+    }
   }, [initialDrafts]);
 
   useEffect(() => {
@@ -357,10 +368,17 @@ export function useOutreachState(
         return;
       }
 
+      if (response.failoverWarning) {
+        toast.warning(response.failoverWarning, { duration: 6000 });
+      }
+
       const created = (response.drafts || []).map((draft: OutreachDraft) => normalizeDraft(draft));
       if (created.length > 0) {
+        // Optimistically prepend the new draft and select it immediately
         setDrafts((current) => [...created, ...current]);
         setActiveDraftId(created[0].id);
+        // Store the ID so it stays selected after router.refresh() re-syncs initialDrafts
+        pendingSelectRef.current = created[0].id;
         setSelectedChannel(normalizeChannel(created[0].channel));
         updateUrl(normalizeChannel(created[0].channel));
       }
@@ -413,6 +431,8 @@ export function useOutreachState(
         const duplicated = normalizeDraft(response.draft as OutreachDraft);
         setDrafts((current) => [duplicated, ...current]);
         setActiveDraftId(duplicated.id);
+        // Store the ID so it stays selected after router.refresh() re-syncs initialDrafts
+        pendingSelectRef.current = duplicated.id;
         const channel = normalizeChannel(duplicated.channel);
         setSelectedChannel(channel);
         updateUrl(channel);

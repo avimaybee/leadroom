@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
-import { Eye, EyeOff, AlertTriangle, Loader2, ShieldAlert } from 'lucide-react';
+import { Eye, EyeOff, AlertTriangle, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -203,10 +203,6 @@ export default function LoginPage() {
           </CardContent>
         </Card>
 
-        <div className="text-center flex items-center justify-center gap-1.5 text-label-12 font-semibold text-muted-foreground select-none">
-          <ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />
-          <span>Restricted to authorized agency operators only.</span>
-        </div>
       </div>
     </div>
   );

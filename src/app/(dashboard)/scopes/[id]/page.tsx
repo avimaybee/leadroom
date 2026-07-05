@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, use } from 'react';
+import { useState, useEffect, useCallback, use, useRef } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Loader2, ExternalLink, Search, FileText, Trash2, X, AlertTriangle, Clock, ShieldAlert, Settings, Info, Edit } from 'lucide-react';
 import { formatUTC } from '@/lib/date';
@@ -205,17 +205,32 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
     fetchRecentRuns();
   }, [id, fetchRecentRuns, fetchData]);
 
+  const prevPollingJobId = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (prevPollingJobId.current && !pollingJobId) {
+      fetchData();
+    }
+    prevPollingJobId.current = pollingJobId;
+  }, [pollingJobId, fetchData]);
+
   useEffect(() => {
     if (!pollingJobId) return;
 
+    // Active REST polling every 3 seconds while job is running
+    const interval = setInterval(() => {
+      fetchRecentRuns();
+    }, 3000);
+
     const status = recentJobUpdates[pollingJobId];
     if (status === 'SUCCESS' || status === 'ERROR') {
-      // Job finished
       setPollingJobId(null);
       setEnrichProgress(null);
       fetchRecentRuns();
-      fetchData(); // Refresh candidates list
+      fetchData();
     }
+
+    return () => clearInterval(interval);
   }, [pollingJobId, recentJobUpdates, fetchRecentRuns, fetchData]);
 
   const handleUpdateStatus = async (candidateId: string, status: 'PROMOTED' | 'DISCARDED') => {
@@ -838,18 +853,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                             </h4>
                           )}
                           
-                          {/* Priority Tag */}
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-label-12 font-semibold uppercase tracking-wide border ${
-                            candidate.triagePriority === 'HIGH' ? 'bg-destructive/10 text-destructive border-destructive/20' :
-                            candidate.triagePriority === 'MEDIUM' ? 'bg-chart-3/15 text-chart-3 border-chart-3/30' :
-                            candidate.triagePriority === 'SKIP' ? 'bg-muted text-muted-foreground border-border' :
-                            'bg-primary/10 text-primary border-primary/20'
-                          }`}>
-                            {candidate.triagePriority === 'HIGH' && <ShieldAlert className="w-3 h-3 shrink-0" />}
-                            {candidate.triagePriority === 'MEDIUM' && <AlertTriangle className="w-3 h-3 shrink-0" />}
-                            {candidate.triagePriority === 'UNASSESSED' && <Clock className="w-3 h-3 shrink-0 animate-pulse text-chart-5" />}
-                            {candidate.triagePriority === 'UNASSESSED' ? 'Pending Triage' : `${candidate.triagePriority} Priority`}
-                          </span>
+
 
                           {/* Location Tag */}
                           {candidate.rawLocation && (

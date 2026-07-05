@@ -300,6 +300,27 @@ function setupTestDb() {
       action_type TEXT NOT NULL DEFAULT 'TASK',
       job_type TEXT
     );
+
+    CREATE TABLE tasks (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT,
+      lead_id TEXT REFERENCES prospects(id),
+      due_date INTEGER,
+      status TEXT NOT NULL DEFAULT 'Open',
+      is_read INTEGER DEFAULT 0 NOT NULL,
+      priority TEXT NOT NULL DEFAULT 'Medium',
+      assignee_id TEXT REFERENCES users(id),
+      category TEXT,
+      source TEXT,
+      playbook_id TEXT REFERENCES playbooks(id),
+      google_calendar_event_id TEXT,
+      google_calendar_sync_status TEXT DEFAULT 'PENDING',
+      google_calendar_sync_error TEXT,
+      created_at INTEGER DEFAULT (strftime('%s', 'now')),
+      updated_at INTEGER DEFAULT (strftime('%s', 'now')),
+      completed_at INTEGER
+    );
   `);
 
   const mockD1 = new MockD1Database(sqlite);
