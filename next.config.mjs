@@ -4,19 +4,8 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  async headers() {
-    return [
-      {
-        source: '/(.*)',
-        headers: [
-          {
-            key: 'Cross-Origin-Opener-Policy',
-            value: 'same-origin-allow-popups',
-          },
-        ],
-      },
-    ];
-  },
+  // Note: COOP header intentionally omitted to avoid breaking Firebase Auth popup flows.
+  // Firebase Auth uses window.open for popup sign-in which requires cross-origin access.
   async redirects() {
     return [
       {

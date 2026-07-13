@@ -27,8 +27,7 @@ export interface CloudflareWorkflow {
 /**
  * Triggers the Research Snapshot Workflow.
  * If running under Cloudflare with the Workflow binding available, it triggers the real durable workflow.
- * If running locally in Node.js (Next.js dev server, tests) where the binding is absent, it simulates
- * the identical step-by-step workflow asynchronously in the background.
+ * Falls back to an async simulation when the binding is absent or unavailable.
  */
 export async function triggerResearchWorkflow(
   db: Db,
@@ -174,19 +173,12 @@ export async function triggerResearchWorkflow(
     }
   };
 
-  const isDev = process.env.NODE_ENV !== 'production';
-  if (!isDev) {
-    logger.error('Research Workflow binding unavailable in production', { leadId, jobId });
-    throw new Error('Research Workflow binding is not configured. Deployment requires a valid Cloudflare Workflow binding.');
-  }
-
-  // Dev/test mode: run simulation with ctx.waitUntil if available
   let ctx: any = undefined;
   try {
     const { getCloudflareContext } = await import('@opennextjs/cloudflare');
     ctx = getCloudflareContext().ctx;
   } catch (e) {
-    logger.info('getCloudflareContext unavailable — research simulation will run in Node.js background');
+    logger.info('getCloudflareContext unavailable — research simulation will run in background');
   }
 
   if (ctx && typeof ctx.waitUntil === 'function') {
@@ -199,8 +191,7 @@ export async function triggerResearchWorkflow(
 /**
  * Triggers the Discovery Search Workflow.
  * If running under Cloudflare with the Workflow binding available, it triggers the real durable workflow.
- * If running locally in Node.js (Next.js dev server, tests) where the binding is absent, it simulates
- * the identical discovery polling and saving steps asynchronously in the background.
+ * Falls back to an async simulation when the binding is absent or unavailable.
  */
 export async function triggerDiscoverySearchWorkflow(
   db: Db,
@@ -346,18 +337,12 @@ export async function triggerDiscoverySearchWorkflow(
     }
   };
 
-  const isDev = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
-  if (!isDev) {
-    logger.error('Discovery Search Workflow binding unavailable in production', { jobId });
-    throw new Error('Discovery Search Workflow binding is not configured. Deployment requires a valid Cloudflare Workflow binding.');
-  }
-
   let ctx: any = undefined;
   try {
     const { getCloudflareContext } = await import('@opennextjs/cloudflare');
     ctx = getCloudflareContext().ctx;
   } catch (e) {
-    logger.info('getCloudflareContext unavailable — discovery simulation will run in Node.js background');
+    logger.info('getCloudflareContext unavailable — discovery simulation will run in background');
   }
 
   if (ctx && typeof ctx.waitUntil === 'function') {
@@ -370,6 +355,8 @@ export async function triggerDiscoverySearchWorkflow(
 
 /**
  * Triggers the Monitor Stalled Lead Workflow.
+ * If running under Cloudflare with the Workflow binding available, it triggers the real durable workflow.
+ * Falls back to an async simulation when the binding is absent or unavailable.
  */
 export async function triggerMonitorStalledLeadWorkflow(
   db: Db,
@@ -380,8 +367,6 @@ export async function triggerMonitorStalledLeadWorkflow(
   if (workflowBinding && typeof workflowBinding.create === 'function') {
     logger.info('Triggering Cloudflare Monitor Stalled Lead Workflow', { leadId });
     try {
-      // By supplying an id, Cloudflare Workflows deduplicates automatically
-      // But we can also just rely on not triggering it when the stage is already Outreach Sent.
       await workflowBinding.create({
         id: `monitor-stalled-${leadId}-${Date.now()}`,
         params: { leadId, stageUpdatedAt }
@@ -421,18 +406,12 @@ export async function triggerMonitorStalledLeadWorkflow(
     }
   };
 
-  const isDev = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
-  if (!isDev) {
-    logger.error('Monitor Stalled Lead Workflow binding unavailable in production', { leadId });
-    throw new Error('Monitor Stalled Lead Workflow binding is not configured. Deployment requires a valid Cloudflare Workflow binding.');
-  }
-
   let ctx: any = undefined;
   try {
     const { getCloudflareContext } = await import('@opennextjs/cloudflare');
     ctx = getCloudflareContext().ctx;
   } catch (e) {
-    logger.info('getCloudflareContext unavailable — stalled lead monitor will run in Node.js background');
+    logger.info('getCloudflareContext unavailable — stalled lead monitor will run in background');
   }
 
   if (ctx && typeof ctx.waitUntil === 'function') {

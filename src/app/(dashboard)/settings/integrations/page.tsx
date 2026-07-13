@@ -5,6 +5,9 @@ import { CalendarService } from '@/services/calendar';
 import { ProviderConfigForm } from '@/components/settings/ProviderConfigForm';
 import { ActiveProviderPicker } from '@/components/settings/ActiveProviderPicker';
 import { CalendarIntegration } from '@/components/settings/CalendarIntegration';
+import { getLogger } from '@/lib/logger';
+
+const log = getLogger('IntegrationsPage');
 
 export const metadata = {
   title: 'AI Integrations | Leadroom',
@@ -15,21 +18,60 @@ export const dynamic = 'force-dynamic';
 export default async function IntegrationsPage() {
   const db = getDb();
   const userId = await getUserId();
+
+  // Check if encryption key is configured - required for storing API keys
+  const encryptionAvailable = !!process.env.DB_ENCRYPTION_KEY;
+  if (!encryptionAvailable) {
+    return (
+      <div className="space-y-8 max-w-4xl">
+        <div className="rounded-xl border border-destructive/50 bg-destructive/5 p-6">
+          <h2 className="text-heading-lg text-destructive font-semibold">Configuration Required</h2>
+          <p className="text-copy-14 text-muted-foreground mt-2">
+            The <code className="text-destructive font-mono">DB_ENCRYPTION_KEY</code> environment variable is not configured.
+            This is required to securely store API keys and manage AI provider integrations.
+          </p>
+          <p className="text-copy-14 text-muted-foreground mt-1">
+            Please set it in your Cloudflare Pages environment variables and redeploy.
+            You can generate a secure key with: <code className="font-mono">openssl rand -hex 32</code>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const service = new IntegrationsService(db);
   const calendarService = new CalendarService(db);
 
-  const geminiConfig = await service.getProviderConfig('gemini', userId);
-  const nvidiaConfig = await service.getProviderConfig('nvidia', userId);
-  const openrouterConfig = await service.getProviderConfig('openrouter', userId);
-  const groqConfig = await service.getProviderConfig('groq', userId);
-  const aimlConfig = await service.getProviderConfig('aiml', userId);
-  const openaiConfig = await service.getProviderConfig('openai', userId);
-  const anthropicConfig = await service.getProviderConfig('anthropic', userId);
+  let geminiConfig = null;
+  let nvidiaConfig = null;
+  let openrouterConfig = null;
+  let groqConfig = null;
+  let aimlConfig = null;
+  let openaiConfig = null;
+  let anthropicConfig = null;
+  let calendarStatus = { connected: false };
+  let clientId = null;
+  let clientSecret = null;
+  let storedCreds = null;
 
-  const calendarStatus = userId ? await calendarService.getStatus(userId) : { connected: false };
-  const clientId = userId ? await calendarService.getClientId(userId) : null;
-  const clientSecret = userId ? await calendarService.getClientSecret(userId) : null;
-  const storedCreds = userId ? await calendarService.getStoredCredentials(userId) : null;
+  try {
+    [geminiConfig, nvidiaConfig, openrouterConfig, groqConfig, aimlConfig, openaiConfig, anthropicConfig] = await Promise.all([
+      service.getProviderConfig('gemini', userId),
+      service.getProviderConfig('nvidia', userId),
+      service.getProviderConfig('openrouter', userId),
+      service.getProviderConfig('groq', userId),
+      service.getProviderConfig('aiml', userId),
+      service.getProviderConfig('openai', userId),
+      service.getProviderConfig('anthropic', userId),
+    ]);
+
+    calendarStatus = userId ? await calendarService.getStatus(userId) : { connected: false };
+    clientId = userId ? await calendarService.getClientId(userId) : null;
+    clientSecret = userId ? await calendarService.getClientSecret(userId) : null;
+    storedCreds = userId ? await calendarService.getStoredCredentials(userId) : null;
+  } catch (err) {
+    log.error('Failed to load integration configs', err);
+  }
 
   return (
     <div className="space-y-8 max-w-4xl">

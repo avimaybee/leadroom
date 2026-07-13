@@ -2,21 +2,23 @@ import { getDb } from '@/db';
 import { eq, desc, and } from 'drizzle-orm';
 import { prospects as leads, tasks, stageThresholds } from '@/db/schema/core';
 import { outreachDrafts } from '@/db/schema/outreach';
+import { getUserId } from '@/lib/auth';
 import UnifiedActionFeed, { UnifiedItem } from '@/components/dashboard/UnifiedActionFeed';
 
 export default async function UnifiedFeedLoader() {
   const db = getDb();
-  
+  const userId = await getUserId();
+
   const [activeLeads, openTasks, draftOutreach, thresholdsData] = await Promise.all([
-    db.select().from(leads).where(eq(leads.status, 'Active')).orderBy(desc(leads.createdAt)),
+    db.select().from(leads).where(and(eq(leads.status, 'Active'), eq(leads.ownerId, userId ?? ''))).orderBy(desc(leads.createdAt)),
     db.select({
       task: tasks,
       leadName: leads.name
-    }).from(tasks).leftJoin(leads, eq(tasks.leadId, leads.id)).where(eq(tasks.status, 'Open')).orderBy(desc(tasks.dueDate)),
+    }).from(tasks).leftJoin(leads, eq(tasks.leadId, leads.id)).where(and(eq(tasks.status, 'Open'), eq(tasks.assigneeId, userId ?? ''))).orderBy(desc(tasks.dueDate)),
     db.select({
       draft: outreachDrafts,
       leadName: leads.name
-    }).from(outreachDrafts).leftJoin(leads, eq(outreachDrafts.leadId, leads.id)).where(eq(outreachDrafts.status, 'DRAFT')).orderBy(desc(outreachDrafts.createdAt)),
+    }).from(outreachDrafts).leftJoin(leads, eq(outreachDrafts.leadId, leads.id)).where(and(eq(outreachDrafts.status, 'DRAFT'), eq(leads.ownerId, userId ?? ''))).orderBy(desc(outreachDrafts.createdAt)),
     db.select().from(stageThresholds)
   ]);
 
