@@ -33,6 +33,10 @@ export async function POST(
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });
     }
 
+    if (job.triggeredByUserId && job.triggeredByUserId !== userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     if (job.status !== 'QUEUED' && job.status !== 'RUNNING') {
       return NextResponse.json(
         { error: 'Only queued or running jobs can be cancelled' },

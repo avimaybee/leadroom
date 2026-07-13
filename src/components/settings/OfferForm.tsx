@@ -55,7 +55,7 @@ export function OfferForm({ initialData }: OfferFormProps) {
     }
 
     toast.success('Offer saved');
-    router.push('/settings/offer');
+    router.push('/personalisation/offer');
   };
 
   const addProof = () => {
@@ -202,7 +202,7 @@ export function OfferForm({ initialData }: OfferFormProps) {
         </button>
         <button
           type="button"
-          onClick={() => router.push('/settings/offer')}
+          onClick={() => router.push('/personalisation/offer')}
           className="inline-flex items-center h-10 px-5 rounded-md border border-border text-label-14 hover:bg-muted/50 transition-colors"
         >
           Cancel

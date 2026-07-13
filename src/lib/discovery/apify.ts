@@ -20,13 +20,21 @@ export interface ApifyRunRef {
 /**
  * Resolves the Apify API token from Cloudflare context (production) or process.env (local dev).
  */
-function getApifyToken(): string {
+function getApifyToken(env?: any): string {
   let token: string | undefined;
-  try {
-    const { getCloudflareContext } = require('@opennextjs/cloudflare');
-    const cf = getCloudflareContext();
-    token = (cf?.env as any)?.APIFY_API_TOKEN;
-  } catch (e) {}
+  // 1. Use injected env if provided (production path)
+  if (env?.APIFY_API_TOKEN) {
+    token = env.APIFY_API_TOKEN;
+  }
+  // 2. Try Cloudflare context (legacy fallback)
+  if (!token) {
+    try {
+      const { getCloudflareContext } = require('@opennextjs/cloudflare');
+      const cf = getCloudflareContext();
+      token = (cf?.env as any)?.APIFY_API_TOKEN;
+    } catch (e) {}
+  }
+  // 3. Fall back to process.env (local dev / tests)
   if (!token) {
     token = (process as any).env?.APIFY_API_TOKEN;
   }

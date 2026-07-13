@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { eq } from 'drizzle-orm';
-import { providerConfigs } from '../schema/core';
+import { providerConfigs, users } from '../schema/core';
 
 // Ensure test environment
 const ORIGINAL_NODE_ENV = process.env.NODE_ENV;
@@ -30,6 +30,14 @@ test('AI Provider Config & Task Routing Integration', async (t) => {
   };
 
   const db = drizzle(sqlite);
+
+  // Create user_123 to satisfy foreign key constraint on providerConfigs
+  await db.insert(users).values({
+    id: 'user_123',
+    name: 'Test User',
+    email: 'test@example.com',
+    password: 'test-password-hash',
+  });
 
   // Mock global fetch for API key validations
   const originalFetch = globalThis.fetch;

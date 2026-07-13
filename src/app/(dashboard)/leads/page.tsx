@@ -1,18 +1,23 @@
 export const dynamic = 'force-dynamic';
 import { getDb } from '@/db';
 import { leads, leadScores, candidateLeads, discoveryScopes, tasks, stageThresholds, jobRuns } from '@/db/schema';
-import { eq, desc, inArray } from 'drizzle-orm';
+import { eq, desc, inArray, and } from 'drizzle-orm';
 import LeadsTableClient from '@/components/LeadsTableClient';
+import { getUserId } from '@/lib/auth';
 
 export default async function LeadsPage({ searchParams }: { searchParams: Promise<{ campaignId?: string; filter?: string; stage?: string }> }) {
   const db = getDb();
+  const userId = await getUserId();
+  if (!userId) {
+    return <div className="p-8 text-center text-muted-foreground">Unauthorized. Please log in.</div>;
+  }
   const resolvedParams = await searchParams;
   const campaignIdFilter = resolvedParams.campaignId;
   const activeFilter = resolvedParams.filter || 'all';
   const stageFilter = resolvedParams.stage;
 
   const [activeLeadsData, scores, campaigns, allTasks, thresholds, activeJobs] = await Promise.all([
-    db.select().from(leads).where(eq(leads.status, 'Active')).orderBy(desc(leads.updatedAt)),
+    db.select().from(leads).where(and(eq(leads.status, 'Active'), eq(leads.ownerId, userId))).orderBy(desc(leads.updatedAt)),
     db.select({
       leadId: leadScores.leadId,
       scoreValue: leadScores.scoreValue,
@@ -24,8 +29,9 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
       campaignName: discoveryScopes.name,
       leadId: candidateLeads.promotedLeadId,
     }).from(discoveryScopes)
-      .leftJoin(candidateLeads, eq(discoveryScopes.id, candidateLeads.discoveryScopeId)),
-    db.select().from(tasks).where(eq(tasks.status, 'Open')),
+      .leftJoin(candidateLeads, eq(discoveryScopes.id, candidateLeads.discoveryScopeId))
+      .where(eq(discoveryScopes.createdByUserId, userId)),
+    db.select().from(tasks).where(and(eq(tasks.status, 'Open'), eq(tasks.assigneeId, userId))),
     db.select().from(stageThresholds),
     db.select({
       id: jobRuns.id,
@@ -35,7 +41,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
     }).from(jobRuns).where(inArray(jobRuns.status, ['QUEUED', 'RUNNING'])),
   ]);
 
-  const allScopes = await db.select({ id: discoveryScopes.id, name: discoveryScopes.name }).from(discoveryScopes).orderBy(desc(discoveryScopes.createdAt));
+  const allScopes = await db.select({ id: discoveryScopes.id, name: discoveryScopes.name }).from(discoveryScopes).where(eq(discoveryScopes.createdByUserId, userId)).orderBy(desc(discoveryScopes.createdAt));
 
   const scoreMap = new Map(scores.map(s => [s.leadId, { scoreValue: s.scoreValue, scoreLabel: s.scoreLabel, rationaleSummary: s.rationaleSummary }]));
   const campaignMap = new Map(campaigns.filter(c => c.leadId).map(c => [c.leadId!, { campaignId: c.campaignId, campaignName: c.campaignName }]));

@@ -9,7 +9,7 @@ export default function IcpSettingsError({ error, reset }: { error: Error & { di
       reset={reset}
       title="ICP Settings Error"
       description="Failed to load ICP profile settings."
-      backHref="/settings/icp"
+      backHref="/personalisation/icp"
       backLabel="ICP Profiles"
     />
   );

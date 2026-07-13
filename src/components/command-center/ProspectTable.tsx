@@ -51,11 +51,13 @@ export function ProspectTable({ prospects, onReview }: { prospects: ProspectRow[
     return sortDir === 'asc' ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
   });
 
-  const SortHeader = ({ label, sortKey: sk }: { label: string; sortKey: SortKey }) => (
+  const SortHeader = ({ label, sortKey: sk, align = 'left' }: { label: string; sortKey: SortKey; align?: 'left' | 'right' | 'center' }) => (
     <button
       type="button"
       onClick={() => handleSort(sk)}
-      className="inline-flex items-center gap-1 text-label-12 text-muted-foreground hover:text-foreground transition-colors"
+      className={`inline-flex items-center gap-1 text-label-12 text-muted-foreground hover:text-foreground transition-colors w-full ${
+        align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : 'justify-start'
+      }`}
     >
       {label}
       <ArrowUpDown className="w-3 h-3" />
@@ -68,11 +70,11 @@ export function ProspectTable({ prospects, onReview }: { prospects: ProspectRow[
         <thead>
           <tr className="border-b border-border">
             <th className="text-left py-3 px-6"><SortHeader label="Company" sortKey="company" /></th>
-            <th className="text-right py-3 px-4"><SortHeader label="Fit Score" sortKey="fitScore" /></th>
-            <th className="text-right py-3 px-4"><SortHeader label="Confidence" sortKey="confidenceScore" /></th>
-            <th className="text-center py-3 px-4"><SortHeader label="Tier" sortKey="priorityTier" /></th>
+            <th className="text-right py-3 px-4 w-32"><SortHeader label="Fit Score" sortKey="fitScore" align="right" /></th>
+            <th className="text-right py-3 px-4 w-32"><SortHeader label="Confidence" sortKey="confidenceScore" align="right" /></th>
+            <th className="text-center py-3 px-4 w-24"><SortHeader label="Tier" sortKey="priorityTier" align="center" /></th>
             <th className="text-left py-3 px-4">Top Signal</th>
-            <th className="text-center py-3 px-4">Action</th>
+            <th className="text-center py-3 px-4 w-28">Action</th>
           </tr>
         </thead>
         <tbody>

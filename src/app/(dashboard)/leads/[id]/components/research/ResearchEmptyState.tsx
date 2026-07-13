@@ -23,7 +23,7 @@ export function ResearchEmptyState({
       <div>
         <h4 className="text-heading-lg text-card-foreground">No Research Available</h4>
         <p className="text-copy-13 text-muted-foreground mt-1 max-w-sm mx-auto leading-relaxed">
-          Run an automated enrichment scan or input custom branding observations to kickstart outreach preparation.
+          Gather website details automatically, or write observations manually to start drafting your message.
         </p>
       </div>
 
@@ -51,7 +51,7 @@ export function ResearchEmptyState({
         <Button onClick={onEnrich} disabled={isEnriching} size="sm">
           {isEnriching ? (
             <><Loader2 className="h-3 w-3 animate-spin" /> Starting...</>
-          ) : 'Enrich Lead'}
+          ) : 'Start Research'}
         </Button>
         <Button onClick={onEdit} variant="link" size="sm">
           Add Notes Manually

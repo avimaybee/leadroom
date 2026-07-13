@@ -4,21 +4,28 @@ import * as schema from './schema';
 
 const log = getLogger('DB');
 
-export function getDb(): DrizzleD1Database<typeof schema> {
+export function getDb(env?: any): DrizzleD1Database<typeof schema> {
   let DB: any = undefined;
 
-  // 1. Try to get D1 from Cloudflare Context (for OpenNext Worker environment)
-  try {
-    const { getCloudflareContext } = require('@opennextjs/cloudflare');
-    const cf = getCloudflareContext();
-    if (cf && cf.env && cf.env.DB) {
-      DB = cf.env.DB;
-    }
-  } catch (e) {
-    // getCloudflareContext might not be available or throw in Node/tests environment
+  // 1. Use injected env if provided (production path)
+  if (env?.DB) {
+    DB = env.DB;
   }
 
-  // 2. Fall back to process.env.DB (for standard next dev or node tests)
+  // 2. Try to get D1 from Cloudflare Context (legacy fallback)
+  if (!DB) {
+    try {
+      const { getCloudflareContext } = require('@opennextjs/cloudflare');
+      const cf = getCloudflareContext();
+      if (cf && cf.env && cf.env.DB) {
+        DB = cf.env.DB;
+      }
+    } catch (e) {
+      // getCloudflareContext might not be available or throw in Node/tests environment
+    }
+  }
+
+  // 3. Fall back to process.env.DB (for standard next dev or node tests)
   if (!DB && typeof process !== 'undefined' && process.env) {
     DB = (process.env as any).DB;
   }

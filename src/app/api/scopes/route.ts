@@ -57,7 +57,7 @@ export async function PATCH(request: NextRequest) {
 
     const db = getDb();
     const service = new DiscoveryService(db);
-    const scope = await service.updateScopeName(id, name.trim());
+    const scope = await service.updateScopeName(id, name.trim(), userId);
 
     if (!scope) {
       return NextResponse.json({ success: false, error: 'Scope not found' }, { status: 404 });
@@ -85,9 +85,10 @@ export async function POST(request: NextRequest) {
 
     const db = getDb();
     const service = new DiscoveryService(db);
-    
+
     const id = crypto.randomUUID();
-    const scope = await service.createScope(id, parsed.data);
+    // Always use the authenticated user as the owner; never trust client-supplied createdByUserId.
+    const scope = await service.createScope(id, { ...parsed.data, createdByUserId: userId });
 
     return NextResponse.json({ success: true, data: scope }, { status: 201 });
   } catch (error: unknown) {

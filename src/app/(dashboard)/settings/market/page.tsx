@@ -17,7 +17,7 @@ export default async function MarketListPage() {
         <div>
           <h2 className="text-heading-2xl">Markets</h2>
           <p className="text-copy-14 text-muted-foreground mt-1">
-            Define target market segments by linking an Offer and ICP Profile together.
+            Define target market segments by linking an Offer and Ideal Client together.
           </p>
         </div>
         <Link
@@ -36,7 +36,7 @@ export default async function MarketListPage() {
           </div>
           <h3 className="text-heading-lg text-foreground">No markets yet</h3>
           <p className="text-copy-14 text-muted-foreground mt-1 max-w-md mx-auto">
-            Create a market to link your Offer and ICP Profile together. Markets are where you add prospects and run research.
+            Create a market to link your Offer and Ideal Client together. Markets are where you add prospects and run research.
           </p>
           <Link
             href="/settings/market/new"
@@ -53,7 +53,7 @@ export default async function MarketListPage() {
               <tr className="border-b border-border bg-muted/20">
                 <th className="text-left px-4 py-3 text-label-12 text-muted-foreground">Name</th>
                 <th className="text-left px-4 py-3 text-label-12 text-muted-foreground">Linked Offer</th>
-                <th className="text-left px-4 py-3 text-label-12 text-muted-foreground">Linked ICP</th>
+                <th className="text-left px-4 py-3 text-label-12 text-muted-foreground">Linked Ideal Client</th>
                 <th className="text-left px-4 py-3 text-label-12 text-muted-foreground">Status</th>
                 <th className="text-left px-4 py-3 text-label-12 text-muted-foreground">Created</th>
                 <th className="text-right px-4 py-3 text-label-12 text-muted-foreground">Actions</th>

@@ -1,198 +1,178 @@
 export const dynamic = 'force-dynamic';
 
-import { notFound } from 'next/navigation';
+import { LeadService, DEFAULT_NBA_RULES } from '@/services/lead';
+import { ResearchService } from '@/services/research';
+import { AuditService } from '@/services/audits';
+import { ScoringService } from '@/services/scoring';
+import { OutreachService } from '@/services/outreach';
 import { getDb } from '@/db';
-import { prospects } from '@/db/schema/core';
-import { researchTasks } from '@/db/schema/jobs';
-import { markets } from '@/db/schema/strategy';
-import { contacts } from '@/db/schema/research';
-import { outreachDrafts } from '@/db/schema/outreach';
-import { eq, and, isNull } from 'drizzle-orm';
+import { stageThresholds, pipelineConfig, tasks, jobRuns, researchTasks } from '@/db/schema';
+import { and, eq, or, like } from 'drizzle-orm';
+import { notFound, redirect } from 'next/navigation';
 import { getUserId } from '@/lib/auth';
-import { ShieldAlert, TriangleAlert } from 'lucide-react';
-import Link from 'next/link';
-import { ProspectScorePanel } from '@/components/prospects/ProspectScorePanel';
-import { ProspectEvidencePanel } from '@/components/prospects/ProspectEvidencePanel';
-import { OutreachSection } from '@/components/prospects/OutreachSection';
+import ProspectDetailsWorkspace from './ProspectDetailsWorkspace';
 
-interface PainSignal {
-  signal: string;
-  evidenceQuote: string;
-  sourceUrl: string;
-  matchStrength?: string;
-}
+type WorkspaceView = 'overview' | 'research' | 'outreach' | 'activity';
 
-export default async function ProspectDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ProspectDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ autoEnrich?: string; view?: string; channel?: string }>;
+}) {
   const { id } = await params;
-  const db = getDb();
+  let { view, channel } = await searchParams;
+  if (view === 'audit') view = 'research';
+
   const userId = await getUserId();
+  if (!userId) redirect('/login');
 
-  const [prospect] = await db.select().from(prospects).where(eq(prospects.id, id)).limit(1);
-  if (!prospect) notFound();
+  const db = getDb();
+  const service = new LeadService(db);
+  const researchService = new ResearchService(db);
+  const auditService = new AuditService(db);
+  const scoringService = new ScoringService(db);
+  const outreachService = new OutreachService(db);
 
-  const [market] = prospect.marketId
-    ? await db.select({ name: markets.name }).from(markets).where(eq(markets.id, prospect.marketId)).limit(1)
-    : [null];
-
-  const taskRows = await db
-    .select()
-    .from(researchTasks)
-    .where(eq(researchTasks.prospectId, id));
-
-  const contactRows = await db
-    .select()
-    .from(contacts)
-    .where(and(eq(contacts.leadId, id), isNull(contacts.deletedAt)));
-
-  const draftRows = await db
-    .select()
-    .from(outreachDrafts)
-    .where(eq(outreachDrafts.leadId, id))
-    .orderBy(outreachDrafts.createdAt);
-
-  // Gather evidence from completed research tasks
-  const allSignals: PainSignal[] = [];
-  let companySummary: string | null = null;
-
-  for (const task of taskRows) {
-    if (task.status === 'COMPLETED' && task.extractedSignals) {
-      try {
-        const signals = JSON.parse(task.extractedSignals);
-        if (Array.isArray(signals)) {
-          allSignals.push(...signals.map((s: any) => ({
-            signal: s.signalName || s.signal || '',
-            evidenceQuote: s.evidenceQuote || '',
-            sourceUrl: s.sourceUrl || '',
-            matchStrength: s.matchStrength || '',
-          })));
-        }
-      } catch {}
-    }
-    if (task.status === 'COMPLETED' && task.taskType === 'WEBSITE_ANALYST' && task.rawArtifacts) {
-      try {
-        const raw = JSON.parse(task.rawArtifacts);
-        if (raw.summary) companySummary = raw.summary;
-      } catch {}
-    }
+  // Fetch all prospect details ensuring they belong to the current authenticated user
+  const prospect = await service.getLead(id);
+  // Security gate: Ensure prospect exists and belongs to the logged-in user
+  if (!prospect || prospect.ownerId !== userId) {
+    notFound();
   }
 
-  const domain = prospect.website ? new URL(prospect.website).hostname.replace(/^www\./, '') : null;
+  const [
+    notes,
+    tasksData,
+    activities,
+    latestSnapshot,
+    contactsList,
+    latestAudit,
+    currentScore,
+    outreachDrafts,
+    activeResearchJob,
+    stageThresholdRow,
+    pcRow,
+    nextFollowUp,
+    unmetRequirements,
+    leadResearchTasks,
+  ] = await Promise.all([
+    service.getNotes(id),
+    service.getTasks(id),
+    service.getActivities(id),
+    researchService.getLatestResearch(id),
+    researchService.getContacts(id),
+    auditService.getLatestAudit(id),
+    scoringService.getCurrentScore(id),
+    outreachService.getDraftsForLead(id),
+    db
+      .select({ id: jobRuns.id, status: jobRuns.status })
+      .from(jobRuns)
+      .where(
+        and(
+          eq(jobRuns.targetLeadId, id),
+          eq(jobRuns.jobType, 'RESEARCH_GENERATION'),
+          or(eq(jobRuns.status, 'QUEUED'), eq(jobRuns.status, 'RUNNING'))
+        )
+      )
+      .limit(1)
+      .then((rows) => rows[0] || null),
+    db
+      .select({ days: stageThresholds.days })
+      .from(stageThresholds)
+      .where(eq(stageThresholds.stage, prospect.stage))
+      .limit(1)
+      .then((r) => r[0]),
+    db
+      .select()
+      .from(pipelineConfig)
+      .where(eq(pipelineConfig.id, 'global'))
+      .limit(1)
+      .then((r) => r[0] || null),
+    db
+      .select({ dueDate: tasks.dueDate })
+      .from(tasks)
+      .where(
+        and(
+          eq(tasks.leadId, id),
+          eq(tasks.status, 'Open'),
+          like(tasks.title, 'Follow up on %')
+        )
+      )
+      .orderBy(tasks.dueDate)
+      .limit(1)
+      .then((r) => r[0] || null),
+    service.getUnmetStageRequirements(id, prospect.email || null),
+    db
+      .select({
+        taskType: researchTasks.taskType,
+        status: researchTasks.status,
+        extractedSignals: researchTasks.extractedSignals,
+        confidence: researchTasks.confidence,
+        errorMessage: researchTasks.errorMessage,
+      })
+      .from(researchTasks)
+      .where(eq(researchTasks.prospectId, id))
+      .orderBy(researchTasks.createdAt),
+  ]);
 
-  const breakdownItems = allSignals.map(s => ({
-    factor: s.signal,
-    contribution: s.matchStrength === 'strong' ? 10 : s.matchStrength === 'partial' ? 5 : 2,
-    evidenceQuote: s.evidenceQuote,
-    sourceUrl: s.sourceUrl,
-  }));
+  const stageThreshold = stageThresholdRow?.days ?? 5;
 
-  const isDisqualified = prospect.priorityTier === 'disqualified';
-  const isLowConfidence = prospect.confidenceScore !== null && prospect.confidenceScore < 50;
+  let nbaRules = DEFAULT_NBA_RULES;
+  if (pcRow?.nbaRules) {
+    try {
+      nbaRules = JSON.parse(pcRow.nbaRules);
+    } catch {}
+  }
+  const nbaResults = await service.getNextBestActions(id, nbaRules, {
+    tasks: tasksData,
+    hasResearch: !!latestSnapshot,
+    hasAudit: !!latestAudit,
+    hasDraft: outreachDrafts.some((d) => d.status === 'DRAFT'),
+  });
+
+  const STAGE_MAP: Record<string, string> = {
+    Researching: 'In Research',
+    Qualified: 'Audited',
+    'Outreach in Progress': 'Outreach Sent',
+    'Meeting / Call': 'Meeting',
+  };
+  const displayStage = STAGE_MAP[prospect.stage] || prospect.stage || 'New';
+  const stages = [
+    'New',
+    'In Research',
+    'Auditing',
+    'Audited',
+    'Drafting',
+    'Ready to Send',
+    'Outreach Sent',
+    'Meeting',
+    'Won',
+    'Lost',
+  ];
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      {/* Breadcrumb */}
-      <nav className="flex items-center gap-2 text-copy-14 text-muted-foreground">
-        <Link href="/prospects" className="hover:text-foreground transition-colors">Prospects</Link>
-        <span className="text-muted-foreground/30">/</span>
-        <span className="font-medium text-foreground">{prospect.company || prospect.name}</span>
-      </nav>
-
-      {/* Header */}
-      <div>
-        <h1 className="text-heading-2xl">{prospect.company || prospect.name}</h1>
-        <p className="text-copy-14 text-muted-foreground mt-1">
-          {domain && <>{domain} &middot; </>}
-          {market?.name && <>{market.name} &middot; </>}
-          Added {prospect.createdAt ? new Date(prospect.createdAt).toLocaleDateString() : 'Unknown'}
-        </p>
-      </div>
-
-      {/* Disqualified banner */}
-      {isDisqualified && (
-        <div className="flex items-start gap-3 p-4 rounded-xl bg-destructive/10 text-destructive border border-destructive/20">
-          <ShieldAlert className="w-5 h-5 mt-0.5 shrink-0" />
-          <div>
-            <p className="label-14">Disqualified</p>
-            <p className="copy-14">{prospect.disqualifiedReason || prospect.fitReasoning || 'Prospect matched a disqualifier rule.'}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Low-confidence banner */}
-      {isLowConfidence && !isDisqualified && (
-        <div className="flex items-start gap-3 p-4 rounded-xl bg-chart-5/10 text-chart-5 border border-chart-5/20">
-          <TriangleAlert className="w-5 h-5 mt-0.5 shrink-0" />
-          <div>
-            <p className="label-14">Low data confidence</p>
-            <p className="copy-14">
-              Scores may be unreliable — consider gathering more data before acting.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Main grid: 12 columns, 7/5 split */}
-      <div className="grid grid-cols-12 gap-6">
-        {/* Left: Evidence */}
-        <div className="col-span-12 lg:col-span-7">
-          <div className="rounded-xl border border-border bg-card p-5">
-            <h3 className="label-14 text-foreground uppercase mb-4">Company Evidence</h3>
-            <ProspectEvidencePanel
-              companyName={prospect.company || prospect.name}
-              domain={domain}
-              summary={companySummary}
-              painSignals={allSignals}
-              contacts={contactRows.map(c => ({
-                id: c.id,
-                fullName: c.fullName,
-                roleTitle: c.roleTitle,
-                email: c.email,
-                isPrimary: c.isPrimary,
-              }))}
-              researchTasks={taskRows.map(t => ({
-                id: t.id,
-                taskType: t.taskType,
-                status: t.status,
-                extractedSignals: t.extractedSignals,
-                errorMessage: t.errorMessage,
-                confidence: t.confidence,
-              }))}
-            />
-          </div>
-        </div>
-
-        {/* Right: Score + Outreach */}
-        <div className="col-span-12 lg:col-span-5 space-y-6">
-          <div className="rounded-xl border border-border bg-card p-5">
-            <h3 className="label-14 text-foreground uppercase mb-4">Score Breakdown</h3>
-            <ProspectScorePanel
-              prospectId={id}
-              fitScore={prospect.fitScore}
-              confidenceScore={prospect.confidenceScore}
-              priorityTier={prospect.priorityTier}
-              breakdown={breakdownItems}
-              fitReasoning={prospect.fitReasoning}
-            />
-          </div>
-
-          <div className="rounded-xl border border-border bg-card p-5">
-            <h3 className="label-14 text-foreground uppercase mb-4">Outreach</h3>
-            <OutreachSection
-              prospectId={id}
-              drafts={draftRows.map(d => ({
-                id: d.id,
-                subject: d.subject ?? null,
-                body: d.body,
-                status: d.status,
-                channel: d.channel,
-                citedEvidence: d.citedEvidence ?? null,
-                riskFlags: d.riskFlags ?? null,
-                rejectionReason: d.rejectionReason ?? null,
-              }))}
-            />
-          </div>
-        </div>
-      </div>
-    </div>
+    <ProspectDetailsWorkspace
+      lead={prospect}
+      notes={notes}
+      tasks={tasksData}
+      activities={activities}
+      latestSnapshot={latestSnapshot}
+      contactsList={contactsList}
+      latestAudit={latestAudit}
+      currentScore={currentScore}
+      outreachDrafts={outreachDrafts}
+      activeResearchJob={activeResearchJob}
+      displayStage={displayStage}
+      stages={stages}
+      initialView={(view as WorkspaceView) || 'overview'}
+      initialChannel={channel}
+      stageThreshold={stageThreshold}
+      nbaResults={nbaResults}
+      autoFollowUpDue={nextFollowUp?.dueDate}
+      unmetRequirements={unmetRequirements as any}
+      researchTasks={leadResearchTasks}
+    />
   );
 }

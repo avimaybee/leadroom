@@ -29,20 +29,24 @@ test('LeadService integration', async (t) => {
   });
 
   await t.test('listLeads should return active leads', async () => {
-    await service.createLead({ name: 'Lead 1' });
-    await service.createLead({ name: 'Lead 2' });
+    const { db, service } = setupTestDb();
+    await db.insert(users).values({ id: 'list-owner', name: 'Owner', email: 'list-owner@test.com', password: 'p' });
+    await service.createLead({ name: 'Lead 1', ownerId: 'list-owner' });
+    await service.createLead({ name: 'Lead 2', ownerId: 'list-owner' });
     
-    const list = await service.listLeads();
+    const list = await service.listLeads('list-owner');
     assert.ok(list.length >= 2);
   });
 
   await t.test('archiveLead should mark lead as Archived', async () => {
-    const lead = await service.createLead({ name: 'To Archive' });
+    const { db, service } = setupTestDb();
+    await db.insert(users).values({ id: 'archive-owner', name: 'Owner', email: 'archive-owner@test.com', password: 'p' });
+    const lead = await service.createLead({ name: 'To Archive', ownerId: 'archive-owner' });
     const archived = await service.archiveLead(lead.id);
     assert.ok(archived);
     assert.strictEqual(archived.status, 'Archived');
     
-    const list = await service.listLeads();
+    const list = await service.listLeads('archive-owner');
     assert.ok(!list.find((l: any) => l.id === lead.id));
   });
 

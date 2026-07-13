@@ -92,7 +92,7 @@ export function MarketForm({ initialData }: MarketFormProps) {
             <TriangleAlert className="w-4 h-4 text-chart-5 shrink-0" />
             <div>
               <p className="text-copy-14 text-chart-5">No offers yet.</p>
-              <a href="/settings/offer/new" className="text-label-12 text-primary hover:underline">
+              <a href="/personalisation/offer/new" className="text-label-12 text-primary hover:underline">
                 Create one first
               </a>
             </div>
@@ -112,15 +112,15 @@ export function MarketForm({ initialData }: MarketFormProps) {
       </div>
 
       <div>
-        <label className="label-12 uppercase text-muted-foreground block mb-1.5">Linked ICP Profile</label>
+        <label className="label-12 uppercase text-muted-foreground block mb-1.5">Linked Ideal Client</label>
         {loading ? (
           <div className="h-10 rounded-md bg-muted animate-pulse" />
         ) : profiles.length === 0 ? (
           <div className="flex items-center gap-2 p-3 rounded-md bg-chart-5/10 border border-chart-5/20">
             <TriangleAlert className="w-4 h-4 text-chart-5 shrink-0" />
             <div>
-              <p className="text-copy-14 text-chart-5">No ICP profiles yet.</p>
-              <a href="/settings/icp/new" className="text-label-12 text-primary hover:underline">
+              <p className="text-copy-14 text-chart-5">No Ideal Client criteria yet.</p>
+              <a href="/personalisation/icp/new" className="text-label-12 text-primary hover:underline">
                 Create one first
               </a>
             </div>
@@ -131,7 +131,7 @@ export function MarketForm({ initialData }: MarketFormProps) {
             onChange={(e) => setIcpProfileId(e.target.value)}
             className="w-full h-10 rounded-md border border-border bg-background px-3 text-copy-14 focus:outline-none focus:ring-2 focus:ring-primary/30"
           >
-            <option value="">Select an ICP profile...</option>
+            <option value="">Select an Ideal Client...</option>
             {profiles.map((p) => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}

@@ -85,8 +85,8 @@ export function IcpForm({ initialData }: IcpFormProps) {
       return;
     }
 
-    toast.success('ICP profile saved');
-    router.push('/settings/icp');
+    toast.success('Ideal client criteria saved');
+    router.push('/personalisation/icp');
   };
 
   return (
@@ -192,7 +192,7 @@ export function IcpForm({ initialData }: IcpFormProps) {
             <button
               type="button"
               onClick={addDisqualifier}
-              className="inline-flex items-center gap-1 h-10 px-3 rounded-md border border-border text-label-14 hover:bg-muted/50 transition-colors"
+              className="inline-flex items-center gap-1.5 h-10 px-3 rounded-md border border-border text-label-14 hover:bg-muted/50 transition-colors"
             >
               <Plus className="w-4 h-4" />
               Add
@@ -214,11 +214,11 @@ export function IcpForm({ initialData }: IcpFormProps) {
           className="inline-flex items-center gap-2 h-10 px-5 rounded-md bg-primary text-primary-foreground text-label-14 hover:bg-primary/90 transition-colors disabled:opacity-50"
         >
           {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-          {saving ? 'Saving...' : initialData ? 'Save ICP Profile' : 'Create ICP Profile'}
+          {saving ? 'Saving...' : initialData ? 'Save Ideal Client' : 'Create Ideal Client'}
         </button>
         <button
           type="button"
-          onClick={() => router.push('/settings/icp')}
+          onClick={() => router.push('/personalisation/icp')}
           className="inline-flex items-center h-10 px-5 rounded-md border border-border text-label-14 hover:bg-muted/50 transition-colors"
         >
           Cancel

@@ -30,8 +30,8 @@ export default async function PipelineSettingsPage() {
           <p className="text-label-14 text-primary font-semibold">ICP Optimization Suggestions</p>
           <p className="text-copy-14 text-primary/80 mt-0.5">
             View and manage learning suggestions in the{' '}
-            <Link href="/learning" className="underline decoration-primary/40 underline-offset-4 hover:decoration-primary">
-              Learning Inbox
+            <Link href="/settings/insights" className="underline decoration-primary/40 underline-offset-4 hover:decoration-primary">
+              Insights Suggestions
             </Link>
             .
           </p>

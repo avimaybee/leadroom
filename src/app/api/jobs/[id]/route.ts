@@ -30,7 +30,7 @@ export async function GET(
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });
     }
 
-    if (job.triggeredByUserId && job.triggeredByUserId !== userId) {
+    if (job.triggeredByUserId !== userId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

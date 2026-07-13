@@ -18,13 +18,13 @@ export default async function IntegrationsPage() {
   const service = new IntegrationsService(db);
   const calendarService = new CalendarService(db);
 
-  const geminiConfig = await service.getProviderConfig('gemini');
-  const nvidiaConfig = await service.getProviderConfig('nvidia');
-  const openrouterConfig = await service.getProviderConfig('openrouter');
-  const groqConfig = await service.getProviderConfig('groq');
-  const aimlConfig = await service.getProviderConfig('aiml');
-  const openaiConfig = await service.getProviderConfig('openai');
-  const anthropicConfig = await service.getProviderConfig('anthropic');
+  const geminiConfig = await service.getProviderConfig('gemini', userId);
+  const nvidiaConfig = await service.getProviderConfig('nvidia', userId);
+  const openrouterConfig = await service.getProviderConfig('openrouter', userId);
+  const groqConfig = await service.getProviderConfig('groq', userId);
+  const aimlConfig = await service.getProviderConfig('aiml', userId);
+  const openaiConfig = await service.getProviderConfig('openai', userId);
+  const anthropicConfig = await service.getProviderConfig('anthropic', userId);
 
   const calendarStatus = userId ? await calendarService.getStatus(userId) : { connected: false };
   const clientId = userId ? await calendarService.getClientId(userId) : null;

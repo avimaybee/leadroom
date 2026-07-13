@@ -21,7 +21,7 @@ export default function ClientLeadProfile({ lead }: ClientLeadProfileProps) {
     <div className="space-y-4 animate-fade-in">
       <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
         <div>
-          <span className="block text-label-12 text-muted-foreground uppercase">Lead Name</span>
+          <span className="block text-label-12 text-muted-foreground uppercase">Contact Name</span>
           <span className="text-copy-14 text-foreground mt-1 block">{lead.name}</span>
         </div>
         <div>

@@ -4,9 +4,10 @@ import { getDb } from '@/db';
 import { revalidatePath } from 'next/cache';
 import { getUserId } from '@/lib/auth';
 import { workspaces, offers, icpProfiles, markets } from '@/db/schema/strategy';
-import { eq, sql } from 'drizzle-orm';
+import { eq, sql, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { withLogging } from '@/lib/actions/with-logging';
+import { generateOfferAndICPFromDescription } from '@/lib/ai';
 
 const SignalDefSchema = z.object({
   name: z.string().min(1),
@@ -41,16 +42,15 @@ export async function getOrCreateWorkspaceAction() {
   if (!userId) return { error: 'Unauthorized' };
 
   const db = getDb();
-  const existing = await db.select().from(workspaces).limit(1);
+  const existing = await db.select().from(workspaces).where(eq(workspaces.id, userId)).limit(1);
 
   if (existing.length > 0) {
     return { success: true, workspace: existing[0] };
   }
 
-  const id = crypto.randomUUID();
   const now = new Date();
-  await db.insert(workspaces).values({ id, name: 'My Workspace', createdAt: now, updatedAt: now });
-  const [ws] = await db.select().from(workspaces).where(eq(workspaces.id, id)).limit(1);
+  await db.insert(workspaces).values({ id: userId, name: `${userId}'s Workspace`, createdAt: now, updatedAt: now });
+  const [ws] = await db.select().from(workspaces).where(eq(workspaces.id, userId)).limit(1);
   return { success: true, workspace: ws };
 }
 
@@ -71,7 +71,10 @@ export async function getOfferAction(offerId: string) {
   if (!userId) return { error: 'Unauthorized' };
 
   const db = getDb();
-  const [row] = await db.select().from(offers).where(eq(offers.id, offerId)).limit(1);
+  const ws = await getOrCreateWorkspaceAction();
+  if (!ws.success || !ws.workspace) return { error: 'No workspace' };
+
+  const [row] = await db.select().from(offers).where(and(eq(offers.id, offerId), eq(offers.workspaceId, ws.workspace.id))).limit(1);
   if (!row) return { error: 'Offer not found' };
   return { success: true, offer: row };
 }
@@ -112,12 +115,12 @@ async function saveOfferActionImpl(prev: any, form: FormData) {
   };
 
   if (form.get('id')) {
-    await db.update(offers).set(data).where(eq(offers.id, offerId));
+    await db.update(offers).set(data).where(and(eq(offers.id, offerId), eq(offers.workspaceId, ws.workspace.id)));
   } else {
     await db.insert(offers).values({ id: offerId, workspaceId: ws.workspace.id, ...data, createdAt: now });
   }
 
-  revalidatePath('/settings/offer');
+  revalidatePath('/personalisation/offer');
   return { success: true, offerId };
 }
 
@@ -140,7 +143,10 @@ export async function getICPProfileAction(icpId: string) {
   if (!userId) return { error: 'Unauthorized' };
 
   const db = getDb();
-  const [row] = await db.select().from(icpProfiles).where(eq(icpProfiles.id, icpId)).limit(1);
+  const ws = await getOrCreateWorkspaceAction();
+  if (!ws.success || !ws.workspace) return { error: 'No workspace' };
+
+  const [row] = await db.select().from(icpProfiles).where(and(eq(icpProfiles.id, icpId), eq(icpProfiles.workspaceId, ws.workspace.id))).limit(1);
   if (!row) return { error: 'ICP profile not found' };
   return { success: true, profile: row };
 }
@@ -180,12 +186,12 @@ async function saveICPProfileActionImpl(prev: any, form: FormData) {
   };
 
   if (form.get('id')) {
-    await db.update(icpProfiles).set(data).where(eq(icpProfiles.id, icpId));
+    await db.update(icpProfiles).set(data).where(and(eq(icpProfiles.id, icpId), eq(icpProfiles.workspaceId, ws.workspace.id)));
   } else {
     await db.insert(icpProfiles).values({ id: icpId, workspaceId: ws.workspace.id, ...data, createdAt: now });
   }
 
-  revalidatePath('/settings/icp');
+  revalidatePath('/personalisation/icp');
   return { success: true, icpId };
 }
 
@@ -224,7 +230,10 @@ export async function getMarketAction(marketId: string) {
   if (!userId) return { error: 'Unauthorized' };
 
   const db = getDb();
-  const [row] = await db.select().from(markets).where(eq(markets.id, marketId)).limit(1);
+  const ws = await getOrCreateWorkspaceAction();
+  if (!ws.success || !ws.workspace) return { error: 'No workspace' };
+
+  const [row] = await db.select().from(markets).where(and(eq(markets.id, marketId), eq(markets.workspaceId, ws.workspace.id))).limit(1);
   if (!row) return { error: 'Market not found' };
   return { success: true, market: row };
 }
@@ -260,7 +269,7 @@ async function saveMarketActionImpl(prev: any, form: FormData) {
   };
 
   if (form.get('id')) {
-    await db.update(markets).set(data).where(eq(markets.id, marketId));
+    await db.update(markets).set(data).where(and(eq(markets.id, marketId), eq(markets.workspaceId, ws.workspace.id)));
   } else {
     await db.insert(markets).values({ id: marketId, workspaceId: ws.workspace.id, ...data, createdAt: now });
   }
@@ -276,9 +285,90 @@ async function deleteMarketActionImpl(marketId: string) {
   if (!userId) return { error: 'Unauthorized' };
 
   const db = getDb();
-  await db.delete(markets).where(eq(markets.id, marketId));
+  const ws = await getOrCreateWorkspaceAction();
+  if (!ws.success || !ws.workspace) return { error: 'No workspace' };
+
+  await db.delete(markets).where(and(eq(markets.id, marketId), eq(markets.workspaceId, ws.workspace.id)));
   revalidatePath('/settings/market');
   return { success: true };
 }
 
 export const deleteMarketAction = withLogging('deleteMarketAction', deleteMarketActionImpl);
+
+export const createMarketWithWizardAction = withLogging(
+  'createMarketWithWizardAction',
+  async (prev: any, form: FormData) => {
+    const userId = await getUserId();
+    if (!userId) return { error: 'Unauthorized' };
+
+    const db = getDb();
+    const ws = await getOrCreateWorkspaceAction();
+    if (!ws.success || !ws.workspace) return { error: 'No workspace' };
+
+    const marketName = form.get('marketName') as string;
+    const offerDescription = form.get('offerDescription') as string;
+    const icpDescription = form.get('icpDescription') as string;
+
+    if (!marketName || !offerDescription || !icpDescription) {
+      return { error: 'All fields are required.' };
+    }
+
+    try {
+      // 1. Generate Offer and ICP structures via AI
+      const aiResult = await generateOfferAndICPFromDescription(
+        db,
+        marketName,
+        offerDescription,
+        icpDescription,
+        userId
+      );
+
+      const offerId = crypto.randomUUID();
+      const icpId = crypto.randomUUID();
+      const marketId = crypto.randomUUID();
+      const now = new Date();
+
+      // 2. Insert Offer
+      await db.insert(offers).values({
+        id: offerId,
+        workspaceId: ws.workspace.id,
+        name: aiResult.offer.name,
+        targetPain: aiResult.offer.targetPain,
+        desiredOutcome: aiResult.offer.desiredOutcome,
+        proofPoints: JSON.stringify(aiResult.offer.proofPoints),
+        forbiddenClaims: JSON.stringify(aiResult.offer.forbiddenClaims),
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      // 3. Insert ICP Profile
+      await db.insert(icpProfiles).values({
+        id: icpId,
+        workspaceId: ws.workspace.id,
+        name: aiResult.icp.name,
+        positiveSignals: JSON.stringify(aiResult.icp.positiveSignals),
+        negativeSignals: JSON.stringify(aiResult.icp.negativeSignals),
+        disqualifiers: JSON.stringify(aiResult.icp.disqualifiers),
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      // 4. Insert Market linking both
+      await db.insert(markets).values({
+        id: marketId,
+        workspaceId: ws.workspace.id,
+        name: marketName,
+        offerId,
+        icpProfileId: icpId,
+        status: 'active',
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      revalidatePath('/markets');
+      return { success: true, marketId };
+    } catch (err: any) {
+      return { error: `Failed to create market: ${err.message}` };
+    }
+  }
+);

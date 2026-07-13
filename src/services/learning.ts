@@ -6,6 +6,7 @@ import { icpProfiles, workspaces } from '@/db/schema/strategy';
 import { generateLearningSuggestions } from '@/lib/domain/outcomes';
 import { researchTasks } from '@/db/schema/jobs';
 import { ExtractedSignal } from '@/lib/domain/scoring';
+import { createNotification } from '@/lib/notifications';
 
 export class LearningService {
   constructor(private db: Db) {}
@@ -98,15 +99,26 @@ export class LearningService {
           status: 'PENDING',
           createdAt: new Date(),
         });
+        
+        await createNotification(
+          this.db,
+          workspaceId,
+          null,
+          'New ICP Insight Suggestion',
+          `The system has identified pattern variations and suggested: ${s.suggestion.suggestedChange.type.replace(/_/g, ' ')} "${s.suggestion.suggestedChange.target}"`,
+          'INFO',
+          '/settings/insights'
+        );
       }
     }
   }
 
   async applySuggestion(suggestionId: string, userId: string): Promise<void> {
+    // workspace.id === userId by convention (set by getOrCreateWorkspaceAction)
     const [suggestion] = await this.db
       .select()
       .from(learningSuggestions)
-      .where(eq(learningSuggestions.id, suggestionId))
+      .where(and(eq(learningSuggestions.id, suggestionId), eq(learningSuggestions.workspaceId, userId)))
       .limit(1);
 
     if (!suggestion) throw new Error('Suggestion not found');
@@ -168,10 +180,11 @@ export class LearningService {
   }
 
   async dismissSuggestion(suggestionId: string, userId: string): Promise<void> {
+    // workspace.id === userId by convention (set by getOrCreateWorkspaceAction)
     const [suggestion] = await this.db
       .select()
       .from(learningSuggestions)
-      .where(eq(learningSuggestions.id, suggestionId))
+      .where(and(eq(learningSuggestions.id, suggestionId), eq(learningSuggestions.workspaceId, userId)))
       .limit(1);
 
     if (!suggestion) throw new Error('Suggestion not found');

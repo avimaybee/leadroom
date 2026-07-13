@@ -6,6 +6,9 @@ import { eq } from 'drizzle-orm';
 
 // Ensure test environment
 (process.env as any).NODE_ENV = 'test';
+if (!process.env.DB_ENCRYPTION_KEY) {
+  process.env.DB_ENCRYPTION_KEY = 'test-encryption-key-for-local-dev-32chars!';
+}
 
 
 // Import route handlers
@@ -109,16 +112,17 @@ function setupTestDb() {
 
     CREATE TABLE provider_configs (
       id TEXT PRIMARY KEY,
-      provider TEXT NOT NULL UNIQUE,
+      provider TEXT NOT NULL,
       api_key TEXT NOT NULL,
       model_name TEXT NOT NULL,
-      is_active INTEGER DEFAULT 1,
+      user_id TEXT NOT NULL REFERENCES users(id),
       is_research_active INTEGER DEFAULT 0,
       is_scoring_active INTEGER DEFAULT 0,
       is_drafting_active INTEGER DEFAULT 0,
       created_at INTEGER DEFAULT (strftime('%s', 'now')),
       updated_at INTEGER DEFAULT (strftime('%s', 'now'))
     );
+    CREATE UNIQUE INDEX provider_user_idx ON provider_configs(provider, user_id);
 
     CREATE TABLE job_runs (
       id TEXT PRIMARY KEY,
@@ -398,6 +402,7 @@ test('API Route Handlers & Integration Pipeline', async (t) => {
       jobType: 'RESEARCH_GENERATION',
       status: 'RUNNING',
       targetLeadId: 'lead_123',
+      triggeredByUserId: 'user_123',
     });
 
     const request = new Request('http://localhost/api/jobs/job_456');

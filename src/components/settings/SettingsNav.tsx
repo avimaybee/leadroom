@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { SlidersHorizontal, Cpu, ScrollText, Users, Target } from 'lucide-react';
+import { SlidersHorizontal, Cpu, Target, Lightbulb } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function SettingsNav() {
@@ -22,22 +22,16 @@ export function SettingsNav() {
       icon: Cpu,
     },
     {
-      name: 'Offer',
-      href: '/settings/offer',
-      description: 'Define what you sell',
-      icon: ScrollText,
-    },
-    {
-      name: 'ICP Profile',
-      href: '/settings/icp',
-      description: 'Define your ideal customer profile',
-      icon: Users,
-    },
-    {
-      name: 'Market',
+      name: 'Market Settings',
       href: '/settings/market',
       description: 'Link offers and ICPs to target segments',
       icon: Target,
+    },
+    {
+      name: 'Insights Suggestions',
+      href: '/settings/insights',
+      description: 'Review system learning recommendations',
+      icon: Lightbulb,
     },
   ];
 

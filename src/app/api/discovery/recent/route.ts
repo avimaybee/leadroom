@@ -4,9 +4,8 @@ import { getLogger } from '@/lib/logger';
 import { NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { jobRuns } from '@/db/schema/research';
-import { eq, desc } from 'drizzle-orm';
-import { cookies } from 'next/headers';
-import { decrypt, getUserId } from '@/lib/auth';
+import { eq, desc, and } from 'drizzle-orm';
+import { getUserId } from '@/lib/auth';
 
 const log = getLogger('DiscoveryRecentAPI');
 
@@ -23,10 +22,16 @@ export async function GET(request: Request) {
 
   try {
     // If filtering by scope, fetch more runs so we can filter in memory and return up to 5.
+    // Always scope by the authenticated user to prevent cross-tenant leakage.
     const runs = await db
       .select()
       .from(jobRuns)
-      .where(eq(jobRuns.jobType, 'DISCOVERY_SEARCH'))
+      .where(
+        and(
+          eq(jobRuns.jobType, 'DISCOVERY_SEARCH'),
+          eq(jobRuns.triggeredByUserId, userId)
+        )
+      )
       .orderBy(desc(jobRuns.createdAt))
       .limit(filterScopeId ? 100 : 5);
 

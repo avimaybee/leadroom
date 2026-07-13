@@ -45,11 +45,11 @@ export default async function UnifiedFeedLoader() {
     items.push({
       id: l.id,
       type: 'lead',
-      title: `Stale Lead: ${l.name}${l.company ? ` at ${l.company}` : ''}`,
+      title: `Stale Prospect: ${l.name}${l.company ? ` at ${l.company}` : ''}`,
       subtitle: `Idle in ${l.stage}`,
       date: l.lastActivityAt || l.stageUpdatedAt || l.createdAt,
       isRead: l.isRead,
-      link: `/leads/${l.id}`,
+      link: `/prospects/${l.id}`,
       status: 'Needs Attention',
       priority: 'High',
     });
@@ -63,7 +63,7 @@ export default async function UnifiedFeedLoader() {
       subtitle: t.leadName,
       date: t.task.dueDate,
       isRead: t.task.isRead,
-      link: t.task.leadId ? `/leads/${t.task.leadId}` : '#',
+      link: t.task.leadId ? `/prospects/${t.task.leadId}` : '#',
       priority: t.task.priority,
       leadId: t.task.leadId || undefined,
     });
@@ -77,7 +77,7 @@ export default async function UnifiedFeedLoader() {
       subtitle: d.leadName,
       date: d.draft.createdAt,
       isRead: d.draft.isRead,
-      link: `/leads/${d.draft.leadId}`,
+      link: `/prospects/${d.draft.leadId}`,
       status: d.draft.channel,
       leadId: d.draft.leadId || undefined,
     });

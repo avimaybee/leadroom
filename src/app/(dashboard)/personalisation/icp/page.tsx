@@ -5,27 +5,27 @@ import { Plus, Info } from 'lucide-react';
 import { listICPProfilesAction } from '@/app/actions/strategy';
 
 export const metadata = {
-  title: 'ICP Profiles | Leadroom',
+  title: 'Ideal Clients | Leadroom',
 };
 
 export default async function IcpListPage() {
   const result = await listICPProfilesAction();
 
   return (
-    <div className="max-w-3xl">
+    <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-heading-2xl">ICP Profiles</h2>
+          <h2 className="text-heading-2xl">Ideal Clients</h2>
           <p className="text-copy-14 text-muted-foreground mt-1">
-            Define your Ideal Customer Profile with weighted signals and disqualifiers.
+            Define what makes a customer a perfect fit for your offer.
           </p>
         </div>
         <Link
-          href="/settings/icp/new"
+          href="/personalisation/icp/new"
           className="inline-flex items-center gap-2 h-10 px-4 rounded-md bg-primary text-primary-foreground text-label-14 hover:bg-primary/90 transition-colors"
         >
           <Plus className="w-4 h-4" />
-          Create ICP Profile
+          Define Ideal Client
         </Link>
       </div>
 
@@ -34,16 +34,16 @@ export default async function IcpListPage() {
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-muted mb-4">
             <Info className="w-6 h-6 text-muted-foreground" />
           </div>
-          <h3 className="text-heading-lg text-foreground">No ICP profiles yet</h3>
+          <h3 className="text-heading-lg text-foreground">No Ideal Client criteria yet</h3>
           <p className="text-copy-14 text-muted-foreground mt-1 max-w-md mx-auto">
-            Define who you want to sell to. ICP profiles drive fit scoring and prospect prioritization.
+            Define who you want to sell to so the system can score fits and prioritize prospects.
           </p>
           <Link
-            href="/settings/icp/new"
+            href="/personalisation/icp/new"
             className="inline-flex items-center gap-2 mt-4 h-10 px-4 rounded-md bg-primary text-primary-foreground text-label-14 hover:bg-primary/90 transition-colors"
           >
             <Plus className="w-4 h-4" />
-            Create ICP Profile
+            Define Ideal Client
           </Link>
         </div>
       ) : (
@@ -67,7 +67,7 @@ export default async function IcpListPage() {
                   <tr
                     key={profile.id}
                     className="border-b border-border/40 last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
-                    onClick={() => window.location.href = `/settings/icp/${profile.id}`}
+                    onClick={() => window.location.href = `/personalisation/icp/${profile.id}`}
                   >
                     <td className="px-4 py-3 text-copy-14 font-medium">{profile.name}</td>
                     <td className="px-4 py-3 text-copy-13 text-muted-foreground">{pos.length}</td>

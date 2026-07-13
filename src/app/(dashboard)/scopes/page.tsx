@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { DiscoveryService } from '@/services/discovery';
 import { getDb } from '@/db';
+import { getUserId } from '@/lib/auth';
 import Link from 'next/link';
 import { Search, Calendar, FolderOpen, AlertTriangle } from 'lucide-react';
 import { formatUTC } from '@/lib/date';
@@ -9,15 +10,16 @@ import { Button, buttonVariants } from '@/components/ui/button';
 
 export default async function ScopesPage({ searchParams }: { searchParams: Promise<{ filter?: string }> }) {
   const db = getDb();
+  const userId = await getUserId();
   const service = new DiscoveryService(db);
   const resolvedParams = await searchParams;
   const activeFilter = resolvedParams.filter || 'all';
 
-  const scopes = await service.listScopes();
+  const scopes = userId ? await service.listScopes(userId) : [];
 
   const scopesWithStats = await Promise.all(
     scopes.map(async (scope: any) => {
-      const candidates = await service.listCandidatesByScope(scope.id);
+      const candidates = userId ? await service.listCandidatesByScope(scope.id, userId) : [];
       const pendingCount = candidates.filter((c: any) => c.status === 'NEW' || c.status === 'REVIEWED').length;
       const totalCount = candidates.length;
       return {

@@ -209,9 +209,11 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
         }
       );
 
-      // Step 9: LLM Inference & Persist Snapshot/Audit/Score/Activity
-      await step.do(
-        "generate-snapshots",
+      // Step 9a: Check cache & call AI (may be network I/O heavy)
+      const websiteMarkdown = scraped?.content || null;
+      const location = [lead.city, lead.region].filter(Boolean).join(', ') || null;
+      const { merged, hash } = await step.do(
+        "check-cache-and-generate-ai",
         {
           retries: {
             limit: 3,
@@ -221,7 +223,110 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
           timeout: "10 minutes",
         },
         async () => {
-          await workflowService.generateSnapshots(lead, scraped, userId ?? null, jobId);
+          return await workflowService.checkCacheAndGenerateAI(lead, websiteMarkdown, location, userId ?? null, jobId);
+        }
+      );
+
+      if (!merged) {
+        throw new Error('Failed to generate or load research data');
+      }
+
+      // Step 9b: Persist snapshot records
+      const now = new Date();
+      await step.do(
+        "persist-snapshots",
+        {
+          retries: {
+            limit: 3,
+            delay: 1000,
+            backoff: "linear",
+          },
+          timeout: "1 minute",
+        },
+        async () => {
+          await workflowService.persistSnapshots(lead, scraped, merged, hash, userId ?? null, jobId, now);
+        }
+      );
+
+      // Step 9c: Save AI-extracted contacts
+      await step.do(
+        "save-contacts-from-ai",
+        {
+          retries: {
+            limit: 2,
+            delay: 1000,
+            backoff: "linear",
+          },
+          timeout: "1 minute",
+        },
+        async () => {
+          await workflowService.saveContactsFromAI(lead.id, merged, userId ?? null);
+        }
+      );
+
+      // Step 9d: Fetch ICP profile
+      const icpProfile = await step.do(
+        "fetch-icp-profile",
+        {
+          retries: {
+            limit: 2,
+            delay: 1000,
+            backoff: "linear",
+          },
+          timeout: "30 seconds",
+        },
+        async () => {
+          return await workflowService.fetchICPProfile(lead.id);
+        }
+      );
+
+      // Step 9e: Extract & match ICP signals
+      const { matchedPositive, matchedNegative, matchedDisqualifiers } = icpProfile
+        ? await step.do(
+            "extract-and-match-signals",
+            {
+              retries: {
+                limit: 2,
+                delay: 5000,
+                backoff: "exponential",
+              },
+              timeout: "5 minutes",
+            },
+            async () => {
+              return await workflowService.extractAndMatchSignals(lead, websiteMarkdown, icpProfile);
+            }
+          )
+        : { matchedPositive: [], matchedNegative: [], matchedDisqualifiers: [] };
+
+      // Step 9f: Update research tasks
+      await step.do(
+        "update-research-tasks",
+        {
+          retries: {
+            limit: 3,
+            delay: 1000,
+            backoff: "linear",
+          },
+          timeout: "1 minute",
+        },
+        async () => {
+          await workflowService.updateResearchTasks(lead.id, merged, matchedPositive, matchedNegative, matchedDisqualifiers, icpProfile, new Date());
+        }
+      );
+
+      // Step 9g: Recalculate score & advance stage
+      await step.do(
+        "recalculate-and-advance",
+        {
+          retries: {
+            limit: 3,
+            delay: 1000,
+            backoff: "linear",
+          },
+          timeout: "1 minute",
+        },
+        async () => {
+          await workflowService.recalculateAndAdvance(lead.id, jobId, userId ?? null);
         }
       );
 

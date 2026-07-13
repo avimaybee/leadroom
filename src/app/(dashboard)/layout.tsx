@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { LayoutDashboard, Users, Target, Settings, FileText, ClipboardCheck, LayoutList, Lightbulb, ChevronRight, FlaskConical } from 'lucide-react';
+import { LayoutDashboard, Users, Target, Settings, FileText, ClipboardCheck, LayoutList, Lightbulb, ChevronRight, FlaskConical, Sparkles } from 'lucide-react';
 import { NotificationProvider } from '@/components/NotificationProvider';
 import { NotificationBell } from '@/components/NotificationBell';
 import { HowToUse } from '@/components/HowToUse';
@@ -32,11 +32,9 @@ const navItems: NavItem[] = [
   { name: 'Command Center', href: '/', icon: LayoutDashboard },
   { name: 'Markets', href: '/markets', icon: Target },
   { name: 'Prospects', href: '/prospects', icon: Users },
-  { name: 'Research Queue', href: '/research', icon: FileText },
-  { name: 'Approvals', href: '/approvals', icon: ClipboardCheck, badge: true, badgeType: 'approvals' },
-  { name: 'Pipeline', href: '/pipeline', icon: LayoutList },
-  { name: 'Learning', href: '/learning', icon: Lightbulb, badge: true, badgeType: 'learning' },
-  { name: 'Settings', href: '/settings/offer', icon: Settings },
+  { name: 'Outreach Drafts', href: '/approvals', icon: ClipboardCheck, badge: true, badgeType: 'approvals' },
+  { name: 'My Setup', href: '/personalisation', icon: Sparkles },
+  { name: 'Settings', href: '/settings/pipeline', icon: Settings },
 ];
 
 const legacyItems: NavItem[] = [
@@ -50,8 +48,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [legacyOpen, setLegacyOpen] = useState(false);
+  const [user, setUser] = useState<{ name: string; email: string } | null>(null);
   const sidebarRef = useRef<HTMLElement>(null);
   const dragRef = useRef(false);
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then(res => res.json())
+      .then((data: any) => {
+        if (data.user) {
+          setUser(data.user);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const savedWidth = localStorage.getItem(SIDEBAR_WIDTH_KEY);
@@ -194,8 +204,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Footer */}
         {!collapsed && (
-          <div className="px-3 pb-3 pt-1 text-label-12 text-muted-foreground/60">
-            Agency Admin
+          <div className="px-3 pb-3 pt-1 text-label-12 text-muted-foreground/60 truncate" title={user ? `${user.name} (${user.email})` : undefined}>
+            {user ? user.name || user.email : 'Loading user...'}
           </div>
         )}
 
@@ -230,7 +240,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </Button>
           </div>
         </header>
-        <div className="p-8 md:p-10 flex-1 overflow-y-auto">
+        <div className="p-8 md:p-10 flex-1 overflow-y-auto max-w-screen-2xl w-full">
           {children}
         </div>
       </main>

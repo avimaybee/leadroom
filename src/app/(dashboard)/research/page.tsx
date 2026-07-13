@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { ResearchQueueTable } from './ResearchQueueTable';
 
 export const metadata = {
-  title: 'Research Queue | Leadroom',
+  title: 'Research Jobs | Leadroom',
 };
 
 export default async function ResearchQueuePage() {
@@ -27,11 +27,11 @@ export default async function ResearchQueuePage() {
   const failedCount = tasks.filter(t => t.status === 'FAILED').length;
 
   return (
-    <div className="max-w-5xl">
+    <div>
       <div className="mb-6">
-        <h2 className="text-heading-2xl">Research Queue</h2>
+        <h2 className="text-heading-2xl">Research Jobs</h2>
         <p className="text-copy-14 text-muted-foreground mt-1">
-          Monitor automated research tasks for your prospects.
+          Background jobs researching each prospect's website, signals, and fit. Running automatically when you start research.
         </p>
       </div>
 

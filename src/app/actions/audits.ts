@@ -71,7 +71,7 @@ export async function triggerAuditAction(leadId: string) {
 
     let workflowBinding: any = undefined;
     try {
-      const { getCloudflareContext } = require('@opennextjs/cloudflare');
+      const { getCloudflareContext } = await import('@opennextjs/cloudflare');
       workflowBinding = getCloudflareContext().env?.RESEARCH_SNAPSHOT_WORKFLOW;
     } catch (e) {
       log.info('getCloudflareContext unavailable — falling back to process.env for workflow binding');

@@ -153,7 +153,7 @@ export class LeadService {
     }));
   }
 
-  async checkDuplicates(input: { website?: string | null; email?: string | null; company?: string | null }): Promise<Array<{ id: string; name: string; website: string | null; email: string | null; company: string | null }>> {
+  async checkDuplicates(input: { website?: string | null; email?: string | null; company?: string | null }, userId?: string): Promise<Array<{ id: string; name: string; website: string | null; email: string | null; company: string | null }>> {
     const orConditions: any[] = [];
     if (input.website) {
       orConditions.push(eq(leads.website, input.website));
@@ -166,10 +166,13 @@ export class LeadService {
     }
     if (orConditions.length === 0) return [];
 
+    const conditions: any[] = [eq(leads.status, 'Active'), or(...orConditions)];
+    if (userId) conditions.push(eq(leads.ownerId, userId));
+
     return this.db
       .select({ id: leads.id, name: leads.name, website: leads.website, email: leads.email, company: leads.company })
       .from(leads)
-      .where(and(eq(leads.status, 'Active'), or(...orConditions)))
+      .where(and(...conditions))
       .limit(10);
   }
 
@@ -178,6 +181,9 @@ export class LeadService {
     const now = new Date();
     
     const { sourceName, ...leadData } = input;
+    if (!leadData.ownerId) {
+      log.warn('createLead called without ownerId — prospect will have no owner. All production callers should supply ownerId.');
+    }
     
     await this.db.insert(leads).values({
       ...leadData,
@@ -198,7 +204,8 @@ export class LeadService {
     let finalSourceName = sourceName?.trim() || 'Manual Entry';
     
     // Find or create Discovery Scope
-    let [scope] = await this.db.select().from(discoveryScopes).where(eq(discoveryScopes.name, finalSourceName)).limit(1);
+    const ownerId = leadData.ownerId || 'system';
+    let [scope] = await this.db.select().from(discoveryScopes).where(and(eq(discoveryScopes.name, finalSourceName), eq(discoveryScopes.createdByUserId, ownerId))).limit(1);
     
     if (!scope) {
       const scopeId = crypto.randomUUID();
@@ -251,9 +258,11 @@ export class LeadService {
     return lead;
   }
 
-  async listLeads() {
-  return this.db.select().from(leads).where(eq(leads.status, 'Active')).orderBy(desc(leads.updatedAt));
-}
+  async listLeads(userId?: string) {
+    const conditions = [eq(leads.status, 'Active')];
+    if (userId) conditions.push(eq(leads.ownerId, userId));
+    return this.db.select().from(leads).where(and(...conditions)).orderBy(desc(leads.updatedAt));
+  }
 
   async getDashboardProspects(userId: string) {
     return this.db
@@ -662,7 +671,9 @@ export class LeadService {
     }
   }
 
-  async getDashboardTasks() {
+  async getDashboardTasks(userId?: string) {
+    const conditions = [eq(tasks.status, 'Open')];
+    if (userId) conditions.push(eq(tasks.assigneeId, userId));
     return this.db.select({
       id: tasks.id,
       title: tasks.title,
@@ -674,7 +685,7 @@ export class LeadService {
     })
     .from(tasks)
     .leftJoin(leads, eq(tasks.leadId, leads.id))
-    .where(eq(tasks.status, 'Open'))
+    .where(and(...conditions))
     .orderBy(desc(tasks.dueDate));
   }
 
@@ -698,7 +709,7 @@ export class LeadService {
 
   // ── Pipeline Funnel Analytics ──
 
-  async getStageFunnel(): Promise<{
+  async getStageFunnel(userId?: string): Promise<{
     stage: string;
     entered: number;
     exited: number;
@@ -707,20 +718,25 @@ export class LeadService {
     droppedCount: number;
     droppedPercent: number | null;
   }[]> {
+    const leadFilter = userId ? eq(leads.ownerId, userId) : undefined;
+
     const enteredRows = await this.db
       .select({ stage: leadStageHistory.stage, count: count() })
       .from(leadStageHistory)
+      .innerJoin(leads, eq(leadStageHistory.leadId, leads.id))
+      .where(leadFilter || sql`1=1`)
       .groupBy(leadStageHistory.stage);
     const enteredMap = new Map(enteredRows.map((r) => [r.stage, r.count]));
 
     const exitedRows = await this.db
       .select({ stage: leadStageHistory.stage, count: count() })
       .from(leadStageHistory)
-      .where(isNotNull(leadStageHistory.exitedAt))
+      .innerJoin(leads, eq(leadStageHistory.leadId, leads.id))
+      .where(leadFilter ? and(isNotNull(leadStageHistory.exitedAt), leadFilter) : isNotNull(leadStageHistory.exitedAt))
       .groupBy(leadStageHistory.stage);
     const exitedMap = new Map(exitedRows.map((r) => [r.stage, r.count]));
 
-    const avgDaysMap = await this.getAvgDaysInAllStages();
+    const avgDaysMap = await this.getAvgDaysInAllStages(userId);
 
     const rows: any[] = [];
     for (let i = 0; i < PIPELINE_STAGES.length; i++) {
@@ -741,15 +757,17 @@ export class LeadService {
     return rows;
   }
 
-  private async getAvgDaysInAllStages(): Promise<Map<string, number | null>> {
+  private async getAvgDaysInAllStages(userId?: string): Promise<Map<string, number | null>> {
+    const conditions: any[] = [isNotNull(leadStageHistory.exitedAt), isNotNull(leadStageHistory.enteredAt)];
+    if (userId) conditions.push(eq(leads.ownerId, userId));
     const rows = await this.db
       .select({
         stage: leadStageHistory.stage,
         avgMs: sql<number>`AVG(${leadStageHistory.exitedAt} - ${leadStageHistory.enteredAt})`,
       })
       .from(leadStageHistory)
-      .where(and(isNotNull(leadStageHistory.exitedAt), isNotNull(leadStageHistory.enteredAt)))
-      .groupBy(leadStageHistory.stage);
+      .innerJoin(leads, eq(leadStageHistory.leadId, leads.id))
+      .where(and(...conditions))
     const map = new Map<string, number | null>();
     for (const row of rows) {
       if (row.avgMs === null) {
@@ -763,12 +781,14 @@ export class LeadService {
 
   // ── Stale Alert Methods ──
 
-  async checkAndAlertStaleLeads(sensitivity: 'relaxed' | 'normal' | 'strict' = 'normal'): Promise<number> {
+  async checkAndAlertStaleLeads(sensitivity: 'relaxed' | 'normal' | 'strict' = 'normal', userId?: string): Promise<number> {
     const multiplier = sensitivity === 'relaxed' ? 1.5 : sensitivity === 'strict' ? 0.7 : 1.0;
+    const conditions: any[] = [eq(leads.status, 'Active')];
+    if (userId) conditions.push(eq(leads.ownerId, userId));
     const activeLeads = await this.db
       .select()
       .from(leads)
-      .where(eq(leads.status, 'Active'));
+      .where(and(...conditions));
     const [firstUser] = await this.db.select({ id: leads.ownerId }).from(leads).where(isNotNull(leads.ownerId)).limit(1);
     const fallbackUserId = firstUser?.id || null;
     let alertCount = 0;
@@ -1046,12 +1066,13 @@ export class LeadService {
     });
   }
 
-  async simulateNBARules(draftRules: NBARule[], limit = 5): Promise<(NBAResult & { leadName: string })[]> {
+  async simulateNBARules(draftRules: NBARule[], limit = 5, userId?: string): Promise<(NBAResult & { leadName: string })[]> {
+    const conditions: any[] = [eq(leads.status, 'Active')];
+    if (userId) conditions.push(eq(leads.ownerId, userId));
     const activeLeads = await this.db
       .select({ id: leads.id, name: leads.name })
       .from(leads)
-      .where(eq(leads.status, 'Active'))
-      .limit(50);
+      .where(and(...conditions))
 
     const allResults: (NBAResult & { leadName: string })[] = [];
 

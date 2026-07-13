@@ -61,7 +61,7 @@ export async function POST(request: Request) {
 
     let workflowBinding: any = undefined;
     try {
-      const { getCloudflareContext } = require('@opennextjs/cloudflare');
+      const { getCloudflareContext } = await import('@opennextjs/cloudflare');
       workflowBinding = getCloudflareContext().env?.DISCOVERY_SEARCH_WORKFLOW;
     } catch (e) {
       log.info('getCloudflareContext unavailable — falling back to process.env for workflow binding');

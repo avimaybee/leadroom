@@ -139,7 +139,7 @@ export async function saveIntegrationConfigAction(formData: FormData) {
   const service = new IntegrationsService(db);
 
   try {
-    await service.saveProviderConfig(provider, apiKey, modelName);
+    await service.saveProviderConfig(provider, apiKey, modelName, userId);
     try {
       revalidatePath('/settings/integrations');
     } catch (e) {}
@@ -322,12 +322,12 @@ export async function setActiveProviderForTaskAction(provider: string, taskType:
   const service = new IntegrationsService(db);
 
   try {
-    const config = await service.getProviderConfig(provider);
+    const config = await service.getProviderConfig(provider, userId);
     if (!config || !config.apiKey) {
       return { error: `Provider "${provider}" has no saved configuration. Please configure it first.` };
     }
 
-    await service.setActiveForTask(provider, taskType);
+    await service.setActiveForTask(provider, taskType, userId);
 
     try {
       revalidatePath('/settings/integrations');
@@ -348,7 +348,7 @@ export async function deleteIntegrationConfigAction(provider: string) {
   const service = new IntegrationsService(db);
 
   try {
-    await service.deleteProviderConfig(provider);
+    await service.deleteProviderConfig(provider, userId);
     try {
       revalidatePath('/settings/integrations');
     } catch (e) {}

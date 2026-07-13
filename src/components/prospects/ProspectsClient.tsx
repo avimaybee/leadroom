@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Search, Info, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react';
+import { Search, Info, ArrowUpDown, ChevronUp, ChevronDown, List, LayoutGrid } from 'lucide-react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
+import { PipelineBoard } from '@/components/pipeline/PipelineBoard';
 
 const TIER_BADGE: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; label: string }> = {
   tier1: { variant: 'default', label: 'T1' },
@@ -44,6 +45,7 @@ export function ProspectsClient({ initialProspects, markets }: ProspectsClientPr
   const [stageFilter, setStageFilter] = useState('all');
   const [sortKey, setSortKey] = useState<SortKey>('fitScore');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
 
   const marketMap = new Map(markets.map(m => [m.id, m.name]));
 
@@ -114,16 +116,50 @@ export function ProspectsClient({ initialProspects, markets }: ProspectsClientPr
   };
 
   return (
-    <div className="max-w-5xl">
-      <div className="mb-6">
-        <h2 className="text-heading-2xl">All Prospects</h2>
-        <p className="text-copy-14 text-muted-foreground mt-1">
-          {filtered.length} prospect{filtered.length === 1 ? '' : 's'}
-          {search && ` matching "${search}"`}
-        </p>
+    <div>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 border-b border-border pb-4">
+        <div>
+          <h2 className="text-heading-2xl">All Prospects</h2>
+          <p className="text-copy-14 text-muted-foreground mt-1">
+            {viewMode === 'list' ? (
+              <>{filtered.length} prospect{filtered.length === 1 ? '' : 's'}{search && ` matching "${search}"`}</>
+            ) : (
+              <>Visual pipeline board of all prospects</>
+            )}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-1 bg-muted p-1 rounded-lg self-start">
+          <button
+            onClick={() => setViewMode('list')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-label-12 transition-all ${
+              viewMode === 'list'
+                ? 'bg-card text-foreground shadow-xs font-semibold'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <List className="w-3.5 h-3.5" />
+            List View
+          </button>
+          <button
+            onClick={() => setViewMode('kanban')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-label-12 transition-all ${
+              viewMode === 'kanban'
+                ? 'bg-card text-foreground shadow-xs font-semibold'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <LayoutGrid className="w-3.5 h-3.5" />
+            Kanban Board
+          </button>
+        </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 mb-4">
+      {viewMode === 'kanban' ? (
+        <PipelineBoard />
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center gap-3 mb-4">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
@@ -268,6 +304,8 @@ export function ProspectsClient({ initialProspects, markets }: ProspectsClientPr
           </table>
         </div>
       )}
+      </>
+    )}
     </div>
   );
 }

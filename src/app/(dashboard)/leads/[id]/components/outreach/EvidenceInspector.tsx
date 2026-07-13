@@ -2,6 +2,7 @@
 
 import { ExternalLink, User, ShieldAlert, Sparkles, Phone, Mail, Link2, Clock } from 'lucide-react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { formatDateTimeUTC } from '@/lib/date';
 
 interface EvidenceInspectorProps {
@@ -13,6 +14,9 @@ interface EvidenceInspectorProps {
 
 export function EvidenceInspector({ researchSnapshot, auditSnapshot, contacts, leadId }: EvidenceInspectorProps) {
   const primaryContact = contacts?.find(c => c.isPrimary) || contacts?.[0];
+  const pathname = usePathname();
+  const isProspect = pathname.includes('/prospects');
+  const basePath = isProspect ? `/prospects/${leadId}` : `/leads/${leadId}`;
 
   return (
     <div className="bg-muted/10 border border-border/80 rounded-2xl p-4 md:p-5 space-y-5 h-full">
@@ -90,7 +94,7 @@ export function EvidenceInspector({ researchSnapshot, auditSnapshot, contacts, l
               </div>
             )}
             <div className="text-label-12 pt-1 flex justify-end">
-              <Link href={`/leads/${leadId}?view=audit`} className="text-primary hover:underline flex items-center gap-0.5">
+              <Link href={`${basePath}?view=research`} className="text-primary hover:underline flex items-center gap-0.5">
                 View Full Audit <ExternalLink className="w-2.5 h-2.5" />
               </Link>
             </div>
@@ -129,7 +133,7 @@ export function EvidenceInspector({ researchSnapshot, auditSnapshot, contacts, l
               </div>
             )}
             <div className="text-label-12 pt-1 flex justify-end">
-              <Link href={`/leads/${leadId}?view=research`} className="text-primary hover:underline flex items-center gap-0.5">
+              <Link href={`${basePath}?view=research`} className="text-primary hover:underline flex items-center gap-0.5">
                 View Research Workspace <ExternalLink className="w-2.5 h-2.5" />
               </Link>
             </div>

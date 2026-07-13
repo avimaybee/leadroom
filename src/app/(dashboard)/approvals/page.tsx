@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { ApprovalsTable } from './ApprovalsTable';
 
 export const metadata = {
-  title: 'Approvals | Leadroom',
+  title: 'Outreach Drafts | Leadroom',
 };
 
 export default async function ApprovalsPage() {
@@ -31,11 +31,11 @@ export default async function ApprovalsPage() {
   }).length;
 
   return (
-    <div className="max-w-5xl">
+    <div>
       <div className="mb-6">
-        <h2 className="text-heading-2xl">Approvals Queue</h2>
+        <h2 className="text-heading-2xl">Outreach Drafts</h2>
         <p className="text-copy-14 text-muted-foreground mt-1">
-          Review and approve outreach drafts before they are sent.
+          Messages drafted by the system for your prospects. Review each one, tweak if needed, then give the go-ahead.
         </p>
       </div>
 

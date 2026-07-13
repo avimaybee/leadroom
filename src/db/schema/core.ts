@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 import { workspaces, markets } from './strategy';
 
@@ -125,15 +125,18 @@ export const activityMetadata = sqliteTable('activity_metadata', {
 
 export const providerConfigs = sqliteTable('provider_configs', {
   id: text('id').primaryKey(),
-  provider: text('provider').notNull().unique(), // 'gemini' | 'nvidia'
+  provider: text('provider').notNull(), // 'gemini' | 'nvidia'
   apiKey: text('api_key').notNull(),
   modelName: text('model_name').notNull(),
+  userId: text('user_id').notNull().references(() => users.id),
   isResearchActive: integer('is_research_active', { mode: 'boolean' }).default(false),
   isScoringActive: integer('is_scoring_active', { mode: 'boolean' }).default(false),
   isDraftingActive: integer('is_drafting_active', { mode: 'boolean' }).default(false),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
-});
+}, (table) => ({
+  providerUserIdx: uniqueIndex('provider_user_idx').on(table.provider, table.userId),
+}));
 
 export const pipelineConfig = sqliteTable('pipeline_config', {
   id: text('id').primaryKey().default('global'),

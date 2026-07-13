@@ -174,9 +174,16 @@ export async function triggerResearchWorkflow(
     }
   };
 
+  const isDev = process.env.NODE_ENV !== 'production';
+  if (!isDev) {
+    logger.error('Research Workflow binding unavailable in production', { leadId, jobId });
+    throw new Error('Research Workflow binding is not configured. Deployment requires a valid Cloudflare Workflow binding.');
+  }
+
+  // Dev/test mode: run simulation with ctx.waitUntil if available
   let ctx: any = undefined;
   try {
-    const { getCloudflareContext } = require('@opennextjs/cloudflare');
+    const { getCloudflareContext } = await import('@opennextjs/cloudflare');
     ctx = getCloudflareContext().ctx;
   } catch (e) {
     logger.info('getCloudflareContext unavailable — research simulation will run in Node.js background');
@@ -339,9 +346,15 @@ export async function triggerDiscoverySearchWorkflow(
     }
   };
 
+  const isDev = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
+  if (!isDev) {
+    logger.error('Discovery Search Workflow binding unavailable in production', { jobId });
+    throw new Error('Discovery Search Workflow binding is not configured. Deployment requires a valid Cloudflare Workflow binding.');
+  }
+
   let ctx: any = undefined;
   try {
-    const { getCloudflareContext } = require('@opennextjs/cloudflare');
+    const { getCloudflareContext } = await import('@opennextjs/cloudflare');
     ctx = getCloudflareContext().ctx;
   } catch (e) {
     logger.info('getCloudflareContext unavailable — discovery simulation will run in Node.js background');
@@ -408,9 +421,15 @@ export async function triggerMonitorStalledLeadWorkflow(
     }
   };
 
+  const isDev = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
+  if (!isDev) {
+    logger.error('Monitor Stalled Lead Workflow binding unavailable in production', { leadId });
+    throw new Error('Monitor Stalled Lead Workflow binding is not configured. Deployment requires a valid Cloudflare Workflow binding.');
+  }
+
   let ctx: any = undefined;
   try {
-    const { getCloudflareContext } = require('@opennextjs/cloudflare');
+    const { getCloudflareContext } = await import('@opennextjs/cloudflare');
     ctx = getCloudflareContext().ctx;
   } catch (e) {
     logger.info('getCloudflareContext unavailable — stalled lead monitor will run in Node.js background');

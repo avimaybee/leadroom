@@ -36,7 +36,7 @@ async function createProspectActionImpl(prev: any, form: FormData) {
   if (!userId) return { error: 'Unauthorized' };
 
   const db = getDb();
-  const wsRows = await db.select().from(workspaces).limit(1);
+  const wsRows = await db.select().from(workspaces).where(eq(workspaces.id, userId)).limit(1);
   if (wsRows.length === 0) return { error: 'No workspace found' };
 
   const raw = {
@@ -107,7 +107,7 @@ async function importProspectsCSVActionImpl(formData: FormData) {
   if (!userId) return { error: 'Unauthorized' };
 
   const db = getDb();
-  const wsRows = await db.select().from(workspaces).limit(1);
+  const wsRows = await db.select().from(workspaces).where(eq(workspaces.id, userId)).limit(1);
   if (wsRows.length === 0) return { error: 'No workspace found' };
 
   const csvRaw = formData.get('csv') as string;
@@ -216,6 +216,7 @@ export async function getResearchQueueAction() {
     })
     .from(researchTasks)
     .innerJoin(prospects, eq(researchTasks.prospectId, prospects.id))
+    .where(eq(prospects.ownerId, userId))
     .orderBy(desc(researchTasks.createdAt))
     .limit(100);
 

@@ -5,7 +5,7 @@ import { getICPProfileAction } from '@/app/actions/strategy';
 import { IcpForm } from '@/components/settings/IcpForm';
 
 export const metadata = {
-  title: 'Edit ICP Profile | Leadroom',
+  title: 'Edit Ideal Client | Leadroom',
 };
 
 export default async function EditIcpPage({ params }: { params: Promise<{ id: string }> }) {
@@ -17,9 +17,9 @@ export default async function EditIcpPage({ params }: { params: Promise<{ id: st
 
   return (
     <div>
-      <h2 className="text-heading-lg mb-1">Edit ICP Profile</h2>
+      <h2 className="text-heading-lg mb-1">Edit Ideal Client</h2>
       <p className="text-copy-14 text-muted-foreground mb-6 max-w-2xl">
-        Update your ideal customer profile signals and weights.
+        Update your ideal client parameters and signals.
       </p>
       <IcpForm
         initialData={{

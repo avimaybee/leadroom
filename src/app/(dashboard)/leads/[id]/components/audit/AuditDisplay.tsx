@@ -97,7 +97,7 @@ export function AuditDisplay({
               <div className="space-y-1">
                 <h4 className="text-label-14 font-semibold text-card-foreground">No Web Presence Audit Found</h4>
                 <p className="text-label-12 text-muted-foreground max-w-sm mx-auto font-medium">
-                  The design audit populates automatically when you run research enrichment on this lead.
+                  The design audit populates automatically when you run research on this prospect.
                 </p>
               </div>
             </div>
@@ -120,7 +120,7 @@ export function AuditDisplay({
               <div className="text-center py-8 space-y-2">
                 <span className="text-label-12 font-semibold text-muted-foreground uppercase block">Priority Score</span>
                 <p className="text-copy-13 text-muted-foreground leading-relaxed">
-                  No score calculated yet. Run research enrichment to evaluate fit and confidence.
+                  No score calculated yet. Run research to evaluate fit and confidence.
                 </p>
               </div>
             )}

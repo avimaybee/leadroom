@@ -32,3 +32,6 @@ dev-out.txt
 stderr.txt
 stdout.txt
 .jules
+
+# Planning docs (internal only, not deployed)
+plans/

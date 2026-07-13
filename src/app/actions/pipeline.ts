@@ -187,7 +187,7 @@ export async function simulateNBARulesAction(draftRulesJson: string): Promise<{ 
   const db = getDb();
   try {
     const rules = JSON.parse(draftRulesJson);
-    const results = await new LeadService(db).simulateNBARules(rules, 5);
+    const results = await new LeadService(db).simulateNBARules(rules, 5, userId);
     return { results };
   } catch {
     return { error: 'Failed to simulate' };

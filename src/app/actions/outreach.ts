@@ -12,7 +12,7 @@ import { generateOutreachDraft, getModelInfo, type FailoverEvent } from '@/lib/a
 import { prospects } from '@/db/schema/core';
 import { markets } from '@/db/schema/strategy';
 import { outreachDrafts } from '@/db/schema/outreach';
-import { eq, sql } from 'drizzle-orm';
+import { eq, sql, and } from 'drizzle-orm';
 import { withLogging } from '@/lib/actions/with-logging';
 
 // Module-level cache for model info (5-min TTL)
@@ -299,7 +299,7 @@ export async function getPendingApprovalsAction() {
       .from(outreachDrafts)
       .innerJoin(prospects, eq(outreachDrafts.leadId, prospects.id))
       .leftJoin(markets, eq(prospects.marketId, markets.id))
-      .where(eq(outreachDrafts.status, 'DRAFT'))
+      .where(and(eq(outreachDrafts.status, 'DRAFT'), eq(prospects.ownerId, userId)))
       .orderBy(sql`COALESCE(${prospects.fitScore}, 0) DESC`, outreachDrafts.createdAt)
       .limit(50);
 

@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
 
     const db = getDb();
     const service = new DiscoveryService(db);
-    const candidates = await service.listCandidatesByScope(scopeId);
+    const candidates = await service.listCandidatesByScope(scopeId, userId);
     return NextResponse.json({ success: true, data: candidates });
   } catch (error: unknown) {
     log.error('GET error', error);

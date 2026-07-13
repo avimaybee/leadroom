@@ -9,7 +9,7 @@ export default function OfferSettingsError({ error, reset }: { error: Error & { 
       reset={reset}
       title="Offer Settings Error"
       description="Failed to load offer settings."
-      backHref="/settings/offer"
+      backHref="/personalisation/offer"
       backLabel="Offers"
     />
   );

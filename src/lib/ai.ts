@@ -118,8 +118,8 @@ function getEnvApiKey(provider: string): string | undefined {
  * Resolves the active provider config for a given task type, caching the result by Db instance.
  * Subsequent calls within the same scope reuse the cached value.
  */
-export async function getActiveProviderConfig(db: Db, taskType?: TaskType) {
-  const cacheKey = `${taskType || 'default'}`;
+export async function getActiveProviderConfig(db: Db, userId?: string | null, taskType?: TaskType) {
+  const cacheKey = `${userId || 'system'}:${taskType || 'default'}`;
   const cached = _providerConfigWeakCache.get(db);
   if (cached && cached.cacheKey === cacheKey && Date.now() - cached.timestamp < PROVIDER_CONFIG_CACHE_TTL_MS) {
     return cached.config;
@@ -130,14 +130,14 @@ export async function getActiveProviderConfig(db: Db, taskType?: TaskType) {
   let config: { provider: string; apiKey: string | null; modelName: string | null } | null = null;
 
   if (taskType) {
-    const taskConfig = await integrationsService.getActiveProviderForTask(taskType);
+    const taskConfig = await integrationsService.getActiveProviderForTask(taskType, userId);
     if (taskConfig) {
       config = { provider: taskConfig.provider, apiKey: taskConfig.apiKey, modelName: taskConfig.modelName };
     }
   } else {
     // Fallback: scan all providers for any active routing flag
     for (const p of ['openrouter', 'nvidia', 'groq', 'aiml', 'gemini', 'openai', 'anthropic'] as const) {
-      const pConfig = await integrationsService.getProviderConfig(p);
+      const pConfig = await integrationsService.getProviderConfig(p, userId);
       if (pConfig && (pConfig.isResearchActive || pConfig.isScoringActive || pConfig.isDraftingActive)) {
         config = { provider: pConfig.provider, apiKey: pConfig.apiKey, modelName: pConfig.modelName };
         break;
@@ -171,9 +171,9 @@ function getDefaultModel(provider: string): string {
   return DEFAULT_MODELS[provider.toLowerCase()] || 'gemini-2.5-flash';
 }
 
-async function getProviderChain(db: Db, taskType: TaskType): Promise<Array<{ provider: string; apiKey: string; modelName: string }>> {
+async function getProviderChain(db: Db, taskType: TaskType, userId?: string | null): Promise<Array<{ provider: string; apiKey: string; modelName: string }>> {
   const integrationsService = new IntegrationsService(db);
-  const allConfigs = await integrationsService.getAllProviderConfigs();
+  const allConfigs = await integrationsService.getAllProviderConfigs(userId);
 
   const primary = allConfigs.find(c => {
     if (taskType === 'research') return c.isResearchActive;
@@ -212,10 +212,11 @@ async function getProviderChain(db: Db, taskType: TaskType): Promise<Array<{ pro
 async function callWithProviderChain<T>(
   db: Db,
   taskType: TaskType,
+  userId: string | null | undefined,
   callFn: (provider: string, apiKey: string, modelName: string) => Promise<T>,
   onFailover?: FailoverCallback,
 ): Promise<T> {
-  const chain = await getProviderChain(db, taskType);
+  const chain = await getProviderChain(db, taskType, userId);
 
   if (chain.length === 0) {
     throw new Error(`No AI provider configured for ${taskType}. Please configure a provider in Settings -> Integrations.`);
@@ -246,9 +247,10 @@ export async function generateResearch(
   websiteUrl: string | null,
   industry: string | null,
   scrapedContent?: string | null,
-  location?: string | null
+  location?: string | null,
+  userId?: string | null
 ): Promise<AIResearchOutput> {
-  return callWithProviderChain(db, 'research', async (provider, apiKey, modelName) => {
+  return callWithProviderChain(db, 'research', userId, async (provider, apiKey, modelName) => {
     const name = companyName || leadName;
     const ind = industry || 'General Business';
     const web = websiteUrl || 'No website provided';
@@ -487,9 +489,10 @@ export async function generateResearchAndAudit(
   websiteUrl: string | null,
   industry: string | null,
   scrapedContent?: string | null,
-  location?: string | null
+  location?: string | null,
+  userId?: string | null
 ): Promise<AIResearchAuditOutput> {
-  return callWithProviderChain(db, 'research', async (provider, apiKey, modelName) => {
+  return callWithProviderChain(db, 'research', userId, async (provider, apiKey, modelName) => {
     const name = companyName || leadName;
     const ind = industry || 'General Business';
     const web = websiteUrl || 'No website provided';
@@ -852,7 +855,8 @@ export async function generateAudit(
   websiteUrl: string | null,
   industry: string | null,
   scrapedContent?: string | null,
-  leadId?: string | null
+  leadId?: string | null,
+  userId?: string | null
 ): Promise<AIAuditOutput> {
   // Load research snapshot — used as PRIMARY context when scraping fails,
   // and as supplemental context when scraped content is available.
@@ -920,7 +924,7 @@ ${researchSnapshotContext}
 --- END OF RESEARCH OBSERVATIONS ---`;
   }
 
-  return callWithProviderChain(db, 'scoring', async (provider, apiKey, modelName) => {
+  return callWithProviderChain(db, 'scoring', userId, async (provider, apiKey, modelName) => {
     const prompt = `Perform a comprehensive digital presence, website, and branding audit on the company "${name}".
 Industry: ${ind}
 Website: ${web}
@@ -1067,9 +1071,10 @@ export async function generateOutreachDraft(
   auditSnapshot: any | null,
   customPrompt?: string | null,
   attachments?: Array<{ name: string; type: string; base64: string }>,
-  onFailover?: FailoverCallback
+  onFailover?: FailoverCallback,
+  userId?: string | null
 ): Promise<AIOutreachDraftOutput> {
-  return callWithProviderChain(db, 'drafting', async (provider, apiKey, modelName) => {
+  return callWithProviderChain(db, 'drafting', userId, async (provider, apiKey, modelName) => {
     const name = companyName || leadName;
     const ind = industry || 'General Business';
     const web = websiteUrl || 'No website provided';
@@ -1414,9 +1419,10 @@ export async function generateContactExtraction(
   leadName: string,
   companyName: string | null,
   scrapedContent?: string | null,
+  userId?: string | null
 ): Promise<AIContactExtractionOutput> {
   try {
-    return await callWithProviderChain(db, 'research', async (provider, apiKey, modelName) => {
+    return await callWithProviderChain(db, 'research', userId, async (provider, apiKey, modelName) => {
       const name = companyName || leadName;
 
       const prompt = `Extract contact information from the website of "${name}".
@@ -1597,9 +1603,10 @@ export async function generateLeadScore(
   db: Db,
   leadName: string,
   researchSnapshot: any | null,
-  auditSnapshot: any | null
+  auditSnapshot: any | null,
+  userId?: string | null
 ): Promise<AILeadScoreOutput> {
-  return callWithProviderChain(db, 'scoring', async (provider, apiKey, modelName) => {
+  return callWithProviderChain(db, 'scoring', userId, async (provider, apiKey, modelName) => {
     const prompt = `Evaluate the following lead and assign a priority score from 0 to 100.
 Lead Name: ${leadName}
 
@@ -1706,7 +1713,8 @@ export async function extractICPSignals(
   companyName: string,
   websiteUrl: string | null,
   scrapedContent: string | null,
-  icpProfile: any
+  icpProfile: any,
+  userId?: string | null
 ): Promise<any[]> {
   const posCount = icpProfile.positiveSignals?.length || 0;
   const negCount = icpProfile.negativeSignals?.length || 0;
@@ -1779,7 +1787,7 @@ Provide your response strictly in JSON format matching this schema:
   };
 
   try {
-    return await callWithProviderChain(db, 'research', async (provider, apiKey, modelName) => {
+    return await callWithProviderChain(db, 'research', userId, async (provider, apiKey, modelName) => {
       if (provider === 'gemini') {
         const response = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
@@ -1845,4 +1853,567 @@ Provide your response strictly in JSON format matching this schema:
     log.error('Failed to run AI signal extraction, falling back to empty', err);
     return [];
   }
+}
+
+export const AIGeneratedStrategySchema = z.object({
+  offer: z.object({
+    name: z.string(),
+    targetPain: z.string(),
+    desiredOutcome: z.string(),
+    proofPoints: z.array(z.string()),
+    forbiddenClaims: z.array(z.string()),
+  }),
+  icp: z.object({
+    name: z.string(),
+    positiveSignals: z.array(z.object({
+      name: z.string(),
+      weight: z.number().int().min(1).max(10),
+      description: z.string(),
+    })),
+    negativeSignals: z.array(z.object({
+      name: z.string(),
+      weight: z.number().int().min(1).max(10),
+      description: z.string(),
+    })),
+    disqualifiers: z.array(z.string()),
+  })
+});
+
+export type AIGeneratedStrategyOutput = z.infer<typeof AIGeneratedStrategySchema>;
+
+// ── SDR Parallel Schemas (coexist alongside legacy schemas) ──
+
+export const SDRPainSignalSchema = z.object({
+  signal: z.string().min(1),
+  evidenceQuote: z.string().min(1),
+  sourceUrl: z.string(),
+});
+
+export const SDRWebsiteAnalysisSchema = z.object({
+  companyName: z.string().min(1),
+  websiteSummary: z.string().min(1).max(500),
+  productsServices: z.array(z.string().min(1)).min(1),
+  targetAudience: z.string().min(1),
+  painSignalsFound: z.array(SDRPainSignalSchema),
+  confidence: z.number().int().min(0).max(100),
+});
+
+export const SDRICPSignalMatchSchema = z.object({
+  signalName: z.string().min(1),
+  evidenceQuote: z.string().min(1),
+  sourceUrl: z.string(),
+  matchStrength: z.enum(['strong', 'partial', 'weak']),
+});
+
+export const SDRICPFitSchema = z.object({
+  matchedPositiveSignals: z.array(SDRICPSignalMatchSchema),
+  matchedNegativeSignals: z.array(SDRICPSignalMatchSchema),
+  disqualifiersTriggered: z.array(z.string()),
+  overallAssessment: z.string().min(1).max(1000),
+  confidence: z.number().int().min(0).max(100),
+});
+
+export const SDRPainExtractorSchema = z.object({
+  painSignals: z.array(SDRPainSignalSchema),
+  confidence: z.number().int().min(0).max(100),
+});
+
+export type SDRWebsiteAnalysisOutput = z.infer<typeof SDRWebsiteAnalysisSchema>;
+export type SDRICPFitOutput = z.infer<typeof SDRICPFitSchema>;
+export type SDRPainExtractorOutput = z.infer<typeof SDRPainExtractorSchema>;
+
+export async function generateSDRWebsiteAnalysis(
+  db: Db,
+  companyName: string,
+  websiteUrl: string | null,
+  scrapedContent: string | null,
+  userId?: string | null
+): Promise<SDRWebsiteAnalysisOutput> {
+  const web = websiteUrl || 'No website provided';
+  const fallback: SDRWebsiteAnalysisOutput = {
+    companyName,
+    websiteSummary: 'Analysis unavailable — no scraped content.',
+    productsServices: ['Unknown'],
+    targetAudience: 'Unknown',
+    painSignalsFound: [],
+    confidence: 0,
+  };
+  if (!scrapedContent || scrapedContent.startsWith('[Failed to scrape')) {
+    return fallback;
+  }
+
+  return callWithProviderChain(db, 'research', userId, async (provider, apiKey, modelName) => {
+    const prompt = `Analyze the company "${companyName}" based on the scraped content from their website (${web}).
+
+Here is the scraped content:
+--- START OF WEBSITE CONTENT ---
+${scrapedContent}
+--- END OF WEBSITE CONTENT ---
+
+Extract the following structured information:
+1. companyName: The company's name (use "${companyName}" if not found in content)
+2. websiteSummary: A 1-2 sentence summary of what the company does
+3. productsServices: A list of specific products or services offered (at least 1)
+4. targetAudience: Who they seem to target (B2B, B2C, industry, company size, etc.)
+5. painSignalsFound: Any pain points or problems evident from their website content. Each must include the signal name, an exact quote as evidence, and the source URL.
+6. confidence: How confident you are in this analysis (0-100). Use LOW if scraped content is sparse or generic.
+
+Provide your response strictly in JSON format matching this schema:
+{
+  "companyName": "string",
+  "websiteSummary": "1-2 sentence summary",
+  "productsServices": ["product1", "product2"],
+  "targetAudience": "description of target audience",
+  "painSignalsFound": [
+    { "signal": "pain point name", "evidenceQuote": "exact quote", "sourceUrl": "url" }
+  ],
+  "confidence": 0-100
+}`;
+
+    const geminiSchemaDef = {
+      type: 'OBJECT',
+      properties: {
+        companyName: { type: 'STRING' },
+        websiteSummary: { type: 'STRING' },
+        productsServices: { type: 'ARRAY', items: { type: 'STRING' } },
+        targetAudience: { type: 'STRING' },
+        painSignalsFound: {
+          type: 'ARRAY',
+          items: {
+            type: 'OBJECT',
+            properties: {
+              signal: { type: 'STRING' },
+              evidenceQuote: { type: 'STRING' },
+              sourceUrl: { type: 'STRING' },
+            },
+            required: ['signal', 'evidenceQuote', 'sourceUrl'],
+          },
+        },
+        confidence: { type: 'INTEGER' },
+      },
+      required: ['companyName', 'websiteSummary', 'productsServices', 'targetAudience', 'painSignalsFound', 'confidence'],
+    };
+
+    const openAiSchema = {
+      type: 'object',
+      properties: {
+        companyName: { type: 'string' },
+        websiteSummary: { type: 'string' },
+        productsServices: { type: 'array', items: { type: 'string' } },
+        targetAudience: { type: 'string' },
+        painSignalsFound: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              signal: { type: 'string' },
+              evidenceQuote: { type: 'string' },
+              sourceUrl: { type: 'string' },
+            },
+            required: ['signal', 'evidenceQuote', 'sourceUrl'],
+          },
+        },
+        confidence: { type: 'integer' },
+      },
+      required: ['companyName', 'websiteSummary', 'productsServices', 'targetAudience', 'painSignalsFound', 'confidence'],
+      additionalProperties: false,
+    };
+
+    if (provider === 'gemini') {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              maxOutputTokens: 10000,
+              responseMimeType: 'application/json',
+              responseSchema: geminiSchemaDef,
+            },
+          }),
+        }
+      );
+      if (!response.ok) throw new Error(`Gemini API returned status ${response.status}`);
+      const data = (await response.json()) as any;
+      const textResult = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!textResult) throw new Error('Invalid response structure from Gemini API');
+      return SDRWebsiteAnalysisSchema.parse(JSON.parse(textResult));
+    }
+
+    if (provider === 'anthropic') {
+      const textResult = await callAnthropic(
+        prompt, apiKey, modelName,
+        'You are a senior market research analyst. Output strictly in valid JSON matching the requested schema.',
+      );
+      return SDRWebsiteAnalysisSchema.parse(JSON.parse(textResult));
+    }
+
+    const textResult = await callOpenAICompatible(
+      provider, prompt, apiKey, modelName,
+      'You are a senior market research analyst. Output strictly in valid JSON matching the requested schema.',
+      openAiSchema,
+    );
+    return SDRWebsiteAnalysisSchema.parse(JSON.parse(textResult));
+  });
+}
+
+export async function generateSDRICPFit(
+  db: Db,
+  companyName: string,
+  websiteUrl: string | null,
+  scrapedContent: string | null,
+  icpProfile: { positiveSignals: Array<{ name: string; weight: number; description: string }>; negativeSignals: Array<{ name: string; weight: number; description: string }>; disqualifiers: string[] },
+  userId?: string | null
+): Promise<SDRICPFitOutput> {
+  const posText = (icpProfile.positiveSignals || []).map(s => `- "${s.name}" (weight ${s.weight}): ${s.description}`).join('\n');
+  const negText = (icpProfile.negativeSignals || []).map(s => `- "${s.name}" (weight ${s.weight}): ${s.description}`).join('\n');
+  const disqText = (icpProfile.disqualifiers || []).map(d => `- "${d}"`).join('\n');
+
+  const web = websiteUrl || 'Unknown';
+
+  return callWithProviderChain(db, 'research', userId, async (provider, apiKey, modelName) => {
+    const prompt = `Evaluate the company "${companyName}" (website: ${web}) against our Ideal Customer Profile (ICP) criteria.
+Analyze the scraped website content below to identify matches.
+
+ICP CRITERIA:
+--- Positive Signals (good fit indicators) ---
+${posText || 'None defined'}
+
+--- Negative Signals (weak fit indicators) ---
+${negText || 'None defined'}
+
+--- Disqualifiers (instant reject) ---
+${disqText || 'None defined'}
+
+Here is the scraped content:
+--- START OF WEBSITE CONTENT ---
+${scrapedContent || '[No content scraped]'}
+--- END OF WEBSITE CONTENT ---
+
+For each matched criteria:
+1. Only include it if there is clear evidence in the scraped content.
+2. 'signalName' and any per-signal name fields must use the EXACT name from the ICP criteria above.
+3. 'matchStrength': strong (explicit match), partial (implied or partial match), weak (vague or inferred).
+4. Disqualifiers should always be 'strong' when matched.
+5. Cite the exact sentence/phrase as 'evidenceQuote'.
+6. Use the company website URL as 'sourceUrl'.
+
+Then provide:
+- overallAssessment: A paragraph summarizing the fit, key findings, and any caveats.
+- confidence: 0-100 score indicating how reliable this assessment is.
+
+Provide your response strictly in JSON format matching this schema:
+{
+  "matchedPositiveSignals": [
+    { "signalName": "EXACT_NAME", "evidenceQuote": "quote", "sourceUrl": "...", "matchStrength": "strong|partial|weak" }
+  ],
+  "matchedNegativeSignals": [],
+  "disqualifiersTriggered": [],
+  "overallAssessment": "Summary paragraph...",
+  "confidence": 85
+}`;
+
+    const geminiSchemaDef = {
+      type: 'OBJECT',
+      properties: {
+        matchedPositiveSignals: {
+          type: 'ARRAY',
+          items: {
+            type: 'OBJECT',
+            properties: {
+              signalName: { type: 'STRING' },
+              evidenceQuote: { type: 'STRING' },
+              sourceUrl: { type: 'STRING' },
+              matchStrength: { type: 'STRING', enum: ['strong', 'partial', 'weak'] },
+            },
+            required: ['signalName', 'evidenceQuote', 'sourceUrl', 'matchStrength'],
+          },
+        },
+        matchedNegativeSignals: {
+          type: 'ARRAY',
+          items: {
+            type: 'OBJECT',
+            properties: {
+              signalName: { type: 'STRING' },
+              evidenceQuote: { type: 'STRING' },
+              sourceUrl: { type: 'STRING' },
+              matchStrength: { type: 'STRING', enum: ['strong', 'partial', 'weak'] },
+            },
+            required: ['signalName', 'evidenceQuote', 'sourceUrl', 'matchStrength'],
+          },
+        },
+        disqualifiersTriggered: { type: 'ARRAY', items: { type: 'STRING' } },
+        overallAssessment: { type: 'STRING' },
+        confidence: { type: 'INTEGER' },
+      },
+      required: ['matchedPositiveSignals', 'matchedNegativeSignals', 'disqualifiersTriggered', 'overallAssessment', 'confidence'],
+    };
+
+    const openAiSchema = {
+      type: 'object',
+      properties: {
+        matchedPositiveSignals: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              signalName: { type: 'string' },
+              evidenceQuote: { type: 'string' },
+              sourceUrl: { type: 'string' },
+              matchStrength: { type: 'string', enum: ['strong', 'partial', 'weak'] },
+            },
+            required: ['signalName', 'evidenceQuote', 'sourceUrl', 'matchStrength'],
+          },
+        },
+        matchedNegativeSignals: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              signalName: { type: 'string' },
+              evidenceQuote: { type: 'string' },
+              sourceUrl: { type: 'string' },
+              matchStrength: { type: 'string', enum: ['strong', 'partial', 'weak'] },
+            },
+            required: ['signalName', 'evidenceQuote', 'sourceUrl', 'matchStrength'],
+          },
+        },
+        disqualifiersTriggered: { type: 'array', items: { type: 'string' } },
+        overallAssessment: { type: 'string' },
+        confidence: { type: 'integer' },
+      },
+      required: ['matchedPositiveSignals', 'matchedNegativeSignals', 'disqualifiersTriggered', 'overallAssessment', 'confidence'],
+      additionalProperties: false,
+    };
+
+    if (provider === 'gemini') {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              maxOutputTokens: 10000,
+              responseMimeType: 'application/json',
+              responseSchema: geminiSchemaDef,
+            },
+          }),
+        }
+      );
+      if (!response.ok) throw new Error(`Gemini API returned status ${response.status}`);
+      const data = (await response.json()) as any;
+      const textResult = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!textResult) throw new Error('Invalid response structure from Gemini API');
+      return SDRICPFitSchema.parse(JSON.parse(textResult));
+    }
+
+    if (provider === 'anthropic') {
+      const textResult = await callAnthropic(
+        prompt, apiKey, modelName,
+        'You are a competitive intelligence analyst. Output strictly in valid JSON matching the requested schema.',
+      );
+      return SDRICPFitSchema.parse(JSON.parse(textResult));
+    }
+
+    const textResult = await callOpenAICompatible(
+      provider, prompt, apiKey, modelName,
+      'You are a competitive intelligence analyst. Output strictly in valid JSON matching the requested schema.',
+      openAiSchema,
+    );
+    return SDRICPFitSchema.parse(JSON.parse(textResult));
+  });
+}
+
+export async function generateOfferAndICPFromDescription(
+  db: Db,
+  marketName: string,
+  offerDescription: string,
+  icpDescription: string,
+  userId?: string | null
+): Promise<AIGeneratedStrategyOutput> {
+  const prompt = `You are a world-class growth strategist and B2B copywriter.
+A user wants to configure a target market campaign in their sales intelligence system.
+Based on the following informal descriptions, generate a structured Offer profile and an Ideal Customer Profile (ICP).
+
+Market / Campaign Name: "${marketName}"
+Offer Description (what they sell): "${offerDescription}"
+ICP Description (who they target / who they want to avoid): "${icpDescription}"
+
+Your goal is to parse these informal descriptions into a strict structured configuration.
+
+For the Offer:
+- targetPain: What specific pain points does the offer solve?
+- desiredOutcome: What is the primary business outcome or transformation?
+- proofPoints: Generate 3 realistic, high-impact proof points or case studies typical for this kind of offer.
+- forbiddenClaims: Generate 2-3 claims or buzzwords they should avoid (e.g. "best in the world", "guaranteed leads").
+
+For the ICP Profile:
+- positiveSignals: Extract 3-5 positive characteristics or triggers that indicate a strong fit client. For each, give a short descriptive name, a weight from 1-10 (high fit = higher weight), and a clear definition/description of what to look for on their website.
+- negativeSignals: Extract 2-3 characteristics that indicate a weak fit but aren't complete disqualifiers. For each, give a short descriptive name, a weight from 1-10 (higher weight = worse fit/more negative), and a description.
+- disqualifiers: Extract 2-3 clear disqualifying criteria (e.g. "Agencies", "No custom software", "Fewer than 10 employees") where if they match, we should instantly reject them.
+
+Provide your response strictly in JSON format matching this schema:
+{
+  "offer": {
+    "name": "${marketName} Offer",
+    "targetPain": "...",
+    "desiredOutcome": "...",
+    "proofPoints": ["...", "..."],
+    "forbiddenClaims": ["...", "..."]
+  },
+  "icp": {
+    "name": "${marketName} ICP",
+    "positiveSignals": [
+      { "name": "...", "weight": 5, "description": "..." }
+    ],
+    "negativeSignals": [
+      { "name": "...", "weight": 3, "description": "..." }
+    ],
+    "disqualifiers": ["...", "..."]
+  }
+}`;
+
+  const geminiSchema = {
+    type: 'OBJECT',
+    properties: {
+      offer: {
+        type: 'OBJECT',
+        properties: {
+          name: { type: 'STRING' },
+          targetPain: { type: 'STRING' },
+          desiredOutcome: { type: 'STRING' },
+          proofPoints: { type: 'ARRAY', items: { type: 'STRING' } },
+          forbiddenClaims: { type: 'ARRAY', items: { type: 'STRING' } }
+        },
+        required: ['name', 'targetPain', 'desiredOutcome', 'proofPoints', 'forbiddenClaims']
+      },
+      icp: {
+        type: 'OBJECT',
+        properties: {
+          name: { type: 'STRING' },
+          positiveSignals: {
+            type: 'ARRAY',
+            items: {
+              type: 'OBJECT',
+              properties: {
+                name: { type: 'STRING' },
+                weight: { type: 'INTEGER' },
+                description: { type: 'STRING' }
+              },
+              required: ['name', 'weight', 'description']
+            }
+          },
+          negativeSignals: {
+            type: 'ARRAY',
+            items: {
+              type: 'OBJECT',
+              properties: {
+                name: { type: 'STRING' },
+                weight: { type: 'INTEGER' },
+                description: { type: 'STRING' }
+              },
+              required: ['name', 'weight', 'description']
+            }
+          },
+          disqualifiers: { type: 'ARRAY', items: { type: 'STRING' } }
+        },
+        required: ['name', 'positiveSignals', 'negativeSignals', 'disqualifiers']
+      }
+    },
+    required: ['offer', 'icp']
+  };
+
+  const openAiSchema = {
+    type: 'object',
+    properties: {
+      offer: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          targetPain: { type: 'string' },
+          desiredOutcome: { type: 'string' },
+          proofPoints: { type: 'array', items: { type: 'string' } },
+          forbiddenClaims: { type: 'array', items: { type: 'string' } }
+        },
+        required: ['name', 'targetPain', 'desiredOutcome', 'proofPoints', 'forbiddenClaims']
+      },
+      icp: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          positiveSignals: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                name: { type: 'string' },
+                weight: { type: 'integer' },
+                description: { type: 'string' }
+              },
+              required: ['name', 'weight', 'description']
+            }
+          },
+          negativeSignals: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                name: { type: 'string' },
+                weight: { type: 'integer' },
+                description: { type: 'string' }
+              },
+              required: ['name', 'weight', 'description']
+            }
+          },
+          disqualifiers: { type: 'array', items: { type: 'string' } }
+        },
+        required: ['name', 'positiveSignals', 'negativeSignals', 'disqualifiers']
+      }
+    },
+    required: ['offer', 'icp']
+  };
+
+  return callWithProviderChain(db, 'scoring', userId, async (provider, apiKey, modelName) => {
+    if (provider === 'gemini') {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              maxOutputTokens: 5000,
+              responseMimeType: 'application/json',
+              responseSchema: geminiSchema,
+            }
+          })
+        }
+      );
+      if (!response.ok) throw new Error(`Gemini API returned status ${response.status}`);
+      const data = (await response.json()) as any;
+      const textResult = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!textResult) throw new Error('Invalid response from Gemini API');
+      return AIGeneratedStrategySchema.parse(JSON.parse(textResult));
+    }
+
+    if (provider === 'anthropic') {
+      const textResult = await callAnthropic(
+        prompt, apiKey, modelName,
+        'You are a world-class growth strategist. Output strictly in valid JSON matching the requested schema.',
+      );
+      return AIGeneratedStrategySchema.parse(JSON.parse(textResult));
+    }
+
+    const textResult = await callOpenAICompatible(
+      provider, prompt, apiKey, modelName,
+      'You are a world-class growth strategist. Output strictly in valid JSON matching the requested schema.',
+      openAiSchema,
+    );
+    return AIGeneratedStrategySchema.parse(JSON.parse(textResult));
+  });
 }

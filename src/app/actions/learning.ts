@@ -6,7 +6,7 @@ import { getUserId } from '@/lib/auth';
 import { LearningService } from '@/services/learning';
 import { learningSuggestions } from '@/db/schema/outreach';
 import { workspaces } from '@/db/schema/strategy';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { withLogging } from '@/lib/actions/with-logging';
 
 export async function getLearningSuggestionsAction() {
@@ -18,7 +18,7 @@ export async function getLearningSuggestionsAction() {
   }
 
   try {
-    const [ws] = await db.select({ id: workspaces.id }).from(workspaces).limit(1);
+    const [ws] = await db.select({ id: workspaces.id }).from(workspaces).where(eq(workspaces.id, userId)).limit(1);
     if (!ws) return { success: true, suggestions: [] };
 
     const suggestions = await new LearningService(db).getPendingSuggestions(ws.id);
@@ -44,13 +44,13 @@ export async function getLearningSuggestionCountAction() {
   if (!userId) return 0;
 
   try {
-    const [ws] = await db.select({ id: workspaces.id }).from(workspaces).limit(1);
+    const [ws] = await db.select({ id: workspaces.id }).from(workspaces).where(eq(workspaces.id, userId)).limit(1);
     if (!ws) return 0;
 
     const rows = await db
       .select({ id: learningSuggestions.id })
       .from(learningSuggestions)
-      .where(eq(learningSuggestions.status, 'PENDING'))
+      .where(and(eq(learningSuggestions.status, 'PENDING'), eq(learningSuggestions.workspaceId, ws.id)))
       .limit(100);
 
     return rows.length;
@@ -70,7 +70,7 @@ async function applyLearningSuggestionActionImpl(suggestionId: string) {
     await learningService.applySuggestion(suggestionId, userId);
 
     try {
-      revalidatePath('/learning');
+      revalidatePath('/settings/insights');
       revalidatePath('/settings/pipeline');
       revalidatePath('/');
     } catch (e) {}
@@ -97,7 +97,7 @@ async function dismissLearningSuggestionActionImpl(suggestionId: string) {
     await learningService.dismissSuggestion(suggestionId, userId);
 
     try {
-      revalidatePath('/learning');
+      revalidatePath('/settings/insights');
       revalidatePath('/settings/pipeline');
       revalidatePath('/');
     } catch (e) {}

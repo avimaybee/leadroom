@@ -22,10 +22,11 @@ const TASK_TYPE_TO_COLUMN: Record<TaskType, keyof typeof providerConfigs> = {
 export class IntegrationsService {
   constructor(private db: Db) {}
 
-  async getProviderConfig(provider: string) {
+  async getProviderConfig(provider: string, userId?: string | null) {
+    if (!userId) return null;
     const [config] = await this.db.select()
       .from(providerConfigs)
-      .where(eq(providerConfigs.provider, provider))
+      .where(and(eq(providerConfigs.provider, provider), eq(providerConfigs.userId, userId)))
       .limit(1);
     
     if (!config) return null;
@@ -37,8 +38,11 @@ export class IntegrationsService {
     };
   }
 
-  async getAllProviderConfigs() {
-    const configs = await this.db.select().from(providerConfigs);
+  async getAllProviderConfigs(userId?: string | null) {
+    if (!userId) return [];
+    const configs = await this.db.select()
+      .from(providerConfigs)
+      .where(eq(providerConfigs.userId, userId));
     const secret = getEncryptionSecret();
     const decrypted = await Promise.all(
       configs.map(async (c) => ({
@@ -49,11 +53,12 @@ export class IntegrationsService {
     return decrypted;
   }
 
-  async getActiveProviderForTask(taskType: TaskType) {
+  async getActiveProviderForTask(taskType: TaskType, userId?: string | null) {
+    if (!userId) return null;
     const column = TASK_TYPE_TO_COLUMN[taskType] as 'isResearchActive' | 'isScoringActive' | 'isDraftingActive';
     const [config] = await this.db.select()
       .from(providerConfigs)
-      .where(eq(providerConfigs[column] as any, true))
+      .where(and(eq(providerConfigs[column] as any, true), eq(providerConfigs.userId, userId)))
       .limit(1);
 
     if (!config) return null;
@@ -69,6 +74,7 @@ export class IntegrationsService {
     provider: string,
     apiKey: string,
     modelName: string,
+    userId: string,
     routing?: {
       isResearchActive?: boolean;
       isScoringActive?: boolean;
@@ -82,7 +88,7 @@ export class IntegrationsService {
 
     const existing = await this.db.select()
       .from(providerConfigs)
-      .where(eq(providerConfigs.provider, provider))
+      .where(and(eq(providerConfigs.provider, provider), eq(providerConfigs.userId, userId)))
       .limit(1);
 
     if (existing.length > 0) {
@@ -95,13 +101,14 @@ export class IntegrationsService {
           ...(routing?.isDraftingActive !== undefined && { isDraftingActive: routing.isDraftingActive }),
           updatedAt: now,
         })
-        .where(eq(providerConfigs.provider, provider));
+        .where(and(eq(providerConfigs.provider, provider), eq(providerConfigs.userId, userId)));
     } else {
       await this.db.insert(providerConfigs).values({
         id,
         provider,
         apiKey: encryptedKey,
         modelName,
+        userId,
         isResearchActive: routing?.isResearchActive ?? false,
         isScoringActive: routing?.isScoringActive ?? false,
         isDraftingActive: routing?.isDraftingActive ?? false,
@@ -110,25 +117,25 @@ export class IntegrationsService {
       });
     }
 
-    return this.getProviderConfig(provider);
+    return this.getProviderConfig(provider, userId);
   }
 
-  async setActiveForTask(provider: string, taskType: TaskType) {
+  async setActiveForTask(provider: string, taskType: TaskType, userId: string) {
     const column = TASK_TYPE_TO_COLUMN[taskType] as 'isResearchActive' | 'isScoringActive' | 'isDraftingActive';
 
-    // Deactivate this task type for all providers
+    // Deactivate this task type for all providers of this user
     await this.db.update(providerConfigs)
       .set({ [column]: false } as any)
-      .where(eq(providerConfigs[column] as any, true));
+      .where(and(eq(providerConfigs[column] as any, true), eq(providerConfigs.userId, userId)));
 
-    // Activate for the selected provider
+    // Activate for the selected provider of this user
     await this.db.update(providerConfigs)
       .set({ [column]: true } as any)
-      .where(eq(providerConfigs.provider, provider));
+      .where(and(eq(providerConfigs.provider, provider), eq(providerConfigs.userId, userId)));
   }
 
-  async deleteProviderConfig(provider: string) {
+  async deleteProviderConfig(provider: string, userId: string) {
     await this.db.delete(providerConfigs)
-      .where(eq(providerConfigs.provider, provider));
+      .where(and(eq(providerConfigs.provider, provider), eq(providerConfigs.userId, userId)));
   }
 }

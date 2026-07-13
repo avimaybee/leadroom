@@ -1,15 +1,21 @@
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 
-function getSecretKey(): Uint8Array {
+function getSecretKey(env?: any): Uint8Array {
   let secret: string | undefined;
-  // Try Cloudflare context first (production worker)
-  try {
-    const { getCloudflareContext } = require('@opennextjs/cloudflare');
-    const cf = getCloudflareContext();
-    secret = (cf?.env as any)?.AUTH_SECRET;
-  } catch (e) {}
-  // Fall back to process.env (local dev / tests)
+  // 1. Use injected env if provided (production path)
+  if (env?.AUTH_SECRET) {
+    secret = env.AUTH_SECRET;
+  }
+  // 2. Try Cloudflare context (legacy fallback)
+  if (!secret) {
+    try {
+      const { getCloudflareContext } = require('@opennextjs/cloudflare');
+      const cf = getCloudflareContext();
+      secret = (cf?.env as any)?.AUTH_SECRET;
+    } catch (e) {}
+  }
+  // 3. Fall back to process.env (local dev / tests)
   if (!secret) {
     secret = (typeof process !== 'undefined' ? process.env : undefined)?.AUTH_SECRET;
   }
@@ -120,7 +126,7 @@ export async function verifyProspectAccess(db: Db, prospectId: string, userId: s
     .from(prospects)
     .where(eq(prospects.id, prospectId))
     .limit(1);
-  return prospect ? (!prospect.ownerId || prospect.ownerId === userId) : false;
+  return prospect ? prospect.ownerId === userId : false;
 }
 
 export async function getUserId(): Promise<string | null> {

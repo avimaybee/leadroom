@@ -17,16 +17,13 @@ export async function GET() {
     }
 
     const db = getDb();
-    const allUsers = await db
+    const [currentUser] = await db
       .select({ id: users.id, name: users.name })
       .from(users)
-      .where(eq(users.id, userId));
+      .where(eq(users.id, userId))
+      .limit(1);
 
-    const userList = await db
-      .select({ id: users.id, name: users.name })
-      .from(users);
-
-    return NextResponse.json({ data: userList });
+    return NextResponse.json({ data: currentUser ? [currentUser] : [] });
   } catch (error: unknown) {
     log.error('GET error', error);
     return NextResponse.json({ error: 'An internal error occurred' }, { status: 500 });

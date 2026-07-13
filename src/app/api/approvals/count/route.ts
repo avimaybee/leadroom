@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { outreachDrafts } from '@/db/schema/outreach';
+import { prospects } from '@/db/schema/core';
 import { getUserId } from '@/lib/auth';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +16,8 @@ export async function GET() {
     const rows = await db
       .select({ id: outreachDrafts.id })
       .from(outreachDrafts)
-      .where(eq(outreachDrafts.status, 'DRAFT'))
+      .innerJoin(prospects, eq(outreachDrafts.leadId, prospects.id))
+      .where(and(eq(outreachDrafts.status, 'DRAFT'), eq(prospects.ownerId, userId)))
       .limit(100);
 
     return NextResponse.json({ count: rows.length });

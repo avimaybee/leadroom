@@ -7,7 +7,7 @@ import { NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { prospects as leads, activities } from '@/db/schema/core';
 import { discoveryScopes, candidateLeads } from '@/db/schema/discovery';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 import { decrypt, getUserId } from '@/lib/auth';
 
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     const importSourceName = filename ? filename.replace(/\.csv$/i, '') : 'CSV Import';
 
     // 1. Ensure Discovery Scope exists for this import
-    let [scope] = await db.select().from(discoveryScopes).where(eq(discoveryScopes.name, importSourceName)).limit(1);
+    let [scope] = await db.select().from(discoveryScopes).where(and(eq(discoveryScopes.name, importSourceName), eq(discoveryScopes.createdByUserId, userId))).limit(1);
     
     if (!scope) {
       const scopeId = crypto.randomUUID();

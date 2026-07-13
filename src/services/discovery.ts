@@ -1,7 +1,7 @@
 import { getLogger } from '../lib/logger';
 import { LoggingService } from './logging';
 import { Db } from '../db';
-import { eq, sql, desc } from 'drizzle-orm';
+import { eq, sql, desc, and } from 'drizzle-orm';
 
 const log = getLogger('DiscoveryService');
 import { discoveryScopes, candidateLeads } from '../db/schema/discovery';
@@ -35,14 +35,16 @@ export class DiscoveryService {
     return results[0] || null;
   }
 
-  async updateScopeName(scopeId: string, name: string) {
+  async updateScopeName(scopeId: string, name: string, userId?: string) {
     const now = new Date();
+    const conditions: any[] = [eq(discoveryScopes.id, scopeId)];
+    if (userId) conditions.push(eq(discoveryScopes.createdByUserId, userId));
     await this.db
       .update(discoveryScopes)
       .set({ name, updatedAt: now })
-      .where(eq(discoveryScopes.id, scopeId));
+      .where(and(...conditions));
 
-    const [scope] = await this.db.select().from(discoveryScopes).where(eq(discoveryScopes.id, scopeId)).limit(1);
+    const [scope] = await this.db.select().from(discoveryScopes).where(and(...conditions)).limit(1);
     return scope || null;
   }
 
@@ -73,15 +75,24 @@ export class DiscoveryService {
     return results[0] || null;
   }
 
-  async listCandidatesByScope(scopeId: string) {
+  async listCandidatesByScope(scopeId: string, userId?: string) {
+    if (userId) {
+      const [scope] = await this.db.select({ id: discoveryScopes.id }).from(discoveryScopes).where(and(eq(discoveryScopes.id, scopeId), eq(discoveryScopes.createdByUserId, userId))).limit(1);
+      if (!scope) return [];
+    }
     return this.db.select().from(candidateLeads).where(eq(candidateLeads.discoveryScopeId, scopeId));
   }
 
-  async countPendingCandidates(): Promise<number> {
+  async countPendingCandidates(userId?: string): Promise<number> {
+    const conditions: any[] = [eq(candidateLeads.status, 'NEW')];
+    if (userId) {
+      conditions.push(eq(discoveryScopes.createdByUserId, userId));
+    }
     const result = await this.db
       .select({ count: sql<number>`count(*)` })
       .from(candidateLeads)
-      .where(eq(candidateLeads.status, 'NEW'));
+      .innerJoin(discoveryScopes, eq(candidateLeads.discoveryScopeId, discoveryScopes.id))
+      .where(and(...conditions));
     
     return Number(result[0]?.count || 0);
   }
@@ -236,7 +247,7 @@ export class DiscoveryService {
       const { triggerResearchWorkflow } = await import('../lib/workflow-client');
       let workflowBinding: any = undefined;
       try {
-        const { getCloudflareContext } = require('@opennextjs/cloudflare');
+        const { getCloudflareContext } = await import('@opennextjs/cloudflare');
         workflowBinding = getCloudflareContext().env?.RESEARCH_SNAPSHOT_WORKFLOW;
       } catch (e) {
         log.info('getCloudflareContext unavailable — falling back to process.env for workflow binding');

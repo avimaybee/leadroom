@@ -34,7 +34,7 @@ export default async function MarketProspectsPage({ params }: { params: Promise<
     );
   }
 
-  const [market] = await db.select().from(markets).where(eq(markets.id, marketId)).limit(1);
+  const [market] = await db.select().from(markets).where(and(eq(markets.id, marketId), eq(markets.workspaceId, userId))).limit(1);
   if (!market) {
     return (
       <div className="text-center py-16">
@@ -84,7 +84,7 @@ export default async function MarketProspectsPage({ params }: { params: Promise<
           <h2 className="text-heading-2xl">{market.name} Prospects</h2>
           <p className="text-copy-14 text-muted-foreground mt-1">
             {offer || icp ? (
-              <>Linked to: {offer?.name || '(no offer)'} (offer) &middot; {icp?.name || '(no ICP)'} (ICP)</>
+              <>Linked to: {offer?.name || '(no offer)'} (offer) &middot; {icp?.name || '(no Ideal Client)'} (Ideal Client)</>
             ) : (
               'Add prospects to this market for research and scoring.'
             )}

@@ -6,23 +6,23 @@ import { listOffersAction } from '@/app/actions/strategy';
 import { Badge } from '@/components/ui/badge';
 
 export const metadata = {
-  title: 'Offer Settings | Leadroom',
+  title: 'What I Sell | Leadroom',
 };
 
 export default async function OfferListPage() {
   const result = await listOffersAction();
 
   return (
-    <div className="max-w-3xl">
+    <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-heading-2xl">Offer</h2>
+          <h2 className="text-heading-2xl">What I Sell</h2>
           <p className="text-copy-14 text-muted-foreground mt-1">
-            Define what you sell. This drives outreach personalization.
+            Your offer — the pain you solve, the results you deliver, and the proof behind it. Used to write every outreach message.
           </p>
         </div>
         <Link
-          href="/settings/offer/new"
+          href="/personalisation/offer/new"
           className="inline-flex items-center gap-2 h-10 px-4 rounded-md bg-primary text-primary-foreground text-label-14 hover:bg-primary/90 transition-colors"
         >
           <Plus className="w-4 h-4" />
@@ -40,7 +40,7 @@ export default async function OfferListPage() {
             Define what you sell to enable scoring and personalized outreach.
           </p>
           <Link
-            href="/settings/offer/new"
+            href="/personalisation/offer/new"
             className="inline-flex items-center gap-2 mt-4 h-10 px-4 rounded-md bg-primary text-primary-foreground text-label-14 hover:bg-primary/90 transition-colors"
           >
             <Plus className="w-4 h-4" />
@@ -63,7 +63,7 @@ export default async function OfferListPage() {
                 <tr
                   key={offer.id}
                   className="border-b border-border/40 last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
-                  onClick={() => window.location.href = `/settings/offer/${offer.id}`}
+                  onClick={() => window.location.href = `/personalisation/offer/${offer.id}`}
                 >
                   <td className="px-4 py-3 text-copy-14 font-medium">{offer.name}</td>
                   <td className="px-4 py-3 text-copy-13 text-muted-foreground max-w-[200px] truncate">
