@@ -21,7 +21,7 @@ import {
   Sliders,
   X,
 } from 'lucide-react';
-import { toast, Toaster } from 'sonner';
+import { toast } from 'sonner';
 import { useNotifications } from '@/components/NotificationProvider';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -854,7 +854,6 @@ export default function LeadDetailsWorkspace({
         </DialogContent>
       </Dialog>
 
-      <Toaster position="bottom-right" />
     </div>
   );
 }

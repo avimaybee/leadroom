@@ -1,10 +1,13 @@
 'use server';
 
+import { getLogger } from '@/lib/logger';
 import { getDb } from '@/db';
 import { IntegrationsService } from '@/services/integrations';
 import type { TaskType } from '@/services/integrations';
 import { revalidatePath } from 'next/cache';
 import { getUserId } from '@/lib/auth';
+
+const log = getLogger('IntegrationsActions');
 
 export async function saveIntegrationConfigAction(formData: FormData) {
   const userId = await getUserId();
@@ -128,7 +131,7 @@ export async function saveIntegrationConfigAction(formData: FormData) {
       }
     }
   } catch (err: unknown) {
-    console.error(`Validation check failed for ${provider}:`, err);
+    log.error(`Validation check failed for ${provider}`, err);
     // If the validation check fails due to network issues, we allow saving rather than blocking the user.
   }
 
@@ -142,7 +145,7 @@ export async function saveIntegrationConfigAction(formData: FormData) {
     } catch (e) {}
     return { success: true };
   } catch (e: unknown) {
-    console.error(e);
+    log.error('Failed to save configuration', e);
     const errMsg = e instanceof Error ? e.message : 'Failed to save configuration';
     return { error: errMsg };
   }
@@ -331,7 +334,7 @@ export async function setActiveProviderForTaskAction(provider: string, taskType:
     } catch (e) {}
     return { success: true };
   } catch (error: any) {
-    console.error('Failed to set active provider for task:', error);
+    log.error('Failed to set active provider for task', error);
     return { error: error.message || 'Failed to set active provider for task' };
   }
 }

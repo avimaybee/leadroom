@@ -2,10 +2,58 @@
 
 import { getDb } from '@/db';
 import { LeadService } from '@/services/lead';
-import { stageThresholds, pipelineConfig, playbooks, playbookTasks } from '@/db/schema/core';
-import { eq, and } from 'drizzle-orm';
+import { stageThresholds, pipelineConfig, playbooks, playbookTasks, prospects } from '@/db/schema/core';
+import { eq, desc } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { getUserId } from '@/lib/auth';
+import { CANONICAL_STAGE_MAP } from '@/services/lead';
+
+function normalizeStage(stage: string | null | undefined): string {
+  if (!stage) return 'New';
+  return CANONICAL_STAGE_MAP[stage] || stage;
+}
+
+// ── Pipeline Board ──
+
+export async function getPipelineProspectsAction() {
+  const db = getDb();
+  const userId = await getUserId();
+
+  if (!userId) {
+    return { error: 'Unauthorized', prospects: [] };
+  }
+
+  try {
+    const rows = await db
+      .select({
+        id: prospects.id,
+        name: prospects.name,
+        company: prospects.company,
+        stage: prospects.stage,
+        fitScore: prospects.fitScore,
+        confidenceScore: prospects.confidenceScore,
+        priorityTier: prospects.priorityTier,
+        website: prospects.website,
+        disqualifiedReason: prospects.disqualifiedReason,
+        fitReasoning: prospects.fitReasoning,
+      })
+      .from(prospects)
+      .where(eq(prospects.ownerId, userId))
+      .orderBy(desc(prospects.fitScore));
+
+    const normalized = rows.map(p => ({
+      ...p,
+      stage: normalizeStage(p.stage),
+    }));
+
+    return { success: true, prospects: normalized };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Failed to fetch pipeline';
+    return { error: msg, prospects: [] };
+  }
+}
+
+// ── Stage Thresholds ──
 
 export async function updateStageThreshold(stage: string, days: number) {
   const userId = await getUserId();

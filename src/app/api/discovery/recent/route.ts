@@ -1,11 +1,14 @@
 export const dynamic = 'force-dynamic';
 
+import { getLogger } from '@/lib/logger';
 import { NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { jobRuns } from '@/db/schema/research';
 import { eq, desc } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 import { decrypt, getUserId } from '@/lib/auth';
+
+const log = getLogger('DiscoveryRecentAPI');
 
 export async function GET(request: Request) {
   const userId = await getUserId();
@@ -40,7 +43,7 @@ export async function GET(request: Request) {
           scopeId = meta.scopeId || null;
         }
       } catch (e) {
-        console.error('Failed to parse jobMeta:', e);
+        log.error('Failed to parse jobMeta', e);
       }
 
       if (filterScopeId && scopeId !== filterScopeId) {
@@ -65,7 +68,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ success: true, data: formattedRuns });
   } catch (error: unknown) {
-    console.error('Failed to fetch recent discovery jobs:', error);
+    log.error('Failed to fetch recent discovery jobs', error);
     return NextResponse.json(
       { error: 'Internal Server Error' },
       { status: 500 }

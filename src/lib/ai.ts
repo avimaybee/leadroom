@@ -1,6 +1,9 @@
 import { z } from 'zod';
+import { getLogger } from './logger';
 import { Db } from '../db';
 import { getChannelPrompt } from './outreach/prompts';
+
+const log = getLogger('AI');
 
 export const AIResearchSchema = z.object({
   companySummary: z.string(),
@@ -228,7 +231,7 @@ async function callWithProviderChain<T>(
       lastError = error instanceof Error ? error : new Error(String(error));
       if (i < chain.length - 1) {
         onFailover?.({ provider, modelName, error: lastError.message });
-        console.warn(`[AI Failover] Provider "${provider}" (model: ${modelName}) failed for task "${taskType}". Trying next provider... Error: ${lastError.message}`);
+        log.warn(`Provider "${provider}" (model: ${modelName}) failed for task "${taskType}". Trying next provider... Error: ${lastError.message}`);
       }
     }
   }
@@ -387,7 +390,7 @@ Provide your response strictly in JSON format matching this schema:
       parsed = JSON.parse(textResult);
     } catch (parseError: unknown) {
       if (provider === 'nvidia') {
-        console.error('Failed to parse NVIDIA JSON output, retrying with relaxed format.');
+        log.error('Failed to parse NVIDIA JSON output, retrying with relaxed format.');
         textResult = await callOpenAICompatible(
           provider, prompt, apiKey, modelName,
           'You are a senior competitive intelligence analyst. Output strictly in valid JSON matching the requested schema. No markdown code blocks, no extra text.',
@@ -752,7 +755,7 @@ async function callOpenAICompatible(
     });
 
     if (!response.ok && (response.status === 400 || response.status === 422)) {
-      console.warn(`NVIDIA strict schema failed (${response.status}), falling back to json_object`);
+      log.warn(`NVIDIA strict schema failed (${response.status}), falling back to json_object`);
       response = await makeRequest({ type: 'json_object' });
     }
   } else {
@@ -877,7 +880,7 @@ export async function generateAudit(
         ].filter(Boolean).join('\n');
       }
     } catch (e) {
-      console.error('Failed to fetch research snapshot in generateAudit:', e);
+      log.error('Failed to fetch research snapshot in generateAudit', e);
     }
   }
 
@@ -1312,7 +1315,7 @@ export async function checkModelVisionCapability(provider: string, modelName: st
         }
       }
     } catch (e) {
-      console.error('Error fetching OpenRouter models:', e);
+      log.error('Error fetching OpenRouter models', e);
     }
   }
 
@@ -1328,7 +1331,7 @@ export async function checkModelVisionCapability(provider: string, modelName: st
         return result;
       }
     } catch (e) {
-      console.error('Error fetching Gemini model metadata:', e);
+      log.error('Error fetching Gemini model metadata', e);
     }
   }
 
@@ -1349,7 +1352,7 @@ export async function checkModelVisionCapability(provider: string, modelName: st
         }
       }
     } catch (e) {
-      console.error('Error fetching OpenAI models:', e);
+      log.error('Error fetching OpenAI models', e);
     }
   }
 
@@ -1375,7 +1378,7 @@ export async function checkModelVisionCapability(provider: string, modelName: st
         }
       }
     } catch (e) {
-      console.error(`Error fetching models for ${p}:`, e);
+      log.error(`Error fetching models for ${p}`, e);
     }
   }
 
@@ -1684,4 +1687,162 @@ Provide your response strictly in JSON format matching this schema:
     );
     return AILeadScoreSchema.parse(JSON.parse(textResult));
   });
+}
+
+export const AIExtractedSignalsSchema = z.object({
+  signals: z.array(z.object({
+    signalName: z.string(),
+    matchedIcpRule: z.string(),
+    matchStrength: z.enum(['strong', 'partial', 'weak']),
+    evidenceQuote: z.string(),
+    sourceUrl: z.string(),
+  }))
+});
+
+export type AIExtractedSignalsOutput = z.infer<typeof AIExtractedSignalsSchema>;
+
+export async function extractICPSignals(
+  db: Db,
+  companyName: string,
+  websiteUrl: string | null,
+  scrapedContent: string | null,
+  icpProfile: any
+): Promise<any[]> {
+  const posCount = icpProfile.positiveSignals?.length || 0;
+  const negCount = icpProfile.negativeSignals?.length || 0;
+  const disqCount = icpProfile.disqualifiers?.length || 0;
+  if (posCount === 0 && negCount === 0 && disqCount === 0) {
+    return [];
+  }
+
+  const positiveText = (icpProfile.positiveSignals || []).map((s: any) => `- Positive Signal: "${s.name}" (Description: ${s.description})`).join('\n');
+  const negativeText = (icpProfile.negativeSignals || []).map((s: any) => `- Negative Signal: "${s.name}" (Description: ${s.description})`).join('\n');
+  const disqualifiersText = (icpProfile.disqualifiers || []).map((d: any) => `- Disqualifier: "${d}"`).join('\n');
+
+  const prompt = `Evaluate the company "${companyName}" (website: ${websiteUrl || 'Unknown'}) against our Ideal Customer Profile (ICP) criteria.
+Analyze the scraped website content below to identify matches with any positive signals, negative signals, or disqualifiers.
+
+ICP CRITERIA TO LOOK FOR:
+--- Positive Signals ---
+${positiveText || 'None defined'}
+
+--- Negative Signals ---
+${negativeText || 'None defined'}
+
+--- Disqualifiers ---
+${disqualifiersText || 'None defined'}
+
+Here is the scraped content of their website:
+--- START OF WEBSITE CONTENT ---
+${scrapedContent || '[No content scraped]'}
+--- END OF WEBSITE CONTENT ---
+
+For each matched criteria (positive signal, negative signal, or disqualifier):
+1. Determine if it is present. If it is NOT present, do not include it.
+2. If it is present, evaluate the match strength (strong, partial, weak). Disqualifiers should always have 'strong' match strength.
+3. Cite the exact sentence/phrase from the website content as 'evidenceQuote'.
+4. Provide the 'sourceUrl' (use the company website URL ${websiteUrl || ''}).
+5. 'signalName' and 'matchedIcpRule' should be set to the EXACT name of the positive signal, negative signal, or disqualifier as defined in the ICP criteria.
+
+Provide your response strictly in JSON format matching this schema:
+{
+  "signals": [
+    {
+      "signalName": "EXACT_NAME_OF_SIGNAL_OR_DISQUALIFIER",
+      "matchedIcpRule": "EXACT_NAME_OF_SIGNAL_OR_DISQUALIFIER",
+      "matchStrength": "strong" | "partial" | "weak",
+      "evidenceQuote": "exact quote from scraped content showing the match",
+      "sourceUrl": "..."
+    }
+  ]
+}`;
+
+  const schemaJson = {
+    type: 'object',
+    properties: {
+      signals: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            signalName: { type: 'string' },
+            matchedIcpRule: { type: 'string' },
+            matchStrength: { type: 'string', enum: ['strong', 'partial', 'weak'] },
+            evidenceQuote: { type: 'string' },
+            sourceUrl: { type: 'string' },
+          },
+          required: ['signalName', 'matchedIcpRule', 'matchStrength', 'evidenceQuote', 'sourceUrl'],
+        }
+      }
+    },
+    required: ['signals']
+  };
+
+  try {
+    return await callWithProviderChain(db, 'research', async (provider, apiKey, modelName) => {
+      if (provider === 'gemini') {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: {
+                maxOutputTokens: 10000,
+                responseMimeType: 'application/json',
+                responseSchema: {
+                  type: 'OBJECT',
+                  properties: {
+                    signals: {
+                      type: 'ARRAY',
+                      items: {
+                        type: 'OBJECT',
+                        properties: {
+                          signalName: { type: 'STRING' },
+                          matchedIcpRule: { type: 'STRING' },
+                          matchStrength: { type: 'STRING', enum: ['strong', 'partial', 'weak'] },
+                          evidenceQuote: { type: 'STRING' },
+                          sourceUrl: { type: 'STRING' },
+                        },
+                        required: ['signalName', 'matchedIcpRule', 'matchStrength', 'evidenceQuote', 'sourceUrl'],
+                      }
+                    }
+                  },
+                  required: ['signals']
+                },
+              },
+            }),
+          }
+        );
+        if (!response.ok) throw new Error(`Gemini API returned status ${response.status}`);
+        const data = (await response.json()) as any;
+        const textResult = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!textResult) throw new Error('Invalid response structure from Gemini API');
+        const parsed = JSON.parse(textResult);
+        return AIExtractedSignalsSchema.parse(parsed).signals;
+      }
+
+      if (provider === 'anthropic') {
+        const textResult = await callAnthropic(
+          prompt, apiKey, modelName,
+          'You are a competitive intelligence analyst. Output strictly in valid JSON matching the requested schema.',
+        );
+        const parsed = JSON.parse(textResult);
+        return AIExtractedSignalsSchema.parse(parsed).signals;
+      }
+
+      // OpenAI-compatible providers
+      const textResult = await callOpenAICompatible(
+        provider, prompt, apiKey, modelName,
+        'You are a competitive intelligence analyst. Output strictly in valid JSON matching the requested schema.',
+        schemaJson,
+      );
+      const parsed = JSON.parse(textResult);
+      return AIExtractedSignalsSchema.parse(parsed).signals;
+    });
+  } catch (err) {
+    log.error('Failed to run AI signal extraction, falling back to empty', err);
+    return [];
+  }
 }

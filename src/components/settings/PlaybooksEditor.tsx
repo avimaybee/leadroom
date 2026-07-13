@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { Plus, Trash2, Loader2, Save, Play, Square } from 'lucide-react';
-import { toast, Toaster } from 'sonner';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { PIPELINE_STAGES, type PipelineStage } from '@/services/lead';
 import { upsertPlaybookAction, togglePlaybookActiveAction, deletePlaybookAction } from '@/app/actions/pipeline';
@@ -358,7 +358,6 @@ export function PlaybooksEditor({ initialPlaybooks }: Props) {
         );
       })}
 
-      <Toaster position="bottom-right" />
     </div>
   );
 }

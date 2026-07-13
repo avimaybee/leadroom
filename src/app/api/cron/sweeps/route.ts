@@ -1,15 +1,21 @@
 export const dynamic = 'force-dynamic';
 
+import { getLogger } from '@/lib/logger';
 import { NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { runAllSweeps } from '@/services/sweeps';
+
+const log = getLogger('CronSweepsAPI');
 
 export async function GET(request: Request) {
   // Optional: check secret token in headers to authorize cron trigger if configured
   const authHeader = request.headers.get('Authorization');
   const cronSecret = process.env.CRON_SECRET;
   
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret) {
+    return NextResponse.json({ error: 'CRON_SECRET not configured' }, { status: 500 });
+  }
+  if (authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -21,7 +27,7 @@ export async function GET(request: Request) {
       ...results
     });
   } catch (error: any) {
-    console.error('Cron sweeps error:', error);
+    log.error('Cron sweeps error', error);
     return NextResponse.json({ 
       success: false, 
       error: error?.message || 'An error occurred during sweeps' 

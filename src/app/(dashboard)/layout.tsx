@@ -4,10 +4,13 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { LayoutDashboard, Users, Target, Settings, SlidersHorizontal } from 'lucide-react';
+import { LayoutDashboard, Users, Target, Settings, FileText, ClipboardCheck, LayoutList, Lightbulb, ChevronRight, FlaskConical } from 'lucide-react';
 import { NotificationProvider } from '@/components/NotificationProvider';
 import { NotificationBell } from '@/components/NotificationBell';
 import { HowToUse } from '@/components/HowToUse';
+import { ApprovalBadge } from '@/components/ApprovalBadge';
+import { LearningBadge } from '@/components/LearningBadge';
+import { AppLogger } from '@/components/AppLogger';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 
@@ -17,11 +20,28 @@ const MIN_SIDEBAR = 200;
 const MAX_SIDEBAR = 400;
 const DEFAULT_SIDEBAR = 272;
 
-const navItems = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { name: 'Leads', href: '/leads', icon: Users },
-  { name: 'Campaigns', href: '/scopes', icon: Target },
-  { name: 'Settings', href: '/settings/pipeline', icon: Settings },
+interface NavItem {
+  name: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  badge?: boolean;
+  badgeType?: 'approvals' | 'learning';
+}
+
+const navItems: NavItem[] = [
+  { name: 'Command Center', href: '/', icon: LayoutDashboard },
+  { name: 'Markets', href: '/markets', icon: Target },
+  { name: 'Prospects', href: '/prospects', icon: Users },
+  { name: 'Research Queue', href: '/research', icon: FileText },
+  { name: 'Approvals', href: '/approvals', icon: ClipboardCheck, badge: true, badgeType: 'approvals' },
+  { name: 'Pipeline', href: '/pipeline', icon: LayoutList },
+  { name: 'Learning', href: '/learning', icon: Lightbulb, badge: true, badgeType: 'learning' },
+  { name: 'Settings', href: '/settings/offer', icon: Settings },
+];
+
+const legacyItems: NavItem[] = [
+  { name: 'Leads (legacy)', href: '/leads', icon: Users },
+  { name: 'Campaigns (legacy)', href: '/scopes', icon: Target },
 ];
 
 
@@ -29,6 +49,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
+  const [legacyOpen, setLegacyOpen] = useState(false);
   const sidebarRef = useRef<HTMLElement>(null);
   const dragRef = useRef(false);
 
@@ -82,6 +103,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <NotificationProvider>
+      <AppLogger />
       <div className="h-screen bg-background flex">
         {/* Skip to Main Content Link */}
         <a
@@ -132,9 +154,42 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               >
                 <Icon className="w-4 h-4 shrink-0" />
                 {!collapsed && <span className="truncate">{item.name}</span>}
+                {!collapsed && item.badge && item.badgeType === 'approvals' && <ApprovalBadge />}
+                {!collapsed && item.badge && item.badgeType === 'learning' && <LearningBadge />}
               </Link>
             );
           })}
+
+          {/* Legacy section */}
+          {!collapsed && (
+            <div className="pt-2 mt-2 border-t border-sidebar-border">
+              <button
+                type="button"
+                onClick={() => setLegacyOpen(!legacyOpen)}
+                className="flex items-center gap-2 w-full px-2 py-1.5 text-label-12 text-muted-foreground/60 hover:text-foreground transition-colors"
+              >
+                <ChevronRight className={`w-3 h-3 transition-transform ${legacyOpen ? 'rotate-90' : ''}`} />
+                Legacy
+              </button>
+              {legacyOpen && (
+                <div className="ml-4 space-y-0.5 mt-0.5">
+                  {legacyItems.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className="flex items-center gap-2 px-2 py-1.5 rounded-md text-label-12 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all duration-200"
+                      >
+                        <Icon className="w-4 h-4 shrink-0" />
+                        <span className="truncate">{item.name}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </nav>
 
         {/* Footer */}

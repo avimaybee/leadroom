@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { getDb } from '@/db';
-import { leads, leadScores, candidateLeads, discoveryScopes, tasks, stageThresholds } from '@/db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { leads, leadScores, candidateLeads, discoveryScopes, tasks, stageThresholds, jobRuns } from '@/db/schema';
+import { eq, desc, inArray } from 'drizzle-orm';
 import LeadsTableClient from '@/components/LeadsTableClient';
 
 export default async function LeadsPage({ searchParams }: { searchParams: Promise<{ campaignId?: string; filter?: string; stage?: string }> }) {
@@ -11,7 +11,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   const activeFilter = resolvedParams.filter || 'all';
   const stageFilter = resolvedParams.stage;
 
-  const [activeLeadsData, scores, campaigns, allTasks, thresholds] = await Promise.all([
+  const [activeLeadsData, scores, campaigns, allTasks, thresholds, activeJobs] = await Promise.all([
     db.select().from(leads).where(eq(leads.status, 'Active')).orderBy(desc(leads.updatedAt)),
     db.select({
       leadId: leadScores.leadId,
@@ -27,12 +27,24 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
       .leftJoin(candidateLeads, eq(discoveryScopes.id, candidateLeads.discoveryScopeId)),
     db.select().from(tasks).where(eq(tasks.status, 'Open')),
     db.select().from(stageThresholds),
+    db.select({
+      id: jobRuns.id,
+      targetLeadId: jobRuns.targetLeadId,
+      status: jobRuns.status,
+      jobType: jobRuns.jobType,
+    }).from(jobRuns).where(inArray(jobRuns.status, ['QUEUED', 'RUNNING'])),
   ]);
 
   const allScopes = await db.select({ id: discoveryScopes.id, name: discoveryScopes.name }).from(discoveryScopes).orderBy(desc(discoveryScopes.createdAt));
 
   const scoreMap = new Map(scores.map(s => [s.leadId, { scoreValue: s.scoreValue, scoreLabel: s.scoreLabel, rationaleSummary: s.rationaleSummary }]));
   const campaignMap = new Map(campaigns.filter(c => c.leadId).map(c => [c.leadId!, { campaignId: c.campaignId, campaignName: c.campaignName }]));
+  const activeJobsMap = new Map();
+  activeJobs.forEach(job => {
+    if (job.targetLeadId) {
+      activeJobsMap.set(job.targetLeadId, { status: job.status, jobType: job.jobType });
+    }
+  });
 
   const enrichedLeads = activeLeadsData.map(lead => {
     const leadTasks = allTasks.filter(t => t.leadId === lead.id);
@@ -43,6 +55,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
     const stageAgeDays = lead.stageUpdatedAt 
       ? (new Date().getTime() - new Date(lead.stageUpdatedAt).getTime()) / (1000 * 60 * 60 * 24) : 0;
     const isStale = stageAgeDays > stageThreshold;
+    const activeJob = activeJobsMap.get(lead.id);
 
     return {
       ...lead,
@@ -51,6 +64,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
       openTasks,
       isStale,
       stageAgeDays,
+      activeJob: activeJob || null,
       ...(scoreMap.get(lead.id) || { scoreValue: null, scoreLabel: null, rationaleSummary: null }),
       ...(campaignMap.get(lead.id) || { campaignId: null, campaignName: null }),
     };

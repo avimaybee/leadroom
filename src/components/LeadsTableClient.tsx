@@ -27,6 +27,7 @@ interface LeadData {
   openTasks: any[];
   isStale: boolean;
   stageAgeDays: number;
+  activeJob?: { status: string; jobType: string } | null;
 }
 
 function SelectAllCheckbox({ leadIds }: { leadIds: string[] }) {
@@ -210,6 +211,15 @@ export default function LeadsTableClient({
                           </td>
                           <td className="px-6 py-4">
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-label-12 font-semibold ${getStageBadgeClass(lead.stage)}`}>{lead.stage}</span>
+                            {lead.activeJob && (
+                              <div className="flex items-center gap-1.5 mt-1.5 text-label-12 text-primary font-semibold animate-pulse">
+                                <span className="relative flex h-2 w-2">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                                </span>
+                                <span>{lead.activeJob.status === 'QUEUED' ? 'Queued' : 'Researching...'}</span>
+                              </div>
+                            )}
                           </td>
                           <td className="px-6 py-4 max-w-[240px]">
                             {lead.scoreValue !== null && lead.scoreValue !== undefined ? (
@@ -275,9 +285,20 @@ export default function LeadsTableClient({
                         </Link>
                         {lead.company && <p className="text-label-12 text-muted-foreground font-semibold mt-0.5">{lead.company}</p>}
                       </div>
-                      <div className="shrink-0 flex items-center gap-2">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-label-12 font-semibold ${getStageBadgeClass(lead.stage)}`}>{lead.stage}</span>
-                        <LeadRowActions leadId={lead.id} />
+                      <div className="shrink-0 flex flex-col items-end gap-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-label-12 font-semibold ${getStageBadgeClass(lead.stage)}`}>{lead.stage}</span>
+                          <LeadRowActions leadId={lead.id} />
+                        </div>
+                        {lead.activeJob && (
+                          <div className="flex items-center gap-1.5 text-label-12 text-primary font-semibold animate-pulse">
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                            </span>
+                            <span>{lead.activeJob.status === 'QUEUED' ? 'Queued' : 'Researching...'}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-3 text-label-12 border-t border-border/50 pt-3 font-semibold text-muted-foreground">

@@ -1,8 +1,11 @@
+import { getLogger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { users } from '@/db/schema/core';
 import { encrypt } from '@/lib/auth';
 import { eq } from 'drizzle-orm';
+
+const log = getLogger('FirebaseAuthAPI');
 
 const FIREBASE_API_KEY = 'AIzaSyCaf1FHg56-HIa-39FkPEY3146guGiZCX8';
 
@@ -71,7 +74,7 @@ export async function POST(request: NextRequest) {
 
     return response;
   } catch (error: unknown) {
-    console.error('Firebase auth error:', error);
+    log.error('Firebase auth error', error);
     return NextResponse.json({ error: 'An internal error occurred' }, { status: 500 });
   }
 }

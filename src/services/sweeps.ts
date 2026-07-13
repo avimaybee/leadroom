@@ -1,10 +1,14 @@
 import { Db } from '../db';
+import { getLogger } from '../lib/logger';
 import { ReminderService } from './reminders';
 import { LeadService } from './lead';
 import { ScoringService } from './scoring';
 import { tasks, notifications, prospects as leads } from '../db/schema/core';
+import { researchTasks } from '../db/schema/jobs';
 import { createNotification } from '@/lib/notifications';
 import { eq, and, isNotNull, lt, gte, count } from 'drizzle-orm';
+
+const log = getLogger('Sweeps');
 
 export interface SweepResult {
   remindersFired: number;
@@ -90,12 +94,53 @@ export async function runScoreSweep(db: Db): Promise<number> {
   return recalculated;
 }
 
-export async function runAllSweeps(db: Db): Promise<SweepResult & { scoresRecalculated: number }> {
-  const [remindersFired, staleAlerts, overdueNotifications, scoresRecalculated] = await Promise.all([
+/**
+ * Resets research tasks that have been stuck in RUNNING state for more than 30 minutes
+ * back to PENDING so they can be retried by the next trigger.
+ */
+export async function runStuckResearchTaskSweep(db: Db): Promise<number> {
+  const STUCK_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
+  const cutoff = new Date(Date.now() - STUCK_THRESHOLD_MS);
+
+  const stuckTasks = await db
+    .select({ id: researchTasks.id })
+    .from(researchTasks)
+    .where(
+      and(
+        eq(researchTasks.status, 'RUNNING'),
+        lt(researchTasks.startedAt, cutoff),
+      )
+    );
+
+  if (stuckTasks.length === 0) return 0;
+
+  for (const { id } of stuckTasks) {
+    try {
+      await db
+        .update(researchTasks)
+        .set({
+          status: 'PENDING',
+          startedAt: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(researchTasks.id, id));
+    } catch (err) {
+      log.error('Failed to reset stuck research task', err, { taskId: id });
+    }
+  }
+
+  log.info(`Reset ${stuckTasks.length} stuck research task(s) back to PENDING`);
+  return stuckTasks.length;
+}
+
+export async function runAllSweeps(db: Db): Promise<SweepResult & { scoresRecalculated: number; stuckTasksReset: number }> {
+  const [remindersFired, staleAlerts, overdueNotifications, scoresRecalculated, stuckTasksReset] = await Promise.all([
     runReminderSweep(db).catch(() => 0),
     runStaleLeadSweep(db).catch(() => 0),
     runOverdueTaskSweep(db).catch(() => 0),
     runScoreSweep(db).catch(() => 0),
+    runStuckResearchTaskSweep(db).catch(() => 0),
   ]);
-  return { remindersFired, staleAlerts, overdueNotifications, scoresRecalculated };
+  return { remindersFired, staleAlerts, overdueNotifications, scoresRecalculated, stuckTasksReset };
 }
+

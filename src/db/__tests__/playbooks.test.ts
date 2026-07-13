@@ -11,13 +11,13 @@ function setupTestDb() {
 }
 
 test('Stage auto tasks (replaces playbooks)', async (t) => {
-  await t.test('Outreach Sent creates default tasks', async () => {
+  await t.test('Contacted creates default tasks', async () => {
     const { db, leadService } = setupTestDb();
     const lead = await leadService.createLead({ name: 'Test Lead', stage: 'New' });
     // Seed requirements: research snapshot + outreach draft
     await db.insert(researchSnapshots).values({ id: crypto.randomUUID(), leadId: lead.id, companySummary: 'Test', confidenceLevel: 'HIGH', createdAt: new Date() });
     await db.insert(outreachDrafts).values({ id: crypto.randomUUID(), leadId: lead.id, channel: 'EMAIL', status: 'DRAFT', subject: 'Test', body: 'Test body', origin: 'AI_GENERATED', createdAt: new Date(), updatedAt: new Date() });
-    await leadService.updateStage(lead.id, 'Outreach Sent');
+    await leadService.updateStage(lead.id, 'Contacted');
     const leadTasks = await leadService.getTasks(lead.id);
 
     assert.strictEqual(leadTasks.length, 2);
@@ -35,12 +35,12 @@ test('Stage auto tasks (replaces playbooks)', async (t) => {
     assert.ok(tasks.some((t: any) => t.title === 'Review prospect research'));
   });
 
-  await t.test('Meeting creates log-outcome task', async () => {
+  await t.test('Meeting Booked creates log-outcome task', async () => {
     const { db, leadService } = setupTestDb();
     const lead = await leadService.createLead({ name: 'Test Lead' });
     await db.insert(researchSnapshots).values({ id: crypto.randomUUID(), leadId: lead.id, companySummary: 'Test', confidenceLevel: 'HIGH', createdAt: new Date() });
     await db.insert(outreachDrafts).values({ id: crypto.randomUUID(), leadId: lead.id, channel: 'EMAIL', status: 'DRAFT', subject: 'Test', body: 'Test body', origin: 'AI_GENERATED', createdAt: new Date(), updatedAt: new Date() });
-    await leadService.updateStage(lead.id, 'Meeting');
+    await leadService.updateStage(lead.id, 'Meeting Booked');
     const tasks = await leadService.getTasks(lead.id);
     assert.ok(tasks.some((t: any) => t.title === 'Log meeting outcome'));
   });
@@ -51,12 +51,12 @@ test('Stage auto tasks (replaces playbooks)', async (t) => {
     // Seed requirements: research snapshot + outreach draft
     await db.insert(researchSnapshots).values({ id: crypto.randomUUID(), leadId: lead.id, companySummary: 'Test', confidenceLevel: 'HIGH', createdAt: new Date() });
     await db.insert(outreachDrafts).values({ id: crypto.randomUUID(), leadId: lead.id, channel: 'EMAIL', status: 'DRAFT', subject: 'Test', body: 'Test body', origin: 'AI_GENERATED', createdAt: new Date(), updatedAt: new Date() });
-    await leadService.updateStage(lead.id, 'Outreach Sent');
+    await leadService.updateStage(lead.id, 'Contacted');
     const tasksAfterFirst = await leadService.getTasks(lead.id);
     assert.strictEqual(tasksAfterFirst.length, 2);
 
     // call updateStage again with same stage — should not duplicate
-    await leadService.updateStage(lead.id, 'Outreach Sent');
+    await leadService.updateStage(lead.id, 'Contacted');
     const tasksAfterSecond = await leadService.getTasks(lead.id);
     assert.strictEqual(tasksAfterSecond.length, 2);
   });

@@ -1,14 +1,12 @@
 export const dynamic = 'force-dynamic';
 
+import Link from 'next/link';
 import { getDb } from '@/db';
 import { PipelineAutomationCard } from '@/components/settings/PipelineAutomationCard';
-import { LearningSuggestionsInbox } from '@/components/prospects/LearningSuggestionsInbox';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { workspaces } from '@/db/schema/strategy';
 import { pipelineConfig } from '@/db/schema/core';
 import { eq } from 'drizzle-orm';
-import { LearningService } from '@/services/learning';
 import { PIPELINE_STAGES } from '@/services/lead';
+import { Info } from 'lucide-react';
 
 export const metadata = {
   title: 'Pipeline Preferences | Leadroom',
@@ -16,9 +14,8 @@ export const metadata = {
 
 export default async function PipelineSettingsPage() {
   const db = getDb();
-  const [pcRow, workspaceRows] = await Promise.all([
+  const [pcRow] = await Promise.all([
     db.select().from(pipelineConfig).where(eq(pipelineConfig.id, 'global')).limit(1).then((r) => r[0] || null),
-    db.select().from(workspaces).limit(1),
   ]);
 
   const config = pcRow?.stageRequirements
@@ -27,32 +24,24 @@ export default async function PipelineSettingsPage() {
 
   return (
     <div className="space-y-8 max-w-4xl">
+      <div className="rounded-xl bg-primary/10 border border-primary/20 p-4 flex items-start gap-3">
+        <Info className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+        <div>
+          <p className="text-label-14 text-primary font-semibold">ICP Optimization Suggestions</p>
+          <p className="text-copy-14 text-primary/80 mt-0.5">
+            View and manage learning suggestions in the{' '}
+            <Link href="/learning" className="underline decoration-primary/40 underline-offset-4 hover:decoration-primary">
+              Learning Inbox
+            </Link>
+            .
+          </p>
+        </div>
+      </div>
+
       <PipelineAutomationCard
         stages={PIPELINE_STAGES as unknown as string[]}
         initialConfig={config as Record<string, unknown>}
       />
-
-      {workspaceRows.length > 0 && (
-        <Card className="border border-border shadow-sm">
-          <CardHeader className="border-b border-border bg-muted/20 pb-4">
-            <CardTitle className="text-heading-lg">ICP Optimization Suggestions</CardTitle>
-            <CardDescription className="text-copy-14 mt-1">
-              Based on outcome data, the system suggests adjustments to your ICP profile.
-              Review and apply suggestions to improve scoring accuracy.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <LearningSuggestionsInbox
-              suggestions={(await new LearningService(db).getPendingSuggestions(workspaceRows[0].id)).map((s) => ({
-                id: s.id,
-                suggestedChange: s.suggestedChange ?? '{}',
-                supportingEvidence: s.supportingEvidence ?? '{}',
-                createdAt: s.createdAt,
-              }))}
-            />
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }

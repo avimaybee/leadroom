@@ -1,3 +1,7 @@
+import { getLogger } from '../logger';
+
+const log = getLogger('Apify');
+
 export interface DiscoveryLead {
   name: string;
   website: string | null;
@@ -73,7 +77,7 @@ export async function startGoogleMapsSearch(
     scrapeImageAuthors: false,
   };
 
-  console.log(`[Apify] Starting actor for "${niche}" in "${location}" (limit ${limit})...`);
+  log.info('Starting actor', { niche, location, limit });
 
   const runRes = await fetch(
     'https://api.apify.com/v2/acts/nwua9Gu5YrADL7ZDj/runs',
@@ -137,7 +141,7 @@ export async function fetchApifyResults(
 ): Promise<DiscoveryLead[]> {
   const token = getApifyToken();
 
-  console.log(`[Apify] Fetching dataset items from ${datasetId}...`);
+  log.info('Fetching dataset items', { datasetId });
   const itemsRes = await fetch(
     `https://api.apify.com/v2/datasets/${datasetId}/items`,
     {

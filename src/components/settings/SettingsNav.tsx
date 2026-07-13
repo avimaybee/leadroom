@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { SlidersHorizontal, Cpu } from 'lucide-react';
+import { SlidersHorizontal, Cpu, ScrollText, Users, Target } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function SettingsNav() {
@@ -21,12 +21,30 @@ export function SettingsNav() {
       description: 'Configure provider credentials and AI routing',
       icon: Cpu,
     },
+    {
+      name: 'Offer',
+      href: '/settings/offer',
+      description: 'Define what you sell',
+      icon: ScrollText,
+    },
+    {
+      name: 'ICP Profile',
+      href: '/settings/icp',
+      description: 'Define your ideal customer profile',
+      icon: Users,
+    },
+    {
+      name: 'Market',
+      href: '/settings/market',
+      description: 'Link offers and ICPs to target segments',
+      icon: Target,
+    },
   ];
 
   return (
     <nav className="flex flex-row md:flex-col gap-1 w-full bg-muted/20 md:bg-transparent p-1 md:p-0 rounded-xl md:rounded-none">
       {navItems.map((item) => {
-        const isActive = pathname === item.href;
+        const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
         const Icon = item.icon;
 
         return (

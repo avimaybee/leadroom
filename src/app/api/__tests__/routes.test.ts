@@ -91,6 +91,7 @@ function setupTestDb() {
       fit_reasoning TEXT,
       owner_id TEXT REFERENCES users(id),
       score_dirty INTEGER DEFAULT 1 NOT NULL,
+      notes TEXT,
       created_at INTEGER DEFAULT (strftime('%s', 'now')),
       updated_at INTEGER DEFAULT (strftime('%s', 'now')),
       stage_updated_at INTEGER DEFAULT (strftime('%s', 'now')),
@@ -255,6 +256,22 @@ function setupTestDb() {
       stage TEXT NOT NULL,
       entered_at INTEGER,
       exited_at INTEGER
+    );
+
+    CREATE TABLE research_tasks (
+      id TEXT PRIMARY KEY,
+      prospect_id TEXT NOT NULL REFERENCES prospects(id),
+      task_type TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'PENDING',
+      raw_artifacts TEXT,
+      extracted_signals TEXT,
+      confidence INTEGER,
+      error_message TEXT,
+      retry_count INTEGER DEFAULT 0,
+      started_at INTEGER,
+      completed_at INTEGER,
+      created_at INTEGER DEFAULT (strftime('%s', 'now')),
+      updated_at INTEGER DEFAULT (strftime('%s', 'now'))
     );
 
     CREATE TABLE pipeline_config (

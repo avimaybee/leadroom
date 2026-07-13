@@ -1,6 +1,9 @@
+import { getLogger } from '../lib/logger';
 import { LoggingService } from './logging';
 import { Db } from '../db';
 import { eq, sql, desc } from 'drizzle-orm';
+
+const log = getLogger('DiscoveryService');
 import { discoveryScopes, candidateLeads } from '../db/schema/discovery';
 import { prospects as leads, activities } from '../db/schema/core';
 import { CreateDiscoveryScopeInput, CreateCandidateLeadInput } from '../db/models/discovery';
@@ -235,7 +238,9 @@ export class DiscoveryService {
       try {
         const { getCloudflareContext } = require('@opennextjs/cloudflare');
         workflowBinding = getCloudflareContext().env?.RESEARCH_SNAPSHOT_WORKFLOW;
-      } catch (e) {}
+      } catch (e) {
+        log.info('getCloudflareContext unavailable — falling back to process.env for workflow binding');
+      }
       if (!workflowBinding) {
         workflowBinding = (process.env as any)?.RESEARCH_SNAPSHOT_WORKFLOW;
       }

@@ -1,7 +1,10 @@
+import { getLogger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthService } from '@/services/auth';
 import { getDb } from '@/db';
 import { z } from 'zod';
+
+const log = getLogger('LoginAPI');
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -36,7 +39,7 @@ export async function POST(request: NextRequest) {
 
     return response;
   } catch (error: unknown) {
-    console.error('Login error:', error);
+    log.error('Login error', error);
     return NextResponse.json({ error: 'An internal error occurred' }, { status: 500 });
   }
 }

@@ -1,8 +1,11 @@
+import { getLogger } from '@/lib/logger';
 import { NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { getUserId } from '@/lib/auth';
 import { users } from '@/db/schema/core';
 import { eq } from 'drizzle-orm';
+
+const log = getLogger('UsersAPI');
 
 export const dynamic = 'force-dynamic';
 
@@ -25,7 +28,7 @@ export async function GET() {
 
     return NextResponse.json({ data: userList });
   } catch (error: unknown) {
-    console.error('[Users API] GET error:', error);
+    log.error('GET error', error);
     return NextResponse.json({ error: 'An internal error occurred' }, { status: 500 });
   }
 }

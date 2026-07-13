@@ -1,10 +1,13 @@
 export const dynamic = 'force-dynamic';
 
+import { getLogger } from '@/lib/logger';
 import { NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { jobRuns } from '@/db/schema/research';
 import { eq } from 'drizzle-orm';
 import { getUserId } from '@/lib/auth';
+
+const log = getLogger('JobCancelAPI');
 
 export async function POST(
   request: Request,
@@ -48,7 +51,7 @@ export async function POST(
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
-    console.error('Failed to cancel job:', error);
+    log.error('Failed to cancel job', error);
     return NextResponse.json(
       { error: 'Internal Server Error' },
       { status: 500 }

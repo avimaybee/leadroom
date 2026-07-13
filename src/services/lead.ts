@@ -10,15 +10,23 @@ import { CreateLeadInput } from '../db/models/lead';
 import { LoggingService } from './logging';
 import { ScoringService } from './scoring';
 import { CalendarService } from './calendar';
+import { getLogger } from '../lib/logger';
+
+const log = getLogger('LeadService');
 
 export const PIPELINE_STAGES = [
   'New',
   'In Research',
+  'Researched',
   'Auditing',
   'Audited',
   'Drafting',
+  'Outreach Drafted',
+  'Awaiting Approval',
   'Ready to Send',
   'Outreach Sent',
+  'Contacted',
+  'Meeting Booked',
   'Meeting',
   'Won',
   'Lost',
@@ -43,11 +51,16 @@ export function getCanonicalStage(stage: string | null | undefined): PipelineSta
 const STAGE_THRESHOLDS_DAYS: Record<string, number> = {
   'New': 0,
   'In Research': 2,
+  'Researched': 0,
   'Auditing': 2,
   'Audited': 2,
   'Drafting': 2,
+  'Outreach Drafted': 1,
+  'Awaiting Approval': 1,
   'Ready to Send': 0,
   'Outreach Sent': 3,
+  'Contacted': 3,
+  'Meeting Booked': 1,
   'Meeting': 1,
   'Negotiation': 2,
   'Won': 0,
@@ -58,9 +71,26 @@ const STAGE_AUTO_TASKS: Record<string, { title: string; daysOffset: number; prio
   'In Research': [
     { title: 'Review prospect research', daysOffset: 0, priority: 'Medium', category: 'Review' },
   ],
+  'Researched': [
+    { title: 'Review research findings', daysOffset: 0, priority: 'Medium', category: 'Review' },
+  ],
+  'Outreach Drafted': [
+    { title: 'Review draft before approval', daysOffset: 0, priority: 'High', category: 'Review' },
+  ],
+  'Awaiting Approval': [
+    { title: 'Approve or reject outreach draft', daysOffset: 1, priority: 'High', category: 'Approval' },
+  ],
   'Outreach Sent': [
     { title: 'Check for reply', daysOffset: 3, priority: 'High', category: 'Follow-up' },
     { title: 'Follow up if no reply', daysOffset: 5, priority: 'Medium', category: 'Follow-up' },
+  ],
+  'Contacted': [
+    { title: 'Check for reply', daysOffset: 3, priority: 'High', category: 'Follow-up' },
+    { title: 'Follow up if no reply', daysOffset: 5, priority: 'Medium', category: 'Follow-up' },
+  ],
+  'Meeting Booked': [
+    { title: 'Prepare meeting materials', daysOffset: 0, priority: 'High', category: 'Preparation' },
+    { title: 'Log meeting outcome', daysOffset: 1, priority: 'High', category: 'Follow-up' },
   ],
   'Meeting': [
     { title: 'Log meeting outcome', daysOffset: 1, priority: 'High', category: 'Follow-up' },
@@ -95,7 +125,7 @@ export class LeadService {
         }
         await triggerMonitorStalledLeadWorkflow(this.db, workflowBinding, leadId, stageUpdatedAt ? stageUpdatedAt.getTime() : Date.now());
       } catch (e) {
-        console.error('Failed to trigger stalled lead monitor workflow:', e);
+        log.error('Failed to trigger stalled lead monitor workflow', e);
       }
     }
   }
@@ -514,7 +544,9 @@ export class LeadService {
     // Auto-sync to Google Calendar if assignee has calendar connected
     if (assigneeId) {
       const calendarService = new CalendarService(this.db);
-      calendarService.syncTasksToCalendar(assigneeId).catch(() => {});
+      calendarService.syncTasksToCalendar(assigneeId).catch((err) => {
+        log.error('Calendar sync failed for assignee', err, { assigneeId });
+      });
     }
 
     const [task] = await this.db.select().from(tasks).where(eq(tasks.id, id)).limit(1);
@@ -574,7 +606,9 @@ export class LeadService {
     // Auto-sync to Google Calendar if assignee has calendar connected
     if (oldTask.assigneeId) {
       const calendarService = new CalendarService(this.db);
-      calendarService.syncTasksToCalendar(oldTask.assigneeId).catch(() => {});
+      calendarService.syncTasksToCalendar(oldTask.assigneeId).catch((err) => {
+        log.error('Calendar sync failed for assignee', err, { assigneeId: oldTask.assigneeId });
+      });
     }
 
     // Check if all stage-auto tasks for this lead are complete
@@ -971,11 +1005,11 @@ export class LeadService {
     if (pc?.enforceStageOrder === false) return null;
 
     // Hardcoded stage requirements
-    if (targetStage === 'In Research' || targetStage === 'Auditing' || targetStage === 'Drafting') {
+    if (targetStage === 'In Research' || targetStage === 'Auditing' || targetStage === 'Drafting' || targetStage === 'Outreach Drafted') {
       const [r] = await this.db.select({ count: count() }).from(researchSnapshots).where(eq(researchSnapshots.leadId, leadId));
       if (r.count === 0) return 'A Research Snapshot is required to enter this stage.';
     }
-    if (targetStage === 'Outreach Sent' || targetStage === 'Ready to Send') {
+    if (targetStage === 'Outreach Sent' || targetStage === 'Ready to Send' || targetStage === 'Contacted' || targetStage === 'Meeting Booked') {
       const [r] = await this.db.select({ count: count() }).from(outreachDrafts).where(eq(outreachDrafts.leadId, leadId));
       if (r.count === 0) return 'An Outreach Draft is required to enter this stage.';
     }
@@ -992,10 +1026,13 @@ export class LeadService {
       blocked['In Research'] = 'A Research Snapshot is required.';
       blocked['Auditing'] = 'A Research Snapshot is required.';
       blocked['Drafting'] = 'A Research Snapshot is required.';
+      blocked['Outreach Drafted'] = 'A Research Snapshot is required.';
     }
     if (!hasDraft.count) {
       blocked['Ready to Send'] = 'An Outreach Draft is required.';
       blocked['Outreach Sent'] = 'An Outreach Draft is required.';
+      blocked['Contacted'] = 'An Outreach Draft is required.';
+      blocked['Meeting Booked'] = 'An Outreach Draft is required.';
     }
     return blocked;
   }

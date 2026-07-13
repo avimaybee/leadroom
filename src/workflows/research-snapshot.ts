@@ -271,7 +271,7 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
               title: "Research Completed",
               message: "Research workflow for lead completed.",
               status: "SUCCESS",
-              link: `/leads/${leadId}?view=research`,
+              link: `/prospects/${leadId}?view=research`,
               isRead: false,
               createdAt: new Date(),
             });
@@ -308,7 +308,7 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
               title: "Research Cancelled",
               message: "Research workflow was cancelled by operator.",
               status: "ERROR",
-              link: `/leads/${leadId}?view=research`,
+              link: `/prospects/${leadId}?view=research`,
               isRead: false,
               createdAt: new Date(),
             });
@@ -328,7 +328,7 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
               title: "Research Failed",
               message: `AI research generation failed: ${errMsg}`,
               status: "ERROR",
-              link: `/leads/${leadId}?view=research`,
+              link: `/prospects/${leadId}?view=research`,
               isRead: false,
               createdAt: new Date(),
             });

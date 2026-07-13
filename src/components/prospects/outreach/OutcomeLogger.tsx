@@ -5,6 +5,8 @@ import { CheckCircle2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { clientLog } from '@/lib/client-logger';
+import { handleClientError, handleClientSuccess } from '@/lib/actions/toast-error';
 
 const OUTCOME_TYPES = [
   { value: 'REPLIED', label: 'Replied' },
@@ -30,9 +32,15 @@ export function OutcomeLogger({ draftId, prospectId, onLog }: OutcomeLoggerProps
   const handleSubmit = async () => {
     if (!selectedType) return;
     setSaving(true);
-    await onLog({ outcomeType: selectedType, notes });
+    clientLog.info('OutcomeLogger', 'Logging outcome', { prospectId, outcomeType: selectedType });
+    try {
+      await onLog({ outcomeType: selectedType, notes });
+      handleClientSuccess('OutcomeLogger', 'Log outcome', 'Outcome logged', { prospectId, outcomeType: selectedType });
+      setDone(true);
+    } catch (err) {
+      handleClientError('OutcomeLogger', 'Log outcome', err, 'Failed to log outcome');
+    }
     setSaving(false);
-    setDone(true);
   };
 
   if (done) {

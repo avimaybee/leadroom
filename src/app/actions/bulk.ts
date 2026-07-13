@@ -8,8 +8,11 @@ import { revalidatePath } from 'next/cache';
 import { eq, and, inArray, or, isNull } from 'drizzle-orm';
 import { prospects as leads, users } from '@/db/schema/core';
 import { LoggingService } from '@/services/logging';
+import { getLogger } from '@/lib/logger';
 import { triggerResearchWorkflow } from '@/lib/workflow-client';
 import { jobRuns } from '@/db/schema/research';
+
+const log = getLogger('BulkActions');
 
 export async function bulkAdvanceStageAction(leadIds: string[]) {
   const userId = await getUserId();
@@ -140,7 +143,9 @@ export async function bulkResearchTriggerAction(leadIds: string[]) {
       try {
         const { getCloudflareContext } = require('@opennextjs/cloudflare');
         workflowBinding = getCloudflareContext().env?.RESEARCH_SNAPSHOT_WORKFLOW;
-      } catch (e) {}
+      } catch (e) {
+        log.info('getCloudflareContext unavailable — falling back to process.env for workflow binding');
+      }
       if (!workflowBinding) {
         workflowBinding = (process.env as any)?.RESEARCH_SNAPSHOT_WORKFLOW;
       }

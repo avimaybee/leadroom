@@ -1,3 +1,4 @@
+import { getLogger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { DiscoveryService } from '@/services/discovery';
@@ -5,6 +6,8 @@ import { CreateCandidateLeadSchema } from '@/db/models/discovery';
 import { fetchSiteContent } from '@/lib/scraper';
 
 import { getUserId } from '@/lib/auth';
+
+const log = getLogger('CandidatesAPI');
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +29,7 @@ export async function GET(request: NextRequest) {
     const candidates = await service.listCandidatesByScope(scopeId);
     return NextResponse.json({ success: true, data: candidates });
   } catch (error: unknown) {
-    console.error('[Candidates API] GET error:', error);
+    log.error('GET error', error);
     return NextResponse.json({ success: false, error: 'An internal error occurred' }, { status: 500 });
   }
 }
@@ -52,7 +55,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: candidate }, { status: 201 });
   } catch (error: unknown) {
-    console.error('[Candidates API] POST error:', error);
+    log.error('POST error', error);
     return NextResponse.json({ success: false, error: 'An internal error occurred' }, { status: 500 });
   }
 }
@@ -90,7 +93,7 @@ export async function PATCH(request: NextRequest) {
     if (isKnown) {
       return NextResponse.json({ success: false, error: msg }, { status: 400 });
     }
-    console.error('[Candidates API] PATCH error:', error);
+    log.error('PATCH error', error);
     return NextResponse.json({ success: false, error: 'An internal error occurred' }, { status: 500 });
   }
 }

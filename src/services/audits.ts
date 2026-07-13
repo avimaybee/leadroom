@@ -74,7 +74,7 @@ leadId: input.leadId,
 
     // Advance pipeline if audit is now the latest milestone
     const leadService = new LeadService(this.db);
-    await leadService.advanceStageIfEarlier(input.leadId, 'Audited');
+    await leadService.advanceStageIfEarlier(input.leadId, 'Researched');
 
     return newAudit;
   }

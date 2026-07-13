@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 
+import { getLogger } from '@/lib/logger';
 import { NextResponse } from 'next/server';
 import { startGoogleMapsSearch } from '@/lib/discovery/apify';
 import { getDb } from '@/db';
@@ -7,6 +8,8 @@ import { jobRuns } from '@/db/schema/research';
 import { getUserId } from '@/lib/auth';
 import { triggerDiscoverySearchWorkflow } from '@/lib/workflow-client';
 import { discoverySearchLimiter } from '@/lib/rate-limit';
+
+const log = getLogger('DiscoverySearchAPI');
 
 export async function POST(request: Request) {
   const userId = await getUserId();
@@ -60,7 +63,9 @@ export async function POST(request: Request) {
     try {
       const { getCloudflareContext } = require('@opennextjs/cloudflare');
       workflowBinding = getCloudflareContext().env?.DISCOVERY_SEARCH_WORKFLOW;
-    } catch (e) {}
+    } catch (e) {
+      log.info('getCloudflareContext unavailable — falling back to process.env for workflow binding');
+    }
     if (!workflowBinding) {
       workflowBinding = (process.env as any)?.DISCOVERY_SEARCH_WORKFLOW;
     }
@@ -78,7 +83,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ jobId, runId }, { status: 202 });
   } catch (error: unknown) {
-    console.error('[Discovery Search API] Error:', error);
+    log.error('Discovery Search API Error', error);
     return NextResponse.json({ error: 'An internal error occurred' }, { status: 500 });
   }
 }

@@ -1,3 +1,4 @@
+import { getLogger } from '../lib/logger';
 import { WorkflowEntrypoint, WorkflowStep, WorkflowEvent } from 'cloudflare:workers';
 import { getDb } from '../db';
 import { checkApifyRunStatus, fetchApifyResults } from '../lib/discovery/apify';
@@ -5,6 +6,8 @@ import { candidateLeads } from '../db/schema/discovery';
 import { jobRuns } from '../db/schema/research';
 import { notifications } from '../db/schema/core';
 import { eq } from 'drizzle-orm';
+
+const log = getLogger('DiscoverySearchWorkflow');
 
 type DiscoveryParams = {
   jobId: string;
@@ -158,7 +161,7 @@ export class DiscoverySearchWorkflow extends WorkflowEntrypoint<Env, DiscoveryPa
 
     } catch (error: unknown) {
       const errMsg = error instanceof Error ? error.message : 'Unknown error during discovery search';
-      console.error(`DiscoverySearchWorkflow failed for job ${jobId}:`, error);
+      log.error('DiscoverySearchWorkflow failed', error, { jobId });
 
       try {
         await db.update(jobRuns)
@@ -184,7 +187,7 @@ export class DiscoverySearchWorkflow extends WorkflowEntrypoint<Env, DiscoveryPa
           });
         }
       } catch (dbErr) {
-        console.error('Failed to write job failure status to DB:', dbErr);
+        log.error('Failed to write job failure status to DB', dbErr);
       }
 
       throw error;

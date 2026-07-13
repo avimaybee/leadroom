@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Loader2, Save } from 'lucide-react';
-import { toast, Toaster } from 'sonner';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { PIPELINE_STAGES } from '@/services/lead';
 import { saveStageRequirementsAction } from '@/app/actions/pipeline';
@@ -92,7 +92,6 @@ export function StageRequirementsEditor({ initialRequirements }: Props) {
         Save Requirements
       </Button>
 
-      <Toaster position="bottom-right" />
     </div>
   );
 }

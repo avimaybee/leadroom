@@ -1,3 +1,4 @@
+import { getLogger } from '@/lib/logger';
 import { LoggingService } from '@/services/logging';
 export const dynamic = 'force-dynamic';
 
@@ -9,6 +10,8 @@ import { discoveryScopes, candidateLeads } from '@/db/schema/discovery';
 import { eq } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 import { decrypt, getUserId } from '@/lib/auth';
+
+const log = getLogger('DiscoveryImportAPI');
 
 export async function POST(request: Request) {
   const userId = await getUserId();
@@ -111,7 +114,7 @@ export async function POST(request: Request) {
     }, { status: 200 });
 
   } catch (error: unknown) {
-    console.error('Import error:', error);
+    log.error('Import error', error);
     return NextResponse.json(
       { error: 'An internal error occurred' },
       { status: 500 }

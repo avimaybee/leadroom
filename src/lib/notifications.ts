@@ -1,5 +1,8 @@
+import { getLogger } from '@/lib/logger';
 import { type Db } from '@/db';
 import { notifications } from '@/db/schema';
+
+const log = getLogger('Notifications');
 
 export async function createNotification(
   db: Db,
@@ -23,6 +26,6 @@ export async function createNotification(
       createdAt: new Date(),
     });
   } catch (error) {
-    console.error('Failed to create notification', error);
+    log.error('Failed to create notification', error);
   }
 }

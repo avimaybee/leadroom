@@ -6,10 +6,13 @@ import { cookies } from 'next/headers';
 import { decrypt, getUserId, verifyProspectAccess } from '@/lib/auth';
 import { jobRuns } from '@/db/schema/research';
 import { triggerResearchWorkflow, CloudflareWorkflow } from '@/lib/workflow-client';
+import { getLogger } from '@/lib/logger';
 import { ScoringService } from '@/services/scoring';
 import { LeadService } from '@/services/lead';
 import { AuditService } from '@/services/audits';
 import { and, eq, or } from 'drizzle-orm';
+
+const log = getLogger('AuditActions');
 
 export type ActionState = { error?: string | null, success?: boolean, jobId?: string | null } | null | undefined;
 
@@ -48,7 +51,7 @@ export async function triggerAuditAction(leadId: string) {
       .limit(1);
 
     if (existingJob) {
-      console.log(`[Audit Action] Job already active for lead ${leadId}: ${existingJob.id}. Returning existing jobId.`);
+      log.info('Job already active for lead', { leadId, existingJobId: existingJob.id });
       return { error: null, success: true, jobId: existingJob.id };
     }
 
@@ -70,7 +73,9 @@ export async function triggerAuditAction(leadId: string) {
     try {
       const { getCloudflareContext } = require('@opennextjs/cloudflare');
       workflowBinding = getCloudflareContext().env?.RESEARCH_SNAPSHOT_WORKFLOW;
-    } catch (e) {}
+    } catch (e) {
+      log.info('getCloudflareContext unavailable — falling back to process.env for workflow binding');
+    }
     if (!workflowBinding) {
       workflowBinding = (process.env as any)?.RESEARCH_SNAPSHOT_WORKFLOW;
     }
@@ -78,7 +83,7 @@ export async function triggerAuditAction(leadId: string) {
     await triggerResearchWorkflow(db, workflowBinding, leadId, jobId, userId);
 
     const leadService = new LeadService(db);
-    await leadService.advanceStageIfEarlier(leadId, 'Auditing');
+    await leadService.advanceStageIfEarlier(leadId, 'In Research');
 
     revalidatePath(`/leads/${leadId}`);
     return { error: null, success: true, jobId };

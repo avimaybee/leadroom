@@ -11,6 +11,7 @@ export const dynamic = 'force-dynamic';
  * returns the existing jobId instead of spawning a duplicate simulation.
  */
 
+import { getLogger } from '@/lib/logger';
 import { NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { jobRuns } from '@/db/schema/research';
@@ -18,6 +19,8 @@ import { cookies } from 'next/headers';
 import { decrypt, getUserId } from '@/lib/auth';
 import { triggerResearchWorkflow } from '@/lib/workflow-client';
 import { and, eq, or } from 'drizzle-orm';
+
+const log = getLogger('ResearchStartAPI');
 
 export async function POST(
   _request: Request,
@@ -51,7 +54,7 @@ export async function POST(
       .limit(1);
 
     if (existingJob) {
-      console.log(`[Research API] Job already active for lead ${leadId}: ${existingJob.id} (${existingJob.status}). Returning existing jobId.`);
+      log.info('Job already active for lead', { leadId, existingJobId: existingJob.id, status: existingJob.status });
       return NextResponse.json({ jobId: existingJob.id }, { status: 202 });
     }
 
@@ -75,7 +78,9 @@ export async function POST(
     try {
       const { getCloudflareContext } = require('@opennextjs/cloudflare');
       workflowBinding = getCloudflareContext().env?.RESEARCH_SNAPSHOT_WORKFLOW;
-    } catch (e) {}
+    } catch (e) {
+      log.info('getCloudflareContext unavailable — falling back to process.env for workflow binding');
+    }
     if (!workflowBinding) {
       workflowBinding = (process.env as any)?.RESEARCH_SNAPSHOT_WORKFLOW;
     }
@@ -83,7 +88,7 @@ export async function POST(
 
     return NextResponse.json({ jobId }, { status: 202 });
   } catch (error: unknown) {
-    console.error('Research start error:', error);
+    log.error('Research start error', error);
     return NextResponse.json({ error: 'An internal error occurred' }, { status: 500 });
   }
 }

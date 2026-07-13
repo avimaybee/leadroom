@@ -118,7 +118,7 @@ export async function triggerResearchWorkflow(
           'Research Completed',
           `Research workflow for lead completed.`,
           'SUCCESS',
-          `/leads/${leadId}?view=research`
+          `/prospects/${leadId}?view=research`
         );
       }
 
@@ -165,7 +165,7 @@ export async function triggerResearchWorkflow(
             isCancelled ? 'Research Cancelled' : 'Research Failed',
             isCancelled ? 'Research workflow was cancelled by operator.' : `AI research generation failed: ${errMsg}`,
             'ERROR',
-            `/leads/${leadId}?view=research`
+            `/prospects/${leadId}?view=research`
           );
         }
       } catch (dbErr: unknown) {
@@ -178,7 +178,9 @@ export async function triggerResearchWorkflow(
   try {
     const { getCloudflareContext } = require('@opennextjs/cloudflare');
     ctx = getCloudflareContext().ctx;
-  } catch (e) {}
+  } catch (e) {
+    logger.info('getCloudflareContext unavailable — research simulation will run in Node.js background');
+  }
 
   if (ctx && typeof ctx.waitUntil === 'function') {
     ctx.waitUntil(runSimulation());
@@ -341,7 +343,9 @@ export async function triggerDiscoverySearchWorkflow(
   try {
     const { getCloudflareContext } = require('@opennextjs/cloudflare');
     ctx = getCloudflareContext().ctx;
-  } catch (e) {}
+  } catch (e) {
+    logger.info('getCloudflareContext unavailable — discovery simulation will run in Node.js background');
+  }
 
   if (ctx && typeof ctx.waitUntil === 'function') {
     ctx.waitUntil(runSimulation());
@@ -408,7 +412,9 @@ export async function triggerMonitorStalledLeadWorkflow(
   try {
     const { getCloudflareContext } = require('@opennextjs/cloudflare');
     ctx = getCloudflareContext().ctx;
-  } catch (e) {}
+  } catch (e) {
+    logger.info('getCloudflareContext unavailable — stalled lead monitor will run in Node.js background');
+  }
 
   if (ctx && typeof ctx.waitUntil === 'function') {
     ctx.waitUntil(runSimulation());

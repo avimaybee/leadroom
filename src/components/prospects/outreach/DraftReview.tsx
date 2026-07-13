@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { clientLog } from '@/lib/client-logger';
+import { handleClientError, handleClientSuccess } from '@/lib/actions/toast-error';
 
 interface CitedEvidence {
   sentence: string;
@@ -65,14 +67,26 @@ export function DraftReview({ drafts, onGenerate, onApprove, onReject, generatin
 
   const handleApprove = async (draftId: string) => {
     setActionLoading(draftId);
-    await onApprove(draftId);
+    clientLog.info('DraftReview', 'Approving draft', { draftId });
+    try {
+      await onApprove(draftId);
+      handleClientSuccess('DraftReview', 'Approve draft', 'Draft approved', { draftId });
+    } catch (err) {
+      handleClientError('DraftReview', 'Approve draft', err, 'Failed to approve draft');
+    }
     setActionLoading(null);
   };
 
   const handleReject = async (draftId: string) => {
     if (!rejectReason.trim()) return;
     setActionLoading(draftId);
-    await onReject(draftId, rejectReason);
+    clientLog.info('DraftReview', 'Rejecting draft', { draftId, reason: rejectReason });
+    try {
+      await onReject(draftId, rejectReason);
+      handleClientSuccess('DraftReview', 'Reject draft', 'Draft rejected', { draftId });
+    } catch (err) {
+      handleClientError('DraftReview', 'Reject draft', err, 'Failed to reject draft');
+    }
     setRejectingId(null);
     setRejectReason('');
     setActionLoading(null);

@@ -1,5 +1,8 @@
+import { getLogger } from '../lib/logger';
 import { drizzle, type DrizzleD1Database } from 'drizzle-orm/d1';
 import * as schema from './schema';
+
+const log = getLogger('DB');
 
 export function getDb(): DrizzleD1Database<typeof schema> {
   let DB: any = undefined;
@@ -31,14 +34,14 @@ export function getDb(): DrizzleD1Database<typeof schema> {
           DB = (process.env as any).DB;
         }
       } catch (e) {
-        console.error('Failed to load local database mock:', e);
+        log.error('Failed to load local database mock', e);
       }
     }
   }
 
   // 4. Fallback if still missing (throwing proxy to avoid crashing during build static analysis)
   if (!DB) {
-    console.warn('WARNING: D1 database binding "DB" is missing. Using a throwing Proxy to prevent build crash.');
+    log.warn('D1 database binding "DB" is missing. Using a throwing Proxy to prevent build crash.');
     const proxyHandler = {
       get: function(_target: any, prop: string) {
         if (prop === 'then') return undefined; 

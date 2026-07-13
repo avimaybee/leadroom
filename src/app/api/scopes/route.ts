@@ -1,3 +1,4 @@
+import { getLogger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { eq, and } from 'drizzle-orm';
@@ -5,6 +6,8 @@ import { DiscoveryService } from '@/services/discovery';
 import { discoveryScopes } from '@/db/schema/discovery';
 import { CreateDiscoveryScopeSchema } from '@/db/models/discovery';
 import { getUserId } from '@/lib/auth';
+
+const log = getLogger('ScopesAPI');
 
 export const dynamic = 'force-dynamic';
 
@@ -33,7 +36,7 @@ export async function GET(request: NextRequest) {
     const scopes = await service.listScopes(userId);
     return NextResponse.json({ success: true, data: scopes });
   } catch (error: unknown) {
-    console.error('[Scopes API] GET error:', error);
+    log.error('GET error', error);
     return NextResponse.json({ success: false, error: 'An internal error occurred' }, { status: 500 });
   }
 }
@@ -62,7 +65,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: scope });
   } catch (error: unknown) {
-    console.error('[Scopes API] PATCH error:', error);
+    log.error('PATCH error', error);
     return NextResponse.json({ success: false, error: 'An internal error occurred' }, { status: 500 });
   }
 }
@@ -88,7 +91,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: scope }, { status: 201 });
   } catch (error: unknown) {
-    console.error('[Scopes API] POST error:', error);
+    log.error('POST error', error);
     return NextResponse.json({ success: false, error: 'An internal error occurred' }, { status: 500 });
   }
 }

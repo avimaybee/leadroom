@@ -5,11 +5,15 @@ import { revalidatePath } from 'next/cache';
 import { getUserId, verifyProspectAccess } from '@/lib/auth';
 import { OutreachService } from '@/services/outreach';
 import { LearningService } from '@/services/learning';
+import { getLogger } from '@/lib/logger';
 import { outcomes } from '@/db/schema/outreach';
 import { prospects } from '@/db/schema/core';
 import { eq } from 'drizzle-orm';
+import { withLogging } from '@/lib/actions/with-logging';
 
-export async function approveDraftAction(draftId: string) {
+const log = getLogger('OutcomesActions');
+
+async function approveDraftActionImpl(draftId: string) {
   const db = getDb();
   const userId = await getUserId();
 
@@ -30,10 +34,28 @@ export async function approveDraftAction(draftId: string) {
 
     await outreachService.recordApproval(draftId, userId, 'APPROVED');
 
+    // Trigger learning loop
+    const [prospect] = await db
+      .select({ workspaceId: prospects.workspaceId })
+      .from(prospects)
+      .where(eq(prospects.id, draft.leadId))
+      .limit(1);
+
+    if (prospect?.workspaceId) {
+      const learningService = new LearningService(db);
+      learningService.triggerLearningLoop(prospect.workspaceId).catch((err) => {
+        log.error('Learning loop failed', err);
+      });
+    }
+
     try {
       revalidatePath(`/leads/${draft.leadId}`);
       revalidatePath('/');
-    } catch (e) {}
+      revalidatePath('/approvals');
+      revalidatePath(`/prospects/${draft.leadId}`);
+    } catch (e: any) {
+      log.error('revalidatePath failed', e?.message || e);
+    }
 
     const refreshedDrafts = await outreachService.getDraftsForLead(draft.leadId);
     const mapped = refreshedDrafts.map((d) => ({
@@ -53,7 +75,9 @@ export async function approveDraftAction(draftId: string) {
   }
 }
 
-export async function rejectDraftAction(draftId: string, reason: string) {
+export const approveDraftAction = withLogging('approveDraftAction', approveDraftActionImpl);
+
+async function rejectDraftActionImpl(draftId: string, reason: string) {
   const db = getDb();
   const userId = await getUserId();
 
@@ -74,10 +98,28 @@ export async function rejectDraftAction(draftId: string, reason: string) {
 
     await outreachService.recordApproval(draftId, userId, 'REJECTED', reason);
 
+    // Trigger learning loop
+    const [prospect] = await db
+      .select({ workspaceId: prospects.workspaceId })
+      .from(prospects)
+      .where(eq(prospects.id, draft.leadId))
+      .limit(1);
+
+    if (prospect?.workspaceId) {
+      const learningService = new LearningService(db);
+      learningService.triggerLearningLoop(prospect.workspaceId).catch((err) => {
+        log.error('Learning loop failed', err);
+      });
+    }
+
     try {
       revalidatePath(`/leads/${draft.leadId}`);
       revalidatePath('/');
-    } catch (e) {}
+      revalidatePath('/approvals');
+      revalidatePath(`/prospects/${draft.leadId}`);
+    } catch (e: any) {
+      log.error('revalidatePath failed', e?.message || e);
+    }
 
     const refreshedDrafts = await outreachService.getDraftsForLead(draft.leadId);
     const mapped = refreshedDrafts.map((d) => ({
@@ -97,7 +139,9 @@ export async function rejectDraftAction(draftId: string, reason: string) {
   }
 }
 
-export async function logOutcomeAction(data: {
+export const rejectDraftAction = withLogging('rejectDraftAction', rejectDraftActionImpl);
+
+async function logOutcomeActionImpl(data: {
   prospectId: string;
   draftId: string | null;
   outcomeType: string;
@@ -134,13 +178,17 @@ export async function logOutcomeAction(data: {
 
     if (prospect?.workspaceId) {
       const learningService = new LearningService(db);
-      learningService.triggerLearningLoop(prospect.workspaceId).catch(() => {});
+      learningService.triggerLearningLoop(prospect.workspaceId).catch((err) => {
+        log.error('Learning loop failed', err);
+      });
     }
 
     try {
       revalidatePath(`/leads/${data.prospectId}`);
       revalidatePath('/');
-    } catch (e) {}
+    } catch (e: any) {
+      log.error('revalidatePath failed', e?.message || e);
+    }
 
     return { success: true };
   } catch (e: unknown) {
@@ -148,3 +196,5 @@ export async function logOutcomeAction(data: {
     return { error: msg };
   }
 }
+
+export const logOutcomeAction = withLogging('logOutcomeAction', logOutcomeActionImpl);

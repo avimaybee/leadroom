@@ -1,5 +1,9 @@
 // Dynamic imports are used inside setupLocalDatabaseMock to prevent loading Node.js modules in Edge/Workers.
 
+import { getLogger } from '../lib/logger';
+
+const log = getLogger('LocalMockDB');
+
 class MockD1PreparedStatement {
   constructor(private stmt: any, private params: any[] = []) {}
 
@@ -12,7 +16,7 @@ class MockD1PreparedStatement {
       const results = this.stmt.all(...this.params);
       return { results, success: true };
     } catch (e: any) {
-      console.error('Mock D1 PreparedStatement all() failed:', e);
+      log.error('Mock D1 PreparedStatement all() failed', e);
       throw e;
     }
   }
@@ -29,7 +33,7 @@ class MockD1PreparedStatement {
         }
       };
     } catch (e: any) {
-      console.error('Mock D1 PreparedStatement run() failed:', e);
+      log.error('Mock D1 PreparedStatement run() failed', e);
       throw e;
     }
   }
@@ -41,7 +45,7 @@ class MockD1PreparedStatement {
       if (key) return row[key];
       return row;
     } catch (e: any) {
-      console.error('Mock D1 PreparedStatement first() failed:', e);
+      log.error('Mock D1 PreparedStatement first() failed', e);
       throw e;
     }
   }
@@ -53,7 +57,7 @@ class MockD1PreparedStatement {
       this.stmt.raw(false);
       return rows;
     } catch (e: any) {
-      console.error('Mock D1 PreparedStatement raw() failed:', e);
+      log.error('Mock D1 PreparedStatement raw() failed', e);
       throw e;
     }
   }
@@ -88,7 +92,7 @@ export class MockD1Database {
 export function setupLocalDatabaseMock() {
   const req = typeof require !== 'undefined' ? require : undefined;
   if (!req) {
-    console.warn('Node.js require is not available. Skipping local database mock setup.');
+    log.warn('Node.js require is not available. Skipping local database mock setup.');
     return;
   }
 
@@ -148,7 +152,7 @@ export function setupLocalDatabaseMock() {
       created_at integer DEFAULT (strftime('%s', 'now'))
     )`);
   } catch (e) {
-    console.error('Failed to create notifications table in mock DB', e);
+    log.error('Failed to create notifications table in mock DB', e);
   }
   for (const stmt of migrationStmts) {
     try { sqlite.exec(stmt); } catch { /* column already exists — safe to ignore */ }

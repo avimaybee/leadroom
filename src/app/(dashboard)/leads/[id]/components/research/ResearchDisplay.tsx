@@ -92,18 +92,17 @@ export function ResearchDisplay({
       {/* Tabs Menu */}
       <div className="flex border-b border-border px-5">
         {(['overview', 'audit', 'opportunity'] as const).map((tab) => (
-          <Button
+          <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            variant="ghost"
-            className={`py-3.5 px-4 text-label-12 font-semibold border-b-2 transition rounded-none ${
+            className={`py-3.5 px-4 text-label-12 font-semibold border-b-2 transition outline-none cursor-pointer ${
               activeTab === tab
-                ? 'border-foreground text-foreground'
+                ? 'border-b-primary text-foreground font-bold'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
             {tab === 'overview' ? 'Company Overview' : tab === 'audit' ? 'Branding & Audit' : 'Pitch Hypothesis'}
-          </Button>
+          </button>
         ))}
       </div>
 

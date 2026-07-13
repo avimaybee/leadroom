@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { AlertTriangle, X } from 'lucide-react';
+import { AlertTriangle, X, TriangleAlert } from 'lucide-react';
 
 function SubmitButton({ disabled }: { disabled?: boolean }) {
   const { pending } = useFormStatus();
@@ -84,6 +84,20 @@ export default function NewLeadPage() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 animate-fade-in text-left">
+      {/* Deprecation banner */}
+      <div className="flex items-center gap-3 p-4 rounded-xl bg-chart-5/10 text-chart-5 border border-chart-5/20">
+        <TriangleAlert className="w-5 h-5 shrink-0" />
+        <div>
+          <p className="label-14">Use Markets for new prospects</p>
+          <p className="copy-14">
+            Prospects should be added through a Market for automatic scoring and research queuing.{' '}
+            <a href="/markets" className="underline decoration-border underline-offset-4">
+              Go to Markets
+            </a>
+          </p>
+        </div>
+      </div>
+
       {/* Page Header */}
       <header className="space-y-4 border-b border-border/70 pb-6">
         <nav className="flex items-center gap-2 text-copy-14 text-muted-foreground">

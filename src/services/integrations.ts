@@ -4,7 +4,11 @@ import { providerConfigs } from '../db/schema/core';
 import { encrypt, decrypt } from '@/lib/crypto';
 
 function getEncryptionSecret(): string {
-  return process.env.DB_ENCRYPTION_KEY || 'fallback_key_dev';
+  const key = process.env.DB_ENCRYPTION_KEY;
+  if (!key) {
+    throw new Error('DB_ENCRYPTION_KEY is required. Set it in your environment or .env file.');
+  }
+  return key;
 }
 
 export type TaskType = 'research' | 'scoring' | 'drafting';

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { useBulkSelect } from './BulkSelectProvider';
 import {
@@ -15,10 +16,10 @@ import {
 import { bulkAdvanceStageAction, bulkAdvanceStageToAction, bulkResearchTriggerAction, bulkArchiveAction, bulkReassignAction, bulkExportAction, bulkAddTaskAction, bulkSetReminderAction } from '@/app/actions/bulk';
 import { toast } from 'sonner';
 import { ArrowRight, Plus, Bell, X, FlaskConical, Archive, UserRound, Download } from 'lucide-react';
-
-const PIPELINE_STAGES = ['New', 'Researching', 'Auditing', 'Audited', 'Drafting', 'Ready to Send', 'Outreach Sent', 'Follow-up'];
+import { PIPELINE_STAGES } from '@/services/lead';
 
 export function BulkActionBar() {
+  const router = useRouter();
   const { selectedIds, selectionCount, clearSelection } = useBulkSelect();
   const [activeDialog, setActiveDialog] = useState<'task' | 'reminder' | 'advance-to' | 'reassign' | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -36,6 +37,7 @@ export function BulkActionBar() {
       if (result.errors.length > 0) parts.push(`${result.errors.length} errors`);
       toast.success(parts.join(', ') || 'Done');
       clearSelection();
+      router.refresh();
     } catch {
       toast.error('Failed to advance leads');
     } finally {
@@ -53,6 +55,7 @@ export function BulkActionBar() {
       if (result.errors.length > 0) parts.push(`${result.errors.length} errors`);
       toast.success(parts.join(', ') || 'Done');
       clearSelection();
+      router.refresh();
     } catch {
       toast.error('Failed to trigger research');
     } finally {
@@ -70,6 +73,7 @@ export function BulkActionBar() {
       if (result.errors.length > 0) parts.push(`${result.errors.length} errors`);
       toast.success(parts.join(', ') || 'Done');
       clearSelection();
+      router.refresh();
     } catch {
       toast.error('Failed to archive leads');
     } finally {
@@ -152,7 +156,7 @@ export function BulkActionBar() {
               A task will be created for each selected lead with the same title, due date, and priority.
             </DialogDescription>
           </DialogHeader>
-          <BulkTaskForm leadIds={ids} onSuccess={() => { setActiveDialog(null); clearSelection(); }} />
+          <BulkTaskForm leadIds={ids} onSuccess={() => { setActiveDialog(null); clearSelection(); router.refresh(); }} />
         </DialogContent>
       </Dialog>
 
@@ -164,7 +168,7 @@ export function BulkActionBar() {
               A reminder notification will be created for each selected lead.
             </DialogDescription>
           </DialogHeader>
-          <BulkReminderForm leadIds={ids} onSuccess={() => { setActiveDialog(null); clearSelection(); }} />
+          <BulkReminderForm leadIds={ids} onSuccess={() => { setActiveDialog(null); clearSelection(); router.refresh(); }} />
         </DialogContent>
       </Dialog>
 
@@ -176,7 +180,7 @@ export function BulkActionBar() {
               Select the target pipeline stage. Stage requirements will be checked for each lead.
             </DialogDescription>
           </DialogHeader>
-          <BulkAdvanceToForm leadIds={ids} onSuccess={() => { setActiveDialog(null); clearSelection(); }} />
+          <BulkAdvanceToForm leadIds={ids} onSuccess={() => { setActiveDialog(null); clearSelection(); router.refresh(); }} />
         </DialogContent>
       </Dialog>
 
@@ -188,7 +192,7 @@ export function BulkActionBar() {
               Change the owner for all selected leads.
             </DialogDescription>
           </DialogHeader>
-          <BulkReassignForm leadIds={ids} onSuccess={() => { setActiveDialog(null); clearSelection(); }} />
+          <BulkReassignForm leadIds={ids} onSuccess={() => { setActiveDialog(null); clearSelection(); router.refresh(); }} />
         </DialogContent>
       </Dialog>
     </>

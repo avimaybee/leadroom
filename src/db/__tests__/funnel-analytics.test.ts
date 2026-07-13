@@ -14,7 +14,7 @@ test('FunnelAnalytics', async (t) => {
   await t.test('returns all stages with zero counts when no history exists', async () => {
     const { leadService } = setupTestDb();
     const funnel = await leadService.getStageFunnel();
-    const expectedStages = ['New', 'In Research', 'Auditing', 'Audited', 'Drafting', 'Ready to Send', 'Outreach Sent', 'Meeting', 'Won', 'Lost'];
+    const expectedStages = ['New', 'In Research', 'Researched', 'Auditing', 'Audited', 'Drafting', 'Outreach Drafted', 'Awaiting Approval', 'Ready to Send', 'Outreach Sent', 'Contacted', 'Meeting Booked', 'Meeting', 'Won', 'Lost'];
     assert.strictEqual(funnel.length, expectedStages.length);
     for (const stage of expectedStages) {
       const row = funnel.find((r) => r.stage === stage);

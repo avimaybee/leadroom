@@ -20,7 +20,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
           System Settings
         </h1>
         <p className="text-muted-foreground mt-2 text-copy-14 max-w-2xl">
-          Manage pipeline timing rules, active routing rules, and credentials for AI providers.
+          Configure your SDR settings — pipeline rules, AI provider credentials, offer definition, ICP profiles, and target markets.
         </p>
       </div>
 

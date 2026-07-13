@@ -1,8 +1,11 @@
+import { getLogger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
 import { decrypt } from '@/lib/auth';
 import { getDb } from '@/db';
 import { eq } from 'drizzle-orm';
 import { users } from '@/db/schema/core';
+
+const log = getLogger('AuthMeAPI');
 
 export const dynamic = 'force-dynamic';
 
@@ -28,7 +31,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ user });
   } catch (error: unknown) {
-    console.error('Auth me error:', error);
+    log.error('Auth me error', error);
     return NextResponse.json({ error: 'An internal error occurred' }, { status: 500 });
   }
 }

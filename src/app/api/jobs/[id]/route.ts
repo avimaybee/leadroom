@@ -1,11 +1,14 @@
 export const dynamic = 'force-dynamic';
 
+import { getLogger } from '@/lib/logger';
 import { NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { jobRuns } from '@/db/schema/research';
 import { eq } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 import { decrypt, getUserId } from '@/lib/auth';
+
+const log = getLogger('JobsAPI');
 
 export async function GET(
   request: Request,
@@ -45,7 +48,7 @@ export async function GET(
       createdAt: job.createdAt,
     });
   } catch (error: unknown) {
-    console.error('Failed to fetch job status:', error);
+    log.error('Failed to fetch job status', error);
     return NextResponse.json(
       { error: 'Internal Server Error' },
       { status: 500 }

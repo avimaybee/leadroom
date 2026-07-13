@@ -1,11 +1,18 @@
+import { getLogger } from '../lib/logger';
 import { Db } from '../db';
 import { googleCalendarTokens, tasks, reminders } from '../db/schema/core';
 import { eq, and, or, isNull, ne } from 'drizzle-orm';
 import { prospects as leads } from '../db/schema/core';
 import { encrypt, decrypt } from '@/lib/crypto';
 
+const log = getLogger('CalendarService');
+
 function getEncryptionSecret(): string {
-  return process.env.DB_ENCRYPTION_KEY || 'fallback_key_dev';
+  const key = process.env.DB_ENCRYPTION_KEY;
+  if (!key) {
+    throw new Error('DB_ENCRYPTION_KEY is required. Set it in your environment or .env file.');
+  }
+  return key;
 }
 
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -241,7 +248,7 @@ export class CalendarService {
 
         if (!resp.ok) {
           const errBody = await resp.text();
-          console.error(`Failed to sync task ${task.id}: ${errBody}`);
+          log.error('Failed to sync task', null, { taskId: task.id, response: errBody });
           await this.db.update(tasks).set({
             googleCalendarSyncStatus: 'Error',
             googleCalendarSyncError: errBody.substring(0, 255),
@@ -259,7 +266,7 @@ export class CalendarService {
           synced++;
         }
       } catch (err: any) {
-        console.error(`Network error syncing task ${task.id}:`, err);
+        log.error('Network error syncing task', err, { taskId: task.id });
         await this.db.update(tasks).set({
           googleCalendarSyncStatus: 'Error',
           googleCalendarSyncError: err?.message || 'Network error',

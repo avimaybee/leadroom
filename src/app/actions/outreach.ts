@@ -9,6 +9,11 @@ import { LeadService } from '@/services/lead';
 import { ResearchService } from '@/services/research';
 import { AuditService } from '@/services/audits';
 import { generateOutreachDraft, getModelInfo, type FailoverEvent } from '@/lib/ai';
+import { prospects } from '@/db/schema/core';
+import { markets } from '@/db/schema/strategy';
+import { outreachDrafts } from '@/db/schema/outreach';
+import { eq, sql } from 'drizzle-orm';
+import { withLogging } from '@/lib/actions/with-logging';
 
 // Module-level cache for model info (5-min TTL)
 let cachedModelInfo: { provider: string; modelName: string; hasVision: boolean } | null = null;
@@ -32,7 +37,7 @@ export async function getModelInfoAction() {
   }
 }
 
-export async function generateOutreachDraftAction(
+async function generateOutreachDraftActionImpl(
   leadId: string,
   channel: 'EMAIL' | 'LINKEDIN' | 'CALL' | 'MEETING',
   customPrompt?: string,
@@ -102,7 +107,7 @@ export async function generateOutreachDraftAction(
     }
 
     // Advance pipeline
-    await leadService.advanceStageIfEarlier(leadId, 'Drafting');
+    await leadService.advanceStageIfEarlier(leadId, 'Outreach Drafted');
 
     try {
       revalidatePath(`/leads/${lead.id}`);
@@ -120,7 +125,9 @@ export async function generateOutreachDraftAction(
   }
 }
 
-export async function duplicateDraftAction(draftId: string) {
+export const generateOutreachDraftAction = withLogging('generateOutreachDraftAction', generateOutreachDraftActionImpl);
+
+async function duplicateDraftActionImpl(draftId: string) {
   const db = getDb();
   const userId = await getUserId();
 
@@ -161,7 +168,9 @@ export async function duplicateDraftAction(draftId: string) {
   }
 }
 
-export async function updateDraftAction(draftId: string, subject: string | null, body: string) {
+export const duplicateDraftAction = withLogging('duplicateDraftAction', duplicateDraftActionImpl);
+
+async function updateDraftActionImpl(draftId: string, subject: string | null, body: string) {
   const db = getDb();
   const userId = await getUserId();
 
@@ -193,7 +202,9 @@ export async function updateDraftAction(draftId: string, subject: string | null,
   }
 }
 
-export async function recordApprovalAction(draftId: string, decision: 'APPROVED' | 'REJECTED', feedback?: string) {
+export const updateDraftAction = withLogging('updateDraftAction', updateDraftActionImpl);
+
+async function recordApprovalActionImpl(draftId: string, decision: 'APPROVED' | 'REJECTED', feedback?: string) {
   const db = getDb();
   const userId = await getUserId();
 
@@ -216,7 +227,7 @@ export async function recordApprovalAction(draftId: string, decision: 'APPROVED'
 
     if (decision === 'APPROVED') {
       const leadService = new LeadService(db);
-      await leadService.advanceStageIfEarlier(draft.leadId, 'Ready to Send');
+      await leadService.advanceStageIfEarlier(draft.leadId, 'Awaiting Approval');
     }
 
     try {
@@ -230,7 +241,9 @@ export async function recordApprovalAction(draftId: string, decision: 'APPROVED'
   }
 }
 
-export async function deleteDraftAction(draftId: string) {
+export const recordApprovalAction = withLogging('recordApprovalAction', recordApprovalActionImpl);
+
+async function deleteDraftActionImpl(draftId: string) {
   const db = getDb();
   const userId = await getUserId();
 
@@ -266,7 +279,56 @@ export async function deleteDraftAction(draftId: string) {
   }
 }
 
-export async function markAsSentAction(draftId: string) {
+export const deleteDraftAction = withLogging('deleteDraftAction', deleteDraftActionImpl);
+
+export async function getPendingApprovalsAction() {
+  const db = getDb();
+  const userId = await getUserId();
+  if (!userId) return { error: 'Unauthorized' };
+
+  try {
+    const rows = await db
+      .select({
+        draft: outreachDrafts,
+        prospectName: prospects.name,
+        prospectCompany: prospects.company,
+        fitScore: prospects.fitScore,
+        priorityTier: prospects.priorityTier,
+        marketName: markets.name,
+      })
+      .from(outreachDrafts)
+      .innerJoin(prospects, eq(outreachDrafts.leadId, prospects.id))
+      .leftJoin(markets, eq(prospects.marketId, markets.id))
+      .where(eq(outreachDrafts.status, 'DRAFT'))
+      .orderBy(sql`COALESCE(${prospects.fitScore}, 0) DESC`, outreachDrafts.createdAt)
+      .limit(50);
+
+    return {
+      success: true,
+      drafts: rows.map(r => ({
+        id: r.draft.id,
+        leadId: r.draft.leadId,
+        channel: r.draft.channel,
+        subject: r.draft.subject,
+        body: r.draft.body,
+        status: r.draft.status,
+        citedEvidence: r.draft.citedEvidence,
+        riskFlags: r.draft.riskFlags,
+        prospectName: r.prospectName,
+        prospectCompany: r.prospectCompany,
+        fitScore: r.fitScore,
+        priorityTier: r.priorityTier,
+        marketName: r.marketName,
+        createdAt: r.draft.createdAt,
+      })),
+    };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Failed to fetch approvals';
+    return { error: msg };
+  }
+}
+
+async function markAsSentActionImpl(draftId: string) {
   const db = getDb();
   const userId = await getUserId();
 
@@ -294,15 +356,17 @@ export async function markAsSentAction(draftId: string) {
     const leadService = new LeadService(db);
     const lead = await leadService.getLead(draft.leadId);
     if (lead) {
-      const newStage = (draft.channel === 'EMAIL' || draft.channel === 'LINKEDIN') 
-        ? 'Outreach Sent' 
-        : 'Meeting';
+      const newStage = (draft.channel === 'EMAIL' || draft.channel === 'LINKEDIN')
+        ? 'Contacted'
+        : 'Meeting Booked';
       await leadService.advanceStageIfEarlier(lead.id, newStage);
     }
 
     try {
       revalidatePath(`/leads/${draft.leadId}`);
       revalidatePath('/');
+      revalidatePath('/approvals');
+      revalidatePath(`/prospects/${draft.leadId}`);
     } catch (e) {}
     return { success: true };
   } catch (e: unknown) {
@@ -310,3 +374,5 @@ export async function markAsSentAction(draftId: string) {
     return { error: msg };
   }
 }
+
+export const markAsSentAction = withLogging('markAsSentAction', markAsSentActionImpl);

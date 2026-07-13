@@ -54,7 +54,7 @@ test('StaleAlerts (hardcoded thresholds)', async (t) => {
   await t.test('creates warning at near-threshold', async () => {
     const { db, leadService } = setupTestDb();
     const userId = await seedUser(db);
-    const lead = await leadService.createLead({ name: 'Warning Lead', ownerId: userId, stage: 'Drafting' });
+    const lead = await leadService.createLead({ name: 'Warning Lead', ownerId: userId, stage: 'In Research' });
     // threshold is 2 days, 80-99% = ~1.6-1.98 days. Set to 1.8 days ago.
     await db.update(leads).set({ stageUpdatedAt: new Date(Date.now() - 1.8 * 24 * 60 * 60 * 1000) }).where(eq(leads.id, lead.id));
     const count = await leadService.checkAndAlertStaleLeads();

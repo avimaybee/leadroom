@@ -21,6 +21,7 @@ export const outreachDrafts = sqliteTable('outreach_drafts', {
   attachments: text('attachments'),
 }, (table) => ({
   leadIdIndex: index('outreach_drafts_lead_id_idx').on(table.leadId),
+  statusIndex: index('outreach_drafts_status_idx').on(table.status),
 }));
 
 export const approvals = sqliteTable('approvals', {

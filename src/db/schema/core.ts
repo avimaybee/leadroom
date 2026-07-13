@@ -37,8 +37,12 @@ export const prospects = sqliteTable('prospects', {
   stageUpdatedAt: integer('stage_updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   lastActivityAt: integer('last_activity_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   scoreDirty: integer('score_dirty', { mode: 'boolean' }).default(true).notNull(),
+  notes: text('notes'),
 }, (table) => ({
   statusUpdatedAtIndex: index('prospects_status_updated_at_idx').on(table.status, table.updatedAt),
+  ownerIdIndex: index('prospects_owner_id_idx').on(table.ownerId),
+  ownerIdFitScoreIndex: index('prospects_owner_id_fit_score_idx').on(table.ownerId, table.fitScore),
+  statusScoreDirtyIndex: index('prospects_status_score_dirty_idx').on(table.status, table.scoreDirty),
 }));
 
 // leads backward-compat alias is in src/db/schema.ts

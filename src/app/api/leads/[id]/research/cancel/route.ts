@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 
+import { getLogger } from '@/lib/logger';
 import { NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { jobRuns } from '@/db/schema/research';
@@ -7,6 +8,8 @@ import { LoggingService } from '@/services/logging';
 import { cookies } from 'next/headers';
 import { decrypt, getUserId } from '@/lib/auth';
 import { and, eq, or } from 'drizzle-orm';
+
+const log = getLogger('ResearchCancelAPI');
 
 export async function POST(
   _request: Request,
@@ -57,7 +60,7 @@ export async function POST(
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
-    console.error('Research cancel error:', error);
+    log.error('Research cancel error', error);
     return NextResponse.json({ error: 'An internal error occurred' }, { status: 500 });
   }
 }

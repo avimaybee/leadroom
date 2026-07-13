@@ -1,3 +1,8 @@
+# ⚠️ ARCHIVED / DEPRECATED DOCUMENT
+This document represents the legacy v1 requirements before the SDR pivot. For active requirements, see [PRD.md](file:///d:/vs%20code/leadroom/docs/PRD.md).
+
+---
+
 # PRD — AI Agency Growth OS, v1 (MVP)
 
 ## 0. Document status

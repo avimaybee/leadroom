@@ -1,7 +1,10 @@
+import { getLogger } from '@/lib/logger';
 import { NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { MarketOptimizationService } from '@/services/market-optimization';
 import { getUserId } from '@/lib/auth';
+
+const log = getLogger('MarketMetricsAPI');
 
 export const revalidate = 300; // Cache for 5 minutes
 
@@ -29,7 +32,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ data: metrics });
   } catch (err: unknown) {
-    console.error('Failed to get market metrics:', err);
+    log.error('Failed to get market metrics', err);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

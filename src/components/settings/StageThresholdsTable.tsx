@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { Loader2, Save } from 'lucide-react';
-import { toast, Toaster } from 'sonner';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { StageThresholdRow } from './StageThresholdRow';
 import { updateStageThreshold } from '@/app/actions/pipeline';
@@ -290,7 +290,6 @@ export function StageThresholdsTable({ initialThresholds }: Props) {
         </div>
       )}
 
-      <Toaster position="bottom-right" />
     </div>
   );
 }

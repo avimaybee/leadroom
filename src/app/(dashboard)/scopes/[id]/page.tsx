@@ -683,18 +683,17 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
             }
 
             return (
-              <Button
+              <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                variant="ghost"
-                className={`pb-4 px-6 font-semibold text-label-14 border-b-2 transition-all duration-200 rounded-none focus-visible:outline-none focus-visible:ring-0 ${
+                className={`pb-4 px-6 font-semibold text-label-14 border-b-2 transition-all duration-200 outline-none cursor-pointer ${
                   activeTab === tab.key
-                    ? 'border-b-primary border-t-transparent border-x-transparent text-primary font-semibold'
+                    ? 'border-b-primary text-primary font-bold'
                     : 'border-transparent text-muted-foreground hover:text-foreground'
                 }`}
               >
                 {tab.label}{countLabel}
-              </Button>
+              </button>
             );
           })}
         </div>

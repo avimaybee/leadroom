@@ -1,7 +1,9 @@
 import { LoggingService } from './logging';
 import { Db } from '../db';
 import { eq, and, desc } from 'drizzle-orm';
-import { leads, leadScores, audits, researchSnapshots, } from '../db/schema';
+import { leads, leadScores, audits, researchSnapshots, researchTasks } from '../db/schema';
+import { markets, icpProfiles } from '../db/schema/strategy';
+import { calculateScore } from '../lib/domain/scoring';
 
 export interface ScoringFactor {
   name: string;
@@ -23,41 +25,127 @@ export class ScoringService {
       throw new Error(`Lead not found for scoring: ${leadId}`);
     }
 
-    // Fetch the latest research snapshot for this lead
-    const [latestResearch] = await this.db
-      .select()
-      .from(researchSnapshots)
-      .where(eq(researchSnapshots.leadId, leadId))
-      .orderBy(desc(researchSnapshots.createdAt))
-      .limit(1);
-
-    // Fetch the latest audit for this lead
-    const [latestAudit] = await this.db
-      .select()
-      .from(audits)
-      .where(eq(audits.leadId, leadId))
-      .orderBy(desc(audits.createdAt))
-      .limit(1);
-
-    // Pure deterministic completeness & quality score
-    const calculation = this.calculateCompletenessScore(lead, latestAudit, latestResearch);
-    const scoreValue = calculation.scoreValue;
-    const factors = calculation.factors.map(f => `${f.name}: ${f.description} (+${f.value})`);
-    
+    let isIcpScored = false;
+    let scoreValue = 0;
     let scoreLabel: 'High' | 'Medium' | 'Low' = 'Low';
-    if (scoreValue >= 80) {
-      scoreLabel = 'High';
-    } else if (scoreValue >= 50) {
-      scoreLabel = 'Medium';
+    let rationaleSummary = '';
+    let factors: string[] = [];
+    let fitReasoning = '';
+
+    // Check for Market and ICP Profile
+    if (lead.marketId) {
+      const [marketRow] = await this.db.select().from(markets).where(eq(markets.id, lead.marketId)).limit(1);
+      if (marketRow?.icpProfileId) {
+        const [icpRow] = await this.db.select().from(icpProfiles).where(eq(icpProfiles.id, marketRow.icpProfileId)).limit(1);
+        if (icpRow) {
+          const positiveSignals = icpRow.positiveSignals ? JSON.parse(icpRow.positiveSignals) : [];
+          const negativeSignals = icpRow.negativeSignals ? JSON.parse(icpRow.negativeSignals) : [];
+          const disqualifiers = icpRow.disqualifiers ? JSON.parse(icpRow.disqualifiers) : [];
+
+          // Load completed tasks
+          const taskRows = await this.db
+            .select()
+            .from(researchTasks)
+            .where(eq(researchTasks.prospectId, leadId));
+          
+          const extractedSignals: any[] = [];
+          for (const task of taskRows) {
+            if (task.status === 'COMPLETED' && task.extractedSignals) {
+              try {
+                const signals = JSON.parse(task.extractedSignals);
+                if (Array.isArray(signals)) {
+                  extractedSignals.push(...signals);
+                }
+              } catch {}
+            }
+          }
+
+          // Fetch confidence
+          const webTask = taskRows.find(t => t.taskType === 'WEBSITE_ANALYST');
+          const confidenceScore = webTask?.confidence ?? 80;
+
+          // Compute ICP score
+          const icpResult = calculateScore({
+            icpProfile: { positiveSignals, negativeSignals, disqualifiers },
+            extractedSignals,
+            researchConfidence: confidenceScore,
+          });
+
+          isIcpScored = true;
+          scoreValue = icpResult.fitScore;
+          
+          if (icpResult.priorityTier === 'disqualified') {
+            scoreLabel = 'Low';
+          } else if (icpResult.priorityTier === 'tier1') {
+            scoreLabel = 'High';
+          } else if (icpResult.priorityTier === 'tier2') {
+            scoreLabel = 'Medium';
+          } else {
+            scoreLabel = 'Low';
+          }
+
+          rationaleSummary = icpResult.fitReasoning;
+          fitReasoning = icpResult.fitReasoning;
+          factors = icpResult.breakdown.map(b => `${b.factor}: ${b.evidenceQuote} (${b.contribution >= 0 ? '+' : ''}${b.contribution})`);
+
+          // Update prospects priority tier & disqualified reason & confidence score
+          await this.db.update(leads).set({
+            fitScore: icpResult.fitScore,
+            confidenceScore: icpResult.confidenceScore,
+            priorityTier: icpResult.priorityTier,
+            disqualifiedReason: icpResult.priorityTier === 'disqualified'
+              ? (icpResult.breakdown.find(b => b.factor.startsWith('Disqualified'))?.factor.replace('Disqualified: ', '') || 'Matches disqualifier')
+              : null,
+          }).where(eq(leads.id, leadId));
+        }
+      }
     }
 
-    let rationaleSummary = '';
-    if (latestResearch && latestAudit) {
-      rationaleSummary = `Priority score calculated from profile completeness, high-confidence research, and design audit findings.`;
-    } else if (latestResearch || latestAudit) {
-      rationaleSummary = `Priority score calculated from profile completeness and partial AI snapshots.`;
-    } else {
-      rationaleSummary = `Calculated baseline priority based on profile completeness.`;
+    if (!isIcpScored) {
+      // Fetch the latest research snapshot for this lead
+      const [latestResearch] = await this.db
+        .select()
+        .from(researchSnapshots)
+        .where(eq(researchSnapshots.leadId, leadId))
+        .orderBy(desc(researchSnapshots.createdAt))
+        .limit(1);
+
+      // Fetch the latest audit for this lead
+      const [latestAudit] = await this.db
+        .select()
+        .from(audits)
+        .where(eq(audits.leadId, leadId))
+        .orderBy(desc(audits.createdAt))
+        .limit(1);
+
+      // Pure deterministic completeness & quality score
+      const calculation = this.calculateCompletenessScore(lead, latestAudit, latestResearch);
+      scoreValue = calculation.scoreValue;
+      factors = calculation.factors.map(f => `${f.name}: ${f.description} (+${f.value})`);
+      
+      scoreLabel = 'Low';
+      if (scoreValue >= 80) {
+        scoreLabel = 'High';
+      } else if (scoreValue >= 50) {
+        scoreLabel = 'Medium';
+      }
+
+      if (latestResearch && latestAudit) {
+        rationaleSummary = `Priority score calculated from profile completeness, high-confidence research, and design audit findings.`;
+      } else if (latestResearch || latestAudit) {
+        rationaleSummary = `Priority score calculated from profile completeness and partial AI snapshots.`;
+      } else {
+        rationaleSummary = `Calculated baseline priority based on profile completeness.`;
+      }
+
+      fitReasoning = this.generateFitReasoning(scoreValue, scoreLabel, lead, latestResearch, latestAudit, factors);
+
+      const pTier = scoreLabel === 'High' ? 'tier1' : scoreLabel === 'Medium' ? 'tier2' : 'tier3';
+      await this.db.update(leads).set({
+        fitScore: scoreValue,
+        confidenceScore: latestResearch?.confidenceLevel === 'HIGH' ? 90 : latestResearch?.confidenceLevel === 'MEDIUM' ? 60 : 30,
+        priorityTier: pTier,
+      }).where(eq(leads.id, leadId));
     }
 
     const scoreId = crypto.randomUUID();
@@ -86,9 +174,6 @@ export class ScoringService {
     };
 
     await this.db.insert(leadScores).values(newScore);
-
-    // Generate fit reasoning from factors
-    const fitReasoning = this.generateFitReasoning(scoreValue, scoreLabel, lead, latestResearch, latestAudit, factors);
 
     // Clear score dirty flag and update fit reasoning
     await this.db.update(leads).set({ scoreDirty: false, fitReasoning }).where(eq(leads.id, leadId));

@@ -1,13 +1,41 @@
-
+import { getLogger } from '@/lib/logger';
 import { NextResponse } from 'next/server';
+import { getUserId } from '@/lib/auth';
+
+const log = getLogger('SettingsModelsAPI');
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
+  const userId = await getUserId();
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const provider = searchParams.get('provider');
   const apiKey = searchParams.get('apiKey');
 
+  return fetchModelsForProvider(provider, apiKey);
+}
+
+export async function POST(request: Request) {
+  const userId = await getUserId();
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+    const body = await request.json() as { provider?: string | null; apiKey?: string | null };
+    const { provider = null, apiKey = null } = body;
+    return fetchModelsForProvider(provider ?? null, apiKey ?? null);
+  } catch (error: unknown) {
+    log.error('Settings models POST error', error);
+    return NextResponse.json({ error: 'Invalid JSON request body' }, { status: 400 });
+  }
+}
+
+async function fetchModelsForProvider(provider: string | null, apiKey: string | null) {
   if (!provider) {
     return NextResponse.json({ error: 'Provider is required' }, { status: 400 });
   }
@@ -140,7 +168,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ models });
   } catch (error: unknown) {
-    console.error('Settings models error:', error);
+    log.error('Settings models error', error);
     return NextResponse.json({ error: 'An internal error occurred' }, { status: 500 });
   }
 }

@@ -2,6 +2,9 @@ import { LoggingService } from './logging';
 import { Db } from '../db';
 import { eq, desc, lt, and, isNotNull } from 'drizzle-orm';
 import { outreachDrafts, approvals, activities } from '../db/schema';
+import { getLogger } from '../lib/logger';
+
+const log = getLogger('OutreachService');
 
 /** Module-level timestamp for throttling attachment cleanup. */
 let _lastCleanupTimestamp = 0;
@@ -64,11 +67,11 @@ export class OutreachService {
               .where(eq(outreachDrafts.id, draft.id));
           }
         } catch (e) {
-          console.error(`Error cleaning attachments for draft ${draft.id}:`, e);
+          log.error(`Error cleaning attachments for draft ${draft.id}`, e);
         }
       }
     } catch (e) {
-      console.error('Error running cleanOldAttachments:', e);
+      log.error('Error running cleanOldAttachments', e);
     }
   }
 
@@ -77,7 +80,7 @@ export class OutreachService {
    */
   async getDraftsForLead(leadId: string) {
     // Run cleanup in background dynamically
-    this.cleanOldAttachments().catch(e => console.error('Background cleanup failed', e));
+    this.cleanOldAttachments().catch(e => log.error('Background cleanup failed', e));
 
     return this.db
       .select({
@@ -162,7 +165,7 @@ leadId: input.leadId,
 });
 
     // Run cleanup in background
-    this.cleanOldAttachments().catch(e => console.error('Background cleanup failed', e));
+    this.cleanOldAttachments().catch(e => log.error('Background cleanup failed', e));
 
     return newDraft;
   }

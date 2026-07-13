@@ -78,6 +78,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
           const unique = Array.from(new Map(merged.map(n => [n.id, n])).values());
           return unique.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         });
+
+        router.refresh();
       }
     } catch (e) {
       console.error('Failed to poll notifications', e);

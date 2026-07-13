@@ -5,9 +5,59 @@ import { revalidatePath } from 'next/cache';
 import { getUserId } from '@/lib/auth';
 import { LearningService } from '@/services/learning';
 import { learningSuggestions } from '@/db/schema/outreach';
+import { workspaces } from '@/db/schema/strategy';
 import { eq } from 'drizzle-orm';
+import { withLogging } from '@/lib/actions/with-logging';
 
-export async function applyLearningSuggestionAction(suggestionId: string) {
+export async function getLearningSuggestionsAction() {
+  const db = getDb();
+  const userId = await getUserId();
+
+  if (!userId) {
+    return { error: 'Unauthorized', suggestions: [] };
+  }
+
+  try {
+    const [ws] = await db.select({ id: workspaces.id }).from(workspaces).limit(1);
+    if (!ws) return { success: true, suggestions: [] };
+
+    const suggestions = await new LearningService(db).getPendingSuggestions(ws.id);
+    return {
+      success: true,
+      suggestions: suggestions.map(s => ({
+        id: s.id,
+        suggestedChange: s.suggestedChange || '{}',
+        supportingEvidence: s.supportingEvidence || '{}',
+        createdAt: s.createdAt,
+      })),
+    };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Failed to fetch suggestions';
+    return { error: msg, suggestions: [] };
+  }
+}
+
+export async function getLearningSuggestionCountAction() {
+  const db = getDb();
+  const userId = await getUserId();
+
+  if (!userId) return 0;
+
+  try {
+    const [ws] = await db.select({ id: workspaces.id }).from(workspaces).limit(1);
+    if (!ws) return 0;
+
+    const rows = await db
+      .select({ id: learningSuggestions.id })
+      .from(learningSuggestions)
+      .where(eq(learningSuggestions.status, 'PENDING'))
+      .limit(100);
+
+    return rows.length;
+  } catch { return 0; }
+}
+
+async function applyLearningSuggestionActionImpl(suggestionId: string) {
   const db = getDb();
   const userId = await getUserId();
 
@@ -20,6 +70,7 @@ export async function applyLearningSuggestionAction(suggestionId: string) {
     await learningService.applySuggestion(suggestionId, userId);
 
     try {
+      revalidatePath('/learning');
       revalidatePath('/settings/pipeline');
       revalidatePath('/');
     } catch (e) {}
@@ -31,7 +82,9 @@ export async function applyLearningSuggestionAction(suggestionId: string) {
   }
 }
 
-export async function dismissLearningSuggestionAction(suggestionId: string) {
+export const applyLearningSuggestionAction = withLogging('applyLearningSuggestionAction', applyLearningSuggestionActionImpl);
+
+async function dismissLearningSuggestionActionImpl(suggestionId: string) {
   const db = getDb();
   const userId = await getUserId();
 
@@ -44,6 +97,7 @@ export async function dismissLearningSuggestionAction(suggestionId: string) {
     await learningService.dismissSuggestion(suggestionId, userId);
 
     try {
+      revalidatePath('/learning');
       revalidatePath('/settings/pipeline');
       revalidatePath('/');
     } catch (e) {}
@@ -54,3 +108,5 @@ export async function dismissLearningSuggestionAction(suggestionId: string) {
     return { error: msg };
   }
 }
+
+export const dismissLearningSuggestionAction = withLogging('dismissLearningSuggestionAction', dismissLearningSuggestionActionImpl);
