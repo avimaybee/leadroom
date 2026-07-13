@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Internal operating system for Leadroom",
   "scripts": {
-    "build": "opennextjs-cloudflare build",
+    "build": "next build --webpack",
     "dev": "next dev",
     "start": "next start",
     "lint": "eslint src/",
