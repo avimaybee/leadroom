@@ -3,15 +3,14 @@ export const dynamic = 'force-dynamic';
 import { getDb } from '@/db';
 import { prospects, stageThresholds } from '@/db/schema/core';
 import { outreachDrafts } from '@/db/schema/outreach';
-import { researchTasks } from '@/db/schema/jobs';
 import { markets } from '@/db/schema/strategy';
 import { getUserId } from '@/lib/auth';
 import { LeadService } from '@/services/lead';
-import { eq, sql, count, and, inArray, desc } from 'drizzle-orm';
-import { ShieldAlert, TriangleAlert, Target, Clock, CheckSquare, ArrowRight, CheckCircle2, LayoutList } from 'lucide-react';
+import { eq, sql, count, and } from 'drizzle-orm';
+import { TriangleAlert, Target, Clock, CheckSquare, ArrowRight, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 import { MetricsBar } from '@/components/command-center/MetricsBar';
-import { ProspectTable } from '@/components/command-center/ProspectTable';
+import { ProspectTableWithSignals } from '@/components/command-center/ProspectTableWithSignals';
 import UnifiedFeedLoader from '@/app/(dashboard)/UnifiedFeedLoader';
 import { buttonVariants } from '@/components/ui/button';
 
@@ -84,8 +83,8 @@ export default async function DashboardPage() {
     'Awaiting Approval', 'Contacted', 'Meeting Booked', 'Won', 'Lost',
   ];
 
-  // Fetch top signals for scored prospects to render signals in list
-  const prospectsWithSignals: {
+  // Build prospect list (signals fetched client-side via ProspectTableWithSignals)
+  const prospectBaseList: {
     id: string;
     company: string | null;
     name: string;
@@ -93,50 +92,15 @@ export default async function DashboardPage() {
     confidenceScore: number | null;
     priorityTier: string | null;
     updatedAt: Date | number | null;
-    topSignal: string | null;
-  }[] = [];
-
-  if (scoredProspects.length > 0) {
-    const prospectIds = scoredProspects.map(p => p.id);
-    const taskRows = await db
-      .select()
-      .from(researchTasks)
-      .where(and(
-        eq(researchTasks.status, 'COMPLETED'),
-        inArray(researchTasks.prospectId, prospectIds)
-      ));
-
-    const taskMap = new Map<string, { signalName: string; matchStrength: string }[]>();
-    for (const task of taskRows) {
-      if (task.extractedSignals) {
-        try {
-          const signals = JSON.parse(task.extractedSignals);
-          const existing = taskMap.get(task.prospectId) || [];
-          taskMap.set(task.prospectId, [...existing, ...signals]);
-        } catch {}
-      }
-    }
-
-    for (const p of scoredProspects) {
-      const signals = taskMap.get(p.id) || [];
-      const topSignal = signals.length > 0
-        ? signals.sort((a, b) => {
-            const order = { strong: 3, partial: 2, weak: 1 };
-            return (order[b.matchStrength as keyof typeof order] || 0) - (order[a.matchStrength as keyof typeof order] || 0);
-          })[0].signalName
-        : null;
-      prospectsWithSignals.push({
-        id: p.id,
-        company: p.company || p.name,
-        name: p.name,
-        fitScore: p.fitScore,
-        confidenceScore: p.confidenceScore,
-        priorityTier: p.priorityTier,
-        updatedAt: p.updatedAt,
-        topSignal,
-      });
-    }
-  }
+  }[] = scoredProspects.map(p => ({
+    id: p.id,
+    company: p.company || p.name,
+    name: p.name,
+    fitScore: p.fitScore,
+    confidenceScore: p.confidenceScore,
+    priorityTier: p.priorityTier,
+    updatedAt: p.updatedAt,
+  }));
 
   // Dynamic status summary text
   const summaryParts = [];
@@ -237,7 +201,7 @@ export default async function DashboardPage() {
                 </Link>
               </div>
             ) : (
-              <ProspectTable prospects={prospectsWithSignals} />
+              <ProspectTableWithSignals prospects={prospectBaseList} />
             )}
           </div>
 

@@ -34,6 +34,17 @@ Database Engine: Cloudflare D1 (SQLite). ORM: Drizzle.
   - People associated with a prospect.
   - Fields: `id`, `prospect_id`, `name`, `role`, `confidence_level`, `source_url`.
 
+### 1.2b Discovery & Lead Sourcing
+
+- `discovery_scopes`
+  - Defines a search criteria for finding new prospects (linked to a Market).
+  - Fields: `id`, `name`, `description`, `industry_filter`, `geography_filter`, `company_size_filter`, `business_type_filter`, `digital_presence_filter`, `notes`, `workspace_id`, `market_id`, `auto_research_promoted_leads` (boolean), `created_by_user_id`, `created_at`, `updated_at`.
+
+- `candidate_leads`
+  - Raw, unprocessed leads returned by a discovery search (e.g., Apify Google Maps).
+  - Fields: `id`, `discovery_scope_id`, `raw_name`, `raw_website_url`, `raw_contact_info`, `raw_location`, `notes`, `status` (NEW, REVIEWED, PROMOTED, DISCARDED), `discard_reason` (captured when user discards a candidate), `promoted_lead_id`, `created_at`, `updated_at`.
+  - Candidates are reviewed by the user and either promoted (converted to a `prospect` with 4 research tasks) or discarded (with an optional reason for the learning loop).
+
 ### 1.3 Agentic Research Engine
 
 - `research_tasks`

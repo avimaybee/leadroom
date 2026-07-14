@@ -18,6 +18,9 @@
 			"database_id": "fc5f9b16-1bc5-43e5-8a5d-5e54d3ec7b70"
 		}
 	],
+	"limits": {
+		"cpu_ms": 300000
+	},
 	"browser": {
 		"binding": "BROWSER"
 	},

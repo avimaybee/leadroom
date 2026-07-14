@@ -6,6 +6,7 @@ import { eq, sql, desc, and } from 'drizzle-orm';
 const log = getLogger('DiscoveryService');
 import { discoveryScopes, candidateLeads } from '../db/schema/discovery';
 import { prospects as leads, activities } from '../db/schema/core';
+import { researchTasks } from '../db/schema/jobs';
 import { CreateDiscoveryScopeInput, CreateCandidateLeadInput } from '../db/models/discovery';
 import { ScoringService } from './scoring';
 
@@ -26,6 +27,8 @@ export class DiscoveryService {
       notes: input.notes ?? null,
       autoResearchPromotedLeads: input.autoResearchPromotedLeads ?? true,
       createdByUserId: input.createdByUserId,
+      workspaceId: input.workspaceId ?? null,
+      marketId: input.marketId ?? null,
       createdAt: now,
       updatedAt: now,
     });
@@ -97,11 +100,26 @@ export class DiscoveryService {
     return Number(result[0]?.count || 0);
   }
 
-  async updateCandidateStatus(candidateId: string, status: 'NEW' | 'REVIEWED' | 'PROMOTED' | 'DISCARDED') {
+  async updateCandidateStatus(candidateId: string, status: 'NEW' | 'REVIEWED' | 'PROMOTED' | 'DISCARDED', discardReason?: string | null) {
+    const now = new Date();
+    const updateData: Record<string, any> = { status, updatedAt: now };
+    if (discardReason !== undefined) {
+      updateData.discardReason = discardReason;
+    }
+    await this.db
+      .update(candidateLeads)
+      .set(updateData)
+      .where(eq(candidateLeads.id, candidateId));
+
+    const results = await this.db.select().from(candidateLeads).where(eq(candidateLeads.id, candidateId));
+    return results[0] || null;
+  }
+
+  async updateCandidate(candidateId: string, data: { rawName?: string; rawWebsiteUrl?: string | null; rawLocation?: string | null; rawContactInfo?: string | null }) {
     const now = new Date();
     await this.db
       .update(candidateLeads)
-      .set({ status, updatedAt: now })
+      .set({ ...data, updatedAt: now })
       .where(eq(candidateLeads.id, candidateId));
 
     const results = await this.db.select().from(candidateLeads).where(eq(candidateLeads.id, candidateId));
@@ -121,14 +139,26 @@ export class DiscoveryService {
       throw new Error(`Candidate with ID ${candidateId} has already been promoted`);
     }
 
-    // 2. Fetch the scope details if any
+    // 2. Fetch the scope details (name, description, workspaceId, marketId)
     let scopeName = 'Discovery';
-    let scopeIndustry = null;
+    let scopeIndustry: string | null = null;
+    let scopeDescription: string | null = null;
+    let scopeWorkspaceId: string | null = null;
+    let scopeMarketId: string | null = null;
     if (candidate.discoveryScopeId) {
-      const [scope] = await this.db.select().from(discoveryScopes).where(eq(discoveryScopes.id, candidate.discoveryScopeId)).limit(1);
+      const [scope] = await this.db.select({
+        name: discoveryScopes.name,
+        description: discoveryScopes.description,
+        industryFilter: discoveryScopes.industryFilter,
+        workspaceId: discoveryScopes.workspaceId,
+        marketId: discoveryScopes.marketId,
+      }).from(discoveryScopes).where(eq(discoveryScopes.id, candidate.discoveryScopeId)).limit(1);
       if (scope) {
         scopeName = scope.name;
         scopeIndustry = scope.industryFilter;
+        scopeDescription = scope.description;
+        scopeWorkspaceId = scope.workspaceId;
+        scopeMarketId = scope.marketId;
       }
     }
 
@@ -169,12 +199,9 @@ export class DiscoveryService {
       }
     }
 
-    const [scopeFull] = candidate.discoveryScopeId
-      ? await this.db.select({
-          workspaceId: discoveryScopes.workspaceId,
-          marketId: discoveryScopes.marketId,
-        }).from(discoveryScopes).where(eq(discoveryScopes.id, candidate.discoveryScopeId)).limit(1)
-      : [{ workspaceId: null as string | null, marketId: null as string | null }];
+    const provenanceNote = scopeDescription
+      ? `Discovered via: ${scopeDescription}`
+      : `Discovered from scope: ${scopeName}`;
 
     await this.db.insert(leads).values({
       id: leadId,
@@ -185,8 +212,9 @@ export class DiscoveryService {
       stage: 'New',
       status: 'Active',
       ownerId: ownerId,
-      workspaceId: scopeFull?.workspaceId ?? null,
-      marketId: scopeFull?.marketId ?? null,
+      workspaceId: scopeWorkspaceId,
+      marketId: scopeMarketId,
+      notes: provenanceNote,
       createdAt: now,
       updatedAt: now,
     });
@@ -201,8 +229,7 @@ export class DiscoveryService {
       })
       .where(eq(candidateLeads.id, candidateId));
 
-    // 5. Create activity record
-    const activityId = crypto.randomUUID();
+    // 5. Create activity record with discovery provenance
     await new LoggingService(this.db).log({
       leadId: leadId,
       type: 'SYSTEM',
@@ -210,14 +237,29 @@ export class DiscoveryService {
       metadata: {
         from_stage: 'Candidate',
         to_stage: 'New',
+        discoveryScopeId: candidate.discoveryScopeId,
+        discoverySource: scopeName,
       },
     });
 
-    // 6. Recalculate baseline priority score
+    // 6. Create 4 research tasks for the new pipeline
+    const taskTypes = ['WEBSITE_ANALYST', 'ICP_FIT', 'PAIN_EXTRACTOR', 'DISQUALIFIER_CHECK'] as const;
+    for (const taskType of taskTypes) {
+      await this.db.insert(researchTasks).values({
+        id: crypto.randomUUID(),
+        prospectId: leadId,
+        taskType,
+        status: 'PENDING',
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    // 7. Recalculate baseline priority score
     const scoringService = new ScoringService(this.db);
     await scoringService.recalculateScore(leadId);
 
-    // 7. Auto-trigger research if candidate has a website and scope allows it
+    // 8. Auto-trigger research if candidate has a website and scope allows it
     let shouldAutoResearch = !!candidate.rawWebsiteUrl;
     if (shouldAutoResearch && candidate.discoveryScopeId) {
       const [scope] = await this.db.select({ autoResearchPromotedLeads: discoveryScopes.autoResearchPromotedLeads })

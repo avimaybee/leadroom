@@ -2,6 +2,7 @@ import { getDb, type Db } from '@/db';
 import { ResearchWorkflowService } from '@/services/research-workflow';
 import { LoggingService } from '@/services/logging';
 import { jobRuns, candidateLeads, activities } from '@/db/schema';
+import { discoveryScopes } from '@/db/schema/discovery';
 import { checkApifyRunStatus, fetchApifyResults } from '@/lib/discovery/apify';
 import { eq, desc as drizzleDesc } from 'drizzle-orm';
 import { getLogger } from '@/lib/logger';
@@ -220,12 +221,29 @@ export async function triggerDiscoverySearchWorkflow(
   logger.info('Local simulation mode for discovery search', { jobId });
 
   const runSimulation = async () => {
+    let notifyUrl = scopeId ? `/scopes/${scopeId}` : `/scopes`;
     try {
       // Mark RUNNING immediately so the UI stops showing "QUEUED"
       const now = new Date();
       await db.update(jobRuns)
         .set({ status: 'RUNNING', startedAt: now, currentStage: 'Starting Apify crawler...' })
         .where(eq(jobRuns.id, jobId));
+
+      // Resolve notification URL — link to the market prospects page if scope is market-linked
+      if (scopeId) {
+        try {
+          const [scope] = await db
+            .select({ marketId: discoveryScopes.marketId })
+            .from(discoveryScopes)
+            .where(eq(discoveryScopes.id, scopeId))
+            .limit(1);
+          if (scope?.marketId) {
+            notifyUrl = `/markets/${scope.marketId}/prospects`;
+          }
+        } catch {
+          // Fall back to scopes URL
+        }
+      }
 
       // 1. Wait/poll Apify (max ~10 min for simulation, matching user's ≤10 min target)
       let status = await checkApifyRunStatus(runId);
@@ -307,7 +325,7 @@ export async function triggerDiscoverySearchWorkflow(
           'Discovery Completed',
           `Found ${results.length} leads for ${niche} in ${location}.`,
           'SUCCESS',
-          scopeId ? `/scopes/${scopeId}` : `/scopes`
+          notifyUrl
         );
       }
 
@@ -328,7 +346,7 @@ export async function triggerDiscoverySearchWorkflow(
             'Discovery Failed',
             `Discovery search failed: ${errMsg}`,
             'ERROR',
-            scopeId ? `/scopes/${scopeId}` : `/scopes`
+            notifyUrl
           );
         }
       } catch (dbErr) {

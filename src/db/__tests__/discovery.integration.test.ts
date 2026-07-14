@@ -71,6 +71,39 @@ test('DiscoveryService - updateCandidateStatus works', async () => {
   assert.strictEqual(updated.status, 'REVIEWED');
 });
 
+test('DiscoveryService - updateCandidateStatus with discard reason works', async () => {
+  const { service } = setupTestDb();
+  await service.createCandidateLead('cand_discard', {
+    rawName: 'Discard Test',
+    status: 'NEW',
+  });
+
+  const updated = await service.updateCandidateStatus('cand_discard', 'DISCARDED', 'Wrong industry');
+  assert.ok(updated);
+  assert.strictEqual(updated.status, 'DISCARDED');
+  assert.strictEqual(updated.discardReason, 'Wrong industry');
+});
+
+test('DiscoveryService - updateCandidate edits fields', async () => {
+  const { service } = setupTestDb();
+  await service.createCandidateLead('cand_edit', {
+    rawName: 'Old Name',
+    rawWebsiteUrl: 'https://old.com',
+    rawLocation: 'Old City',
+    status: 'NEW',
+  });
+
+  const updated = await service.updateCandidate('cand_edit', {
+    rawName: 'New Name',
+    rawWebsiteUrl: 'https://new.com',
+    rawLocation: 'New City',
+  });
+  assert.ok(updated);
+  assert.strictEqual(updated.rawName, 'New Name');
+  assert.strictEqual(updated.rawWebsiteUrl, 'https://new.com');
+  assert.strictEqual(updated.rawLocation, 'New City');
+});
+
 test('DiscoveryService - promoteCandidate works', async () => {
   const { db, service } = setupTestDb();
 

@@ -1,13 +1,15 @@
 export const dynamic = 'force-dynamic';
 
 import Link from 'next/link';
-import { Plus, Upload, Info, ShieldAlert } from 'lucide-react';
+import { Plus, Upload, Search, Info, ShieldAlert } from 'lucide-react';
 import { getDb } from '@/db';
 import { prospects } from '@/db/schema/core';
 import { markets, offers, icpProfiles } from '@/db/schema/strategy';
 import { researchTasks } from '@/db/schema/jobs';
+import { discoveryScopes, candidateLeads } from '@/db/schema/discovery';
 import { eq, and, inArray, sql } from 'drizzle-orm';
 import { getUserId } from '@/lib/auth';
+import { MarketProspectsClient } from '@/components/markets/MarketProspectsClient';
 
 export const metadata = {
   title: 'Market Prospects | Leadroom',
@@ -77,6 +79,29 @@ export default async function MarketProspectsPage({ params }: { params: Promise<
   const totalCount = prospectRows.length;
   const researchedCount = prospectRows.filter(p => p.fitScore !== null && p.fitScore !== undefined).length;
 
+  // Query pending candidates linked to this market's discovery scopes
+  const candidateRows = await db
+    .select({
+      id: candidateLeads.id,
+      rawName: candidateLeads.rawName,
+      rawWebsiteUrl: candidateLeads.rawWebsiteUrl,
+      rawLocation: candidateLeads.rawLocation,
+      rawContactInfo: candidateLeads.rawContactInfo,
+      notes: candidateLeads.notes,
+      status: candidateLeads.status,
+      scopeName: discoveryScopes.name,
+    })
+    .from(candidateLeads)
+    .innerJoin(discoveryScopes, eq(candidateLeads.discoveryScopeId, discoveryScopes.id))
+    .where(
+      and(
+        eq(discoveryScopes.marketId, marketId),
+        eq(candidateLeads.status, 'NEW'),
+        eq(discoveryScopes.workspaceId, userId)
+      )
+    )
+    .orderBy(candidateLeads.createdAt);
+
   return (
     <div className="max-w-5xl">
       <div className="flex items-center justify-between mb-6">
@@ -105,8 +130,22 @@ export default async function MarketProspectsPage({ params }: { params: Promise<
             <Upload className="w-4 h-4" />
             Import CSV
           </Link>
+          <Link
+            href={`?tab=discover`}
+            className="inline-flex items-center gap-2 h-10 px-4 rounded-md border border-border text-label-14 hover:bg-muted/50 transition-colors"
+          >
+            <Search className="w-4 h-4" />
+            Discover Leads
+          </Link>
         </div>
       </div>
+
+      {/* Candidate Review & Modal — client-side interactions */}
+      <MarketProspectsClient
+        marketId={marketId}
+        marketName={market.name}
+        candidates={candidateRows}
+      />
 
       {prospectRows.length === 0 ? (
         <div className="text-center py-16">
@@ -115,7 +154,7 @@ export default async function MarketProspectsPage({ params }: { params: Promise<
           </div>
           <h3 className="text-heading-lg text-foreground">No prospects in this market yet</h3>
           <p className="text-copy-14 text-muted-foreground mt-1 max-w-md mx-auto">
-            Add companies to research and score.
+            Add companies to research and score, or use Discover Leads to find companies automatically.
           </p>
           <Link
             href={`/markets/${marketId}/prospects/new`}
