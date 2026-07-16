@@ -65,7 +65,7 @@ export default function ErrorPage({
           </div>
         ) : (
           <div className="bg-destructive/5 text-destructive p-6 rounded-2xl border border-destructive/15 text-mono-14 whitespace-pre-wrap max-h-60 overflow-y-auto mb-6">
-            {error.message}
+            Something went wrong. Please try again.
           </div>
         )}
 

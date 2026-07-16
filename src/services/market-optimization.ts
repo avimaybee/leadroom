@@ -1,4 +1,4 @@
-import { Db } from '../db';
+import { type Db } from '../db';
 import { eq, sql, and } from 'drizzle-orm';
 import { discoveryScopes, candidateLeads } from '../db/schema/discovery';
 

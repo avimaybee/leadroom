@@ -1,7 +1,14 @@
-import { Db } from '../db';
+import { type Db } from '../db';
 import { eq, and } from 'drizzle-orm';
 import { providerConfigs } from '../db/schema/core';
 import { encrypt, decrypt } from '@/lib/crypto';
+
+// Module-level guard — fails fast if encryption key is missing.
+if (!process.env.DB_ENCRYPTION_KEY) {
+  throw new Error(
+    'DB_ENCRYPTION_KEY is required. Set it in your environment or .env file before using IntegrationsService.'
+  );
+}
 
 function getEncryptionSecret(): string {
   const key = process.env.DB_ENCRYPTION_KEY;

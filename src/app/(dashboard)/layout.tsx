@@ -11,8 +11,7 @@ import { HowToUse } from '@/components/HowToUse';
 import { ApprovalBadge } from '@/components/ApprovalBadge';
 import { LearningBadge } from '@/components/LearningBadge';
 import { AppLogger } from '@/components/AppLogger';
-import { signOut } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+
 
 const SIDEBAR_WIDTH_KEY = 'leadroom:sidebar:width';
 const SIDEBAR_COLLAPSED_KEY = 'leadroom:sidebar:collapsed';
@@ -60,7 +59,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           setUser(data.user);
         }
       })
-      .catch(() => {});
+      .catch((err) => console.error('Failed to fetch auth me', err));
   }, []);
 
   useEffect(() => {
@@ -232,7 +231,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <HowToUse />
             <NotificationBell />
             <Button type="button" variant="outline" size="xs" onClick={async () => {
-              try { await signOut(auth); } catch {}
+              try {
+                const { signOut } = await import('firebase/auth');
+                const { auth } = await import('@/lib/firebase');
+                await signOut(auth);
+              } catch (err) { console.error('Failed to sign out', err); }
               await fetch('/api/auth/logout', { method: 'POST' });
               router.push('/login');
             }}>

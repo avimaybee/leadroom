@@ -1,18 +1,23 @@
+// TODO(21.8): Refactor this monolithic module into smaller per-provider files
+// (e.g. ai/gemini.ts, ai/openai.ts, ai/anthropic.ts, ai/openrouter.ts, ai/chain.ts).
+
 import { z } from 'zod';
 import { getLogger } from './logger';
-import { Db } from '../db';
+import { type Db } from '../db';
 import { getChannelPrompt } from './outreach/prompts';
+import { researchSnapshots } from '../db/schema/research';
+import { eq, desc } from 'drizzle-orm';
 
 const log = getLogger('AI');
 
 export const AIResearchSchema = z.object({
-  companySummary: z.string(),
-  productsServicesSummary: z.string(),
-  digitalPresenceNotes: z.string(),
-  websiteNotes: z.string(),
-  brandingNotes: z.string(),
-  painPointsHypotheses: z.string(),
-  opportunityHypotheses: z.string(),
+  companySummary: z.string().min(1),
+  productsServicesSummary: z.string().min(1),
+  digitalPresenceNotes: z.string().min(1),
+  websiteNotes: z.string().min(1),
+  brandingNotes: z.string().min(1),
+  painPointsHypotheses: z.string().min(1),
+  opportunityHypotheses: z.string().min(1),
   sources: z.array(z.string()),
   confidenceLevel: z.enum(['LOW', 'MEDIUM', 'HIGH']),
 });
@@ -20,9 +25,9 @@ export const AIResearchSchema = z.object({
 export type AIResearchOutput = z.infer<typeof AIResearchSchema>;
 
 export const AIAuditSchema = z.object({
-  keyStrengths: z.string(),
-  keyWeaknesses: z.string(),
-  recommendedImprovements: z.string(),
+  keyStrengths: z.string().min(1),
+  keyWeaknesses: z.string().min(1),
+  recommendedImprovements: z.string().min(1),
   sources: z.array(z.string()),
 });
 
@@ -32,7 +37,7 @@ export const AIContactExtractionSchema = z.object({
   people: z.array(z.object({
     fullName: z.string().nullable().optional(),
     roleTitle: z.string().nullable().optional(),
-    email: z.string().nullable().optional(),
+    email: z.string().email().nullable().optional(),
     phone: z.string().nullable().optional(),
     linkedinUrl: z.string().nullable().optional(),
   })).nullable().optional(),
@@ -51,17 +56,17 @@ export const AIContactExtractionSchema = z.object({
 export type AIContactExtractionOutput = z.infer<typeof AIContactExtractionSchema>;
 
 export const AIResearchAuditSchema = z.object({
-  companySummary: z.string(),
-  productsServicesSummary: z.string(),
-  digitalPresenceNotes: z.string(),
-  websiteNotes: z.string(),
-  brandingNotes: z.string(),
-  painPointsHypotheses: z.string(),
-  opportunityHypotheses: z.string(),
+  companySummary: z.string().min(1),
+  productsServicesSummary: z.string().min(1),
+  digitalPresenceNotes: z.string().min(1),
+  websiteNotes: z.string().min(1),
+  brandingNotes: z.string().min(1),
+  painPointsHypotheses: z.string().min(1),
+  opportunityHypotheses: z.string().min(1),
   confidenceLevel: z.enum(['LOW', 'MEDIUM', 'HIGH']),
-  keyStrengths: z.string(),
-  keyWeaknesses: z.string(),
-  recommendedImprovements: z.string(),
+  keyStrengths: z.string().min(1),
+  keyWeaknesses: z.string().min(1),
+  recommendedImprovements: z.string().min(1),
   contacts: AIContactExtractionSchema.nullable().optional(),
   sources: z.array(z.string()),
 });
@@ -69,15 +74,15 @@ export const AIResearchAuditSchema = z.object({
 export type AIResearchAuditOutput = z.infer<typeof AIResearchAuditSchema>;
 
 const CitedEvidenceItemSchema = z.object({
-  sentence: z.string(),
-  evidenceQuote: z.string(),
-  sourceUrl: z.string(),
+  sentence: z.string().min(1),
+  evidenceQuote: z.string().min(1),
+  sourceUrl: z.string().url(),
 });
 
 export const AIOutreachDraftSchema = z.object({
   drafts: z.array(z.object({
     subject: z.string().nullable().optional(),
-    body: z.string(),
+    body: z.string().min(1),
     variationTone: z.string().optional(),
     riskFlags: z.array(z.string()).optional(),
     citedEvidence: z.array(CitedEvidenceItemSchema).optional(),
@@ -86,9 +91,32 @@ export const AIOutreachDraftSchema = z.object({
 
 export type AIOutreachDraftOutput = z.infer<typeof AIOutreachDraftSchema>;
 
+// TODO(10.12): API keys cached in-memory with 30-60s TTL.
+// This is a security-risk tradeoff — cached keys could persist across request boundaries
+// in long-lived runtimes. Not easily fixable in Cloudflare Workers (no persistent storage).
+// Accepting the risk for now given the short TTL and Worker isolation model.
+
+/** Simple in-memory token usage counter per provider */
+export const tokenUsage: Array<{ provider: string; promptTokens: number; completionTokens: number; timestamp: number }> = [];
+
 /** Cache for vision capability checks. Key: "provider:modelName", Value: { result: boolean, timestamp: number } */
 const _visionCapabilityCache = new Map<string, { result: boolean; timestamp: number }>();
 const VISION_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const _providerChainCache = new Map<string, { chain: Array<{ provider: string; apiKey: string; modelName: string }>; timestamp: number }>();
+const PROVIDER_CHAIN_CACHE_TTL_MS = 30_000; // 30 seconds
+const PROVIDER_CHAIN_CACHE_MAX = 100;
+const VISION_CACHE_MAX_ENTRIES = 50;
+
+function evictStaleVisionCacheEntries(): void {
+  const now = Date.now();
+  if (_visionCapabilityCache.size <= VISION_CACHE_MAX_ENTRIES) return;
+  const cutoff = now - VISION_CACHE_TTL_MS;
+  for (const [key, entry] of _visionCapabilityCache) {
+    if (entry.timestamp < cutoff) {
+      _visionCapabilityCache.delete(key);
+    }
+  }
+}
 
 /**
  * Cache for active provider config, keyed by Db instance.
@@ -100,16 +128,36 @@ const PROVIDER_CONFIG_CACHE_TTL_MS = 60_000; // 1 minute
 import { IntegrationsService } from '../services/integrations';
 import type { TaskType } from '../services/integrations';
 
+export class RateLimitError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RateLimitError';
+  }
+}
+
+const MAX_SCRAPED_CHARS = 8000;
+
+function truncateContent(content: string | null | undefined): string | null | undefined {
+  if (!content) return content;
+  return content.length > MAX_SCRAPED_CHARS ? content.slice(0, MAX_SCRAPED_CHARS) + '\n[Content truncated...]' : content;
+}
+
+function sanitizeError(msg: string): string {
+  return msg.replace(/([?&]key=)[^&\s]+/gi, '$1***')
+            .replace(/(apiKey=)[^&\s]+/gi, '$1***')
+            .replace(/(['"]?apiKey['"]?\s*:\s*['"])[^'"]+/gi, '$1***')
+            .replace(/('Authorization':\s*'Bearer\s+)[^']+/gi, '$1***');
+}
+
 function getEnvApiKey(provider: string): string | undefined {
-  const env = process.env as any;
   switch (provider) {
-    case 'gemini': return env.GEMINI_API_KEY;
-    case 'openai': return env.OPENAI_API_KEY;
-    case 'anthropic': return env.ANTHROPIC_API_KEY;
-    case 'groq': return env.GROQ_API_KEY;
-    case 'openrouter': return env.OPENROUTER_API_KEY;
-    case 'nvidia': return env.NVIDIA_API_KEY;
-    case 'aiml': return env.AIML_API_KEY;
+    case 'gemini': return process.env.GEMINI_API_KEY;
+    case 'openai': return process.env.OPENAI_API_KEY;
+    case 'anthropic': return process.env.ANTHROPIC_API_KEY;
+    case 'groq': return process.env.GROQ_API_KEY;
+    case 'openrouter': return process.env.OPENROUTER_API_KEY;
+    case 'nvidia': return process.env.NVIDIA_API_KEY;
+    case 'aiml': return process.env.AIML_API_KEY;
     default: return undefined;
   }
 }
@@ -172,6 +220,12 @@ function getDefaultModel(provider: string): string {
 }
 
 async function getProviderChain(db: Db, taskType: TaskType, userId?: string | null): Promise<Array<{ provider: string; apiKey: string; modelName: string }>> {
+  const cacheKey = `${userId || 'global'}:${taskType}`;
+  const cached = _providerChainCache.get(cacheKey);
+  if (cached && (Date.now() - cached.timestamp) < PROVIDER_CHAIN_CACHE_TTL_MS) {
+    return cached.chain;
+  }
+
   const integrationsService = new IntegrationsService(db);
   const allConfigs = await integrationsService.getAllProviderConfigs(userId);
 
@@ -206,33 +260,90 @@ async function getProviderChain(db: Db, taskType: TaskType, userId?: string | nu
     }
   }
 
+  if (_providerChainCache.size >= PROVIDER_CHAIN_CACHE_MAX) {
+    const oldest = _providerChainCache.entries().next().value?.[0];
+    if (oldest) _providerChainCache.delete(oldest);
+  }
+  _providerChainCache.set(cacheKey, { chain, timestamp: Date.now() });
   return chain;
 }
+
+const PROVIDER_CHAIN_TOTAL_TIMEOUT_MS = 25_000; // 25s cap across all failover attempts (CF Workers 30s CPU limit)
 
 async function callWithProviderChain<T>(
   db: Db,
   taskType: TaskType,
   userId: string | null | undefined,
-  callFn: (provider: string, apiKey: string, modelName: string) => Promise<T>,
+  callFn: (provider: string, apiKey: string, modelName: string, signal?: AbortSignal) => Promise<T>,
   onFailover?: FailoverCallback,
+  externalSignal?: AbortSignal,
 ): Promise<T> {
   const chain = await getProviderChain(db, taskType, userId);
 
   if (chain.length === 0) {
+    log.warn(`No AI provider configured for ${taskType}, returning fallback.`);
     throw new Error(`No AI provider configured for ${taskType}. Please configure a provider in Settings -> Integrations.`);
   }
 
   let lastError: Error | null = null;
 
+  const totalDeadline = Date.now() + PROVIDER_CHAIN_TOTAL_TIMEOUT_MS;
+
   for (let i = 0; i < chain.length; i++) {
+    if (Date.now() >= totalDeadline) {
+      throw lastError || new Error(`Provider chain timed out after ${PROVIDER_CHAIN_TOTAL_TIMEOUT_MS}ms for ${taskType}`);
+    }
+
+    const remainingMs = Math.max(0, totalDeadline - Date.now());
     const { provider, apiKey, modelName } = chain[i];
-    try {
-      return await callFn(provider, apiKey, modelName);
-    } catch (error: unknown) {
-      lastError = error instanceof Error ? error : new Error(String(error));
-      if (i < chain.length - 1) {
-        onFailover?.({ provider, modelName, error: lastError.message });
-        log.warn(`Provider "${provider}" (model: ${modelName}) failed for task "${taskType}". Trying next provider... Error: ${lastError.message}`);
+
+    // Build combined abort signal: fires if external signal fires OR per-attempt timeout elapses
+    const attemptController = new AbortController();
+    const onExternalAbort = () => attemptController.abort();
+    externalSignal?.addEventListener('abort', onExternalAbort, { once: true });
+    const timeoutTimer = setTimeout(() => attemptController.abort(), remainingMs);
+    const combinedSignal = attemptController.signal;
+
+    // Cleanup after attempt completes (success or fail)
+    const cleanup = () => {
+      clearTimeout(timeoutTimer);
+      externalSignal?.removeEventListener('abort', onExternalAbort);
+    };
+
+    // Try up to 2 times per provider before failing over
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const result = await callFn(provider, apiKey, modelName, combinedSignal);
+        cleanup();
+        return result;
+      } catch (error: unknown) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        const isRateLimit = lastError instanceof RateLimitError;
+
+        if (attempt < 2) {
+          const delay = isRateLimit
+            ? Math.min(1000 * Math.pow(2, attempt), 30000)
+            : Math.min(500 * Math.pow(2, i + attempt), 30000);
+          const backoffMs = Math.random() * delay;
+          if (isRateLimit) {
+            log.warn(`Provider "${provider}" rate limited. Retrying in ${Math.round(backoffMs)}ms...`);
+          } else {
+            log.warn(`Provider "${provider}" (model: ${modelName}) failed for "${taskType}". Retrying (${attempt}/2)... Error: ${sanitizeError(lastError.message)}`);
+          }
+          await new Promise<void>(resolve => setTimeout(resolve, backoffMs));
+          continue;
+        }
+
+        // Exhausted retries — fail over or bubble
+        cleanup();
+        if (i < chain.length - 1) {
+          onFailover?.({ provider, modelName, error: lastError.message });
+          log.warn(`Provider "${provider}" (model: ${modelName}) failed for task "${taskType}". Trying next provider... Error: ${sanitizeError(lastError.message)}`);
+          const delay = Math.min(500 * Math.pow(2, i), 30000);
+          const backoffMs = Math.random() * delay;
+          await new Promise<void>(resolve => setTimeout(resolve, backoffMs));
+        }
+        break;
       }
     }
   }
@@ -250,7 +361,7 @@ export async function generateResearch(
   location?: string | null,
   userId?: string | null
 ): Promise<AIResearchOutput> {
-  return callWithProviderChain(db, 'research', userId, async (provider, apiKey, modelName) => {
+  return callWithProviderChain(db, 'research', userId, async (provider, apiKey, modelName, signal) => {
     const name = companyName || leadName;
     const ind = industry || 'General Business';
     const web = websiteUrl || 'No website provided';
@@ -259,7 +370,7 @@ export async function generateResearch(
 Location Context: ${location || 'Unknown location'}
 Industry: ${ind}
 Website: ${web}
-${scrapedContent ? `\nHere is the scraped content of their website to analyze:\n--- START OF WEBSITE CONTENT ---\n${scrapedContent}\n--- END OF WEBSITE CONTENT ---\n` : ''}
+${scrapedContent ? `\nHere is the scraped content of their website to analyze:\n--- START OF WEBSITE CONTENT ---\n${truncateContent(scrapedContent)}\n--- END OF WEBSITE CONTENT ---\n` : ''}
 
 You are a senior competitive intelligence analyst at a creative/digital agency. You produce research that lets the team understand a prospective client's actual business — not their tagline — so they can have an informed conversation and identify real opportunities.
 
@@ -331,10 +442,11 @@ Provide your response strictly in JSON format matching this schema:
 
     if (provider === 'gemini') {
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+          signal: signal ?? AbortSignal.timeout(25000),
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: {
@@ -363,29 +475,33 @@ Provide your response strictly in JSON format matching this schema:
           }),
         }
       );
-      if (!response.ok) throw new Error(`Gemini API returned status ${response.status}`);
+      if (!response.ok) { await response.body?.cancel(); throw new Error(`Gemini API returned status ${response.status}`); }
       const data = (await response.json()) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
       const textResult = data.candidates?.[0]?.content?.parts?.[0]?.text;
       if (!textResult) throw new Error('Invalid response structure from Gemini API');
-      const parsed = JSON.parse(textResult);
-      return AIResearchSchema.parse(parsed);
+      let parsed;
+      try { parsed = JSON.parse(textResult); } catch (e) { throw new Error(`Failed to parse Gemini response as JSON: ${e}`); }
+      try { return AIResearchSchema.parse(parsed); } catch { return { companySummary: '', productsServicesSummary: '', digitalPresenceNotes: '', websiteNotes: '', brandingNotes: '', painPointsHypotheses: '', opportunityHypotheses: '', sources: [], confidenceLevel: 'LOW' as const }; }
     }
 
     if (provider === 'anthropic') {
       const textResult = await callAnthropic(
         prompt, apiKey, modelName,
         'You are a senior competitive intelligence analyst. Output strictly in valid JSON matching the requested schema. No markdown code blocks, no extra text.',
+        signal,
       );
-      const parsed = JSON.parse(textResult);
-      return AIResearchSchema.parse(parsed);
+      let parsed;
+      try { parsed = JSON.parse(textResult); } catch (e) { throw new Error(`Failed to parse Anthropic response as JSON: ${e}`); }
+      try { return AIResearchSchema.parse(parsed); } catch { return { companySummary: '', productsServicesSummary: '', digitalPresenceNotes: '', websiteNotes: '', brandingNotes: '', painPointsHypotheses: '', opportunityHypotheses: '', sources: [], confidenceLevel: 'LOW' as const }; }
     }
 
     // OpenAI-compatible providers (OpenRouter, NVIDIA, Groq, AIML, OpenAI)
-    let textResult = await callOpenAICompatible(
-      provider, prompt, apiKey, modelName,
-      'You are a senior competitive intelligence analyst. Output strictly in valid JSON matching the requested schema. No markdown code blocks, no extra text.',
-      RESEARCH_JSON_SCHEMA,
-    );
+      let textResult = await callOpenAICompatible(
+        provider, prompt, apiKey, modelName,
+        'You are a senior competitive intelligence analyst. Output strictly in valid JSON matching the requested schema. No markdown code blocks, no extra text.',
+        RESEARCH_JSON_SCHEMA,
+        signal,
+      );
 
     let parsed: any;
     try {
@@ -397,15 +513,16 @@ Provide your response strictly in JSON format matching this schema:
           provider, prompt, apiKey, modelName,
           'You are a senior competitive intelligence analyst. Output strictly in valid JSON matching the requested schema. No markdown code blocks, no extra text.',
           undefined, // skip strict schema on retry
+          signal,
           true,      // retryAttempt = true
         );
-        parsed = JSON.parse(textResult);
+        try { parsed = JSON.parse(textResult); } catch (e) { throw new Error(`Failed to parse NVIDIA retry response as JSON: ${e}`); }
       } else {
         throw parseError;
       }
     }
 
-    return AIResearchSchema.parse(parsed);
+    try { return AIResearchSchema.parse(parsed); } catch { return { companySummary: '', productsServicesSummary: '', digitalPresenceNotes: '', websiteNotes: '', brandingNotes: '', painPointsHypotheses: '', opportunityHypotheses: '', sources: [], confidenceLevel: 'LOW' as const }; }
   });
 }
 
@@ -492,7 +609,7 @@ export async function generateResearchAndAudit(
   location?: string | null,
   userId?: string | null
 ): Promise<AIResearchAuditOutput> {
-  return callWithProviderChain(db, 'research', userId, async (provider, apiKey, modelName) => {
+  return callWithProviderChain(db, 'research', userId, async (provider, apiKey, modelName, signal) => {
     const name = companyName || leadName;
     const ind = industry || 'General Business';
     const web = websiteUrl || 'No website provided';
@@ -501,7 +618,7 @@ export async function generateResearchAndAudit(
 Location Context: ${location || 'Unknown location'}
 Industry: ${ind}
 Website: ${web}
-${scrapedContent ? `\nHere is the scraped content of their website to analyze:\n--- START OF WEBSITE CONTENT ---\n${scrapedContent}\n--- END OF WEBSITE CONTENT ---\n` : ''}
+${scrapedContent ? `\nHere is the scraped content of their website to analyze:\n--- START OF WEBSITE CONTENT ---\n${truncateContent(scrapedContent)}\n--- END OF WEBSITE CONTENT ---\n` : ''}
 
 You are a senior design auditor and competitive intelligence analyst at a creative/digital agency. You will evaluate their company's core business AND perform a digital presence, website, and branding audit.
 
@@ -553,11 +670,11 @@ Provide your response strictly in JSON format matching this schema:
 
     if (provider === 'gemini') {
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          signal: AbortSignal.timeout(60000),
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+          signal: signal ?? AbortSignal.timeout(25000),
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: {
@@ -621,65 +738,37 @@ Provide your response strictly in JSON format matching this schema:
           }),
         }
       );
-      if (!response.ok) throw new Error(`Gemini API returned status ${response.status}`);
+      if (!response.ok) { await response.body?.cancel(); throw new Error(`Gemini API returned status ${response.status}`); }
       const data = (await response.json()) as any;
       const textResult = data.candidates?.[0]?.content?.parts?.[0]?.text;
       if (!textResult) throw new Error('Invalid response structure from Gemini API');
-      const parsed = JSON.parse(textResult);
-      return AIResearchAuditSchema.parse(parsed);
+      let parsed;
+      try { parsed = JSON.parse(textResult); } catch (e) { throw new Error(`Failed to parse Gemini response as JSON: ${e}`); }
+      try { return AIResearchAuditSchema.parse(parsed); } catch { return { companySummary: '', productsServicesSummary: '', digitalPresenceNotes: '', websiteNotes: '', brandingNotes: '', painPointsHypotheses: '', opportunityHypotheses: '', confidenceLevel: 'LOW' as const, keyStrengths: '', keyWeaknesses: '', recommendedImprovements: '', sources: [] }; }
     }
 
     if (provider === 'anthropic') {
       const textResult = await callAnthropic(
         prompt, apiKey, modelName,
         'You are a senior competitive intelligence analyst and UX/design auditor. Output strictly in valid JSON matching the requested schema.',
+        signal,
       );
-      const parsed = JSON.parse(textResult);
-      return AIResearchAuditSchema.parse(parsed);
+      let parsed;
+      try { parsed = JSON.parse(textResult); } catch (e) { throw new Error(`Failed to parse Anthropic response as JSON: ${e}`); }
+      try { return AIResearchAuditSchema.parse(parsed); } catch { return { companySummary: '', productsServicesSummary: '', digitalPresenceNotes: '', websiteNotes: '', brandingNotes: '', painPointsHypotheses: '', opportunityHypotheses: '', confidenceLevel: 'LOW' as const, keyStrengths: '', keyWeaknesses: '', recommendedImprovements: '', sources: [] }; }
     }
 
     // OpenAI-compatible providers
     const textResult = await callOpenAICompatible(
-      provider, prompt, apiKey, modelName,
-      'You are a senior competitive intelligence analyst and UX/design auditor. Output strictly in valid JSON matching the requested schema.',
-      RESEARCH_AUDIT_JSON_SCHEMA,
-    );
-    const parsed = JSON.parse(textResult);
-    return AIResearchAuditSchema.parse(parsed);
+        provider, prompt, apiKey, modelName,
+        'You are a senior competitive intelligence analyst and UX/design auditor. Output strictly in valid JSON matching the requested schema.',
+        RESEARCH_AUDIT_JSON_SCHEMA,
+        signal,
+      );
+    let parsed;
+    try { parsed = JSON.parse(textResult); } catch (e) { throw new Error(`Failed to parse OpenAI-compatible response as JSON: ${e}`); }
+    try { return AIResearchAuditSchema.parse(parsed); } catch { return { companySummary: '', productsServicesSummary: '', digitalPresenceNotes: '', websiteNotes: '', brandingNotes: '', painPointsHypotheses: '', opportunityHypotheses: '', confidenceLevel: 'LOW' as const, keyStrengths: '', keyWeaknesses: '', recommendedImprovements: '', sources: [] }; }
   });
-}
-
-function generateMockResearchAndAudit(
-  leadName: string,
-  companyName: string | null,
-  websiteUrl: string | null,
-  industry: string | null
-): AIResearchAuditOutput {
-  const name = companyName || leadName;
-  const web = websiteUrl || '';
-  const ind = (industry || 'General Business').toLowerCase();
-  const mockWeb = web || `https://${name.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`;
-
-  return {
-    companySummary: `${name} is an established company in the ${ind} industry.`,
-    productsServicesSummary: `Offers specialized services/products tailored to their customer base.`,
-    digitalPresenceNotes: `Limited social media activity with minimal detectable online footprint.`,
-    websiteNotes: `Website is functional but uses standard templates with room for UX and performance improvement.`,
-    brandingNotes: `Branding appears functional but lacks a cohesive visual identity system.`,
-    painPointsHypotheses: `- Digital presence is underutilized for lead generation\n- Website may not reflect current brand positioning`,
-    opportunityHypotheses: `- Modernize website with responsive design and clear CTAs\n- Refresh brand identity for consistency across channels`,
-    confidenceLevel: 'LOW',
-    keyStrengths: `- Clean baseline layout with core sections\n- Contact information is visible on the page`,
-    keyWeaknesses: `- Lacks modern mobile-responsive grid layout\n- Outdated typography and default browser styling`,
-    recommendedImprovements: `- Redesign with responsive grid system\n- Apply cohesive visual style guide\n- Simplify contact/booking flow`,
-    sources: [mockWeb].filter(Boolean),
-    contacts: {
-      people: [],
-      socialLinks: {},
-      emails: [],
-      phones: [],
-    },
-  };
 }
 
 const AUDIT_JSON_SCHEMA = {
@@ -718,6 +807,7 @@ async function callOpenAICompatible(
   modelName: string,
   systemMessage: string,
   strictSchema?: object,
+  signal?: AbortSignal,
   retryAttempt?: boolean,
 ): Promise<string> {
   const url = OPENAI_URLS[provider];
@@ -733,7 +823,7 @@ async function callOpenAICompatible(
     const res = await fetch(url, {
       method: 'POST',
       headers,
-      signal: AbortSignal.timeout(60000),
+      signal: signal ?? AbortSignal.timeout(25000),
       body: JSON.stringify({
         model: modelName,
         messages: [
@@ -741,7 +831,7 @@ async function callOpenAICompatible(
           { role: 'user', content: prompt },
         ],
         temperature: 0.2,
-        max_tokens: 4096,
+        max_tokens: 8192,
         response_format: format,
       }),
     });
@@ -751,7 +841,7 @@ async function callOpenAICompatible(
   let response: Response;
 
   if (provider === 'nvidia' && strictSchema && !retryAttempt) {
-    // NVIDIA: try strict json_schema first
+    // NVIDIA: try strict json_schema first (transient — retries each call)
     response = await makeRequest({
       type: 'json_schema',
       json_schema: { name: 'ai_response', schema: strictSchema, strict: true },
@@ -759,6 +849,7 @@ async function callOpenAICompatible(
 
     if (!response.ok && (response.status === 400 || response.status === 422)) {
       log.warn(`NVIDIA strict schema failed (${response.status}), falling back to json_object`);
+      await response.body?.cancel();
       response = await makeRequest({ type: 'json_object' });
     }
   } else {
@@ -766,6 +857,10 @@ async function callOpenAICompatible(
   }
 
   if (!response.ok) {
+    await response.body?.cancel();
+    if (response.status === 429) {
+      throw new RateLimitError(`${provider} API rate limited (429)`);
+    }
     throw new Error(`${provider} API returned status ${response.status}`);
   }
 
@@ -790,10 +885,11 @@ async function callAnthropic(
   apiKey: string,
   modelName: string,
   systemMessage: string,
+  signal?: AbortSignal,
 ): Promise<string> {
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
-    signal: AbortSignal.timeout(60000),
+    signal: signal ?? AbortSignal.timeout(25000),
     headers: {
       'Content-Type': 'application/json',
       'x-api-key': apiKey,
@@ -809,6 +905,10 @@ async function callAnthropic(
   });
 
   if (!response.ok) {
+    await response.body?.cancel();
+    if (response.status === 429) {
+      throw new RateLimitError(`Anthropic API rate limited (429)`);
+    }
     throw new Error(`Anthropic API returned status ${response.status}`);
   }
 
@@ -822,31 +922,6 @@ async function callAnthropic(
 
   return text;
 }
-
-function generateMockResearch(
-  leadName: string,
-  companyName: string | null,
-  websiteUrl: string | null,
-  industry: string | null
-): AIResearchOutput {
-  const name = companyName || leadName;
-  const web = websiteUrl || '';
-  const ind = (industry || 'General Business').toLowerCase();
-
-  return {
-    companySummary: `${name} is an established company in the ${ind} industry.`,
-    productsServicesSummary: `Offers specialized services/products tailored to their customer base.`,
-    digitalPresenceNotes: `Limited social media activity with minimal detectable online footprint.`,
-    websiteNotes: `Website is functional but uses standard templates with room for UX and performance improvement.`,
-    brandingNotes: `Branding appears functional but lacks a cohesive visual identity system.`,
-    painPointsHypotheses: `- Digital presence is underutilized for lead generation\n- Website may not reflect current brand positioning`,
-    opportunityHypotheses: `- Modernize website with responsive design and clear CTAs\n- Refresh brand identity for consistency across channels`,
-    sources: [web || `https://${name.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`].filter(Boolean),
-    confidenceLevel: 'LOW',
-  };
-}
-
-
 
 export async function generateAudit(
   db: Db,
@@ -864,8 +939,6 @@ export async function generateAudit(
   let hasResearchSnapshot = false;
   if (leadId) {
     try {
-      const { researchSnapshots } = await import('../db/schema/research');
-      const { eq, desc } = await import('drizzle-orm');
       
       const [snapshot] = await db.select()
         .from(researchSnapshots)
@@ -894,7 +967,7 @@ export async function generateAudit(
 
   // Defensively strip any accidental scrape-failure strings before sending to the LLM.
   const cleanedScrapedContent = (scrapedContent && !scrapedContent.startsWith('[Failed to scrape'))
-    ? scrapedContent
+    ? truncateContent(scrapedContent)
     : null;
 
   // Build the context block depending on what data is available.
@@ -924,7 +997,7 @@ ${researchSnapshotContext}
 --- END OF RESEARCH OBSERVATIONS ---`;
   }
 
-  return callWithProviderChain(db, 'scoring', userId, async (provider, apiKey, modelName) => {
+  return callWithProviderChain(db, 'scoring', userId, async (provider, apiKey, modelName, signal) => {
     const prompt = `Perform a comprehensive digital presence, website, and branding audit on the company "${name}".
 Industry: ${ind}
 Website: ${web}
@@ -985,10 +1058,11 @@ Provide your response strictly in JSON format matching this schema:
 
     if (provider === 'gemini') {
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+          signal: signal ?? AbortSignal.timeout(25000),
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: {
@@ -1016,9 +1090,11 @@ Provide your response strictly in JSON format matching this schema:
       if (response.ok) {
         const data = (await response.json()) as any;
         const textResult = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-        const parsed = JSON.parse(textResult);
-        return AIAuditSchema.parse(parsed);
+        let parsed;
+        try { parsed = JSON.parse(textResult); } catch (e) { throw new Error(`Failed to parse Gemini response as JSON: ${e}`); }
+        try { return AIAuditSchema.parse(parsed); } catch { return { keyStrengths: '', keyWeaknesses: '', recommendedImprovements: '', sources: [] }; }
       } else {
+        await response.body?.cancel();
         throw new Error(`Gemini API returned status ${response.status}`);
       }
     }
@@ -1027,34 +1103,23 @@ Provide your response strictly in JSON format matching this schema:
       const textResult = await callAnthropic(
         prompt, apiKey, modelName,
         'You are a senior design and UX auditor. Output strictly in valid JSON matching the requested schema.',
+        signal,
       );
-      const parsed = JSON.parse(textResult);
-      return AIAuditSchema.parse(parsed);
+      let parsed;
+      try { parsed = JSON.parse(textResult); } catch (e) { throw new Error(`Failed to parse Anthropic response as JSON: ${e}`); }
+      try { return AIAuditSchema.parse(parsed); } catch { return { keyStrengths: '', keyWeaknesses: '', recommendedImprovements: '', sources: [] }; }
     }
 
     const textResult = await callOpenAICompatible(
-      provider, prompt, apiKey, modelName,
-      'You are a senior design and UX auditor. Output strictly in valid JSON matching the requested schema.',
-      AUDIT_JSON_SCHEMA,
-    );
-    const parsed = JSON.parse(textResult);
-    return AIAuditSchema.parse(parsed);
+        provider, prompt, apiKey, modelName,
+        'You are a senior design and UX auditor. Output strictly in valid JSON matching the requested schema.',
+        AUDIT_JSON_SCHEMA,
+        signal,
+      );
+    let parsed;
+    try { parsed = JSON.parse(textResult); } catch (e) { throw new Error(`Failed to parse OpenAI-compatible response as JSON: ${e}`); }
+    try { return AIAuditSchema.parse(parsed); } catch { return { keyStrengths: '', keyWeaknesses: '', recommendedImprovements: '', sources: [] }; }
   });
-}
-
-function generateMockAudit(
-  leadName: string,
-  companyName: string | null,
-  websiteUrl: string | null,
-  industry: string | null
-): AIAuditOutput {
-  const name = companyName || leadName;
-  return {
-    keyStrengths: `- Clean baseline layout with core sections\n- Contact information is visible on the page`,
-    keyWeaknesses: `- Lacks modern mobile-responsive grid layout\n- Outdated typography and default browser styling`,
-    recommendedImprovements: `- Redesign with responsive grid system\n- Apply cohesive visual style guide\n- Simplify contact/booking flow`,
-    sources: websiteUrl ? [websiteUrl] : [`https://${name.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`],
-  };
 }
 
 export async function generateOutreachDraft(
@@ -1074,7 +1139,7 @@ export async function generateOutreachDraft(
   onFailover?: FailoverCallback,
   userId?: string | null
 ): Promise<AIOutreachDraftOutput> {
-  return callWithProviderChain(db, 'drafting', userId, async (provider, apiKey, modelName) => {
+  return callWithProviderChain(db, 'drafting', userId, async (provider, apiKey, modelName, signal) => {
     const name = companyName || leadName;
     const ind = industry || 'General Business';
     const web = websiteUrl || 'No website provided';
@@ -1159,10 +1224,11 @@ Provide your response strictly in JSON format. The response must match the follo
       }
 
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+          signal: signal ?? AbortSignal.timeout(25000),
           body: JSON.stringify({
             contents: [{ parts }],
             generationConfig: {
@@ -1214,8 +1280,11 @@ Provide your response strictly in JSON format. The response must match the follo
           : textResultTrimmed.startsWith('```')
             ? textResultTrimmed.replace(/^```\n/, '').replace(/\n```$/, '')
             : textResultTrimmed;
-        return AIOutreachDraftSchema.parse(JSON.parse(cleaned));
+        let parsedCleaned;
+        try { parsedCleaned = JSON.parse(cleaned); } catch (e) { throw new Error(`Failed to parse Gemini response as JSON: ${e}`); }
+        try { return AIOutreachDraftSchema.parse(parsedCleaned); } catch { return { drafts: [{ body: '' }] }; }
       } else {
+        await response.body?.cancel();
         throw new Error(`Gemini API returned status ${response.status}`);
       }
     }
@@ -1224,11 +1293,14 @@ Provide your response strictly in JSON format. The response must match the follo
       let textResult = await callAnthropic(
         prompt, apiKey, modelName,
         'You are a senior creative director drafting agency outreach. Output strictly in valid JSON matching the requested schema.',
+        signal,
       );
       textResult = textResult.trim();
       if (textResult.startsWith('```json')) textResult = textResult.replace(/^```json\n/, '').replace(/\n```$/, '');
       else if (textResult.startsWith('```')) textResult = textResult.replace(/^```\n/, '').replace(/\n```$/, '');
-      return AIOutreachDraftSchema.parse(JSON.parse(textResult));
+      let parsedAnthropic;
+      try { parsedAnthropic = JSON.parse(textResult); } catch (e) { throw new Error(`Failed to parse Anthropic response as JSON: ${e}`); }
+      try { return AIOutreachDraftSchema.parse(parsedAnthropic); } catch { return { drafts: [{ body: '' }] }; }
     }
 
     const url = 
@@ -1261,6 +1333,7 @@ Provide your response strictly in JSON format. The response must match the follo
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`,
       },
+      signal: signal ?? AbortSignal.timeout(25000),
       body: JSON.stringify({
         model: modelName,
         messages: [
@@ -1278,8 +1351,11 @@ Provide your response strictly in JSON format. The response must match the follo
       textResult = textResult.trim();
       if (textResult.startsWith('```json')) textResult = textResult.replace(/^```json\n/, '').replace(/\n```$/, '');
       else if (textResult.startsWith('```')) textResult = textResult.replace(/^```\n/, '').replace(/\n```$/, '');
-      return AIOutreachDraftSchema.parse(JSON.parse(textResult));
+      let parsedOpenAI;
+      try { parsedOpenAI = JSON.parse(textResult); } catch (e) { throw new Error(`Failed to parse ${provider} response as JSON: ${e}`); }
+      try { return AIOutreachDraftSchema.parse(parsedOpenAI); } catch { return { drafts: [{ body: '' }] }; }
     } else {
+      await response.body?.cancel();
       throw new Error(`${provider} API returned status ${response.status}`);
     }
   }, onFailover);
@@ -1291,6 +1367,7 @@ export async function checkModelVisionCapability(provider: string, modelName: st
   if (cached && (Date.now() - cached.timestamp) < VISION_CACHE_TTL_MS) {
     return cached.result;
   }
+  evictStaleVisionCacheEntries();
 
   const p = provider.toLowerCase();
   const m = modelName.toLowerCase();
@@ -1305,6 +1382,7 @@ export async function checkModelVisionCapability(provider: string, modelName: st
   if (p === 'openrouter') {
     try {
       const response = await fetch('https://openrouter.ai/api/v1/models', {
+        signal: AbortSignal.timeout(10000),
         headers: {
           'HTTP-Referer': 'https://github.com/googlemind/leadroom',
           'X-Title': 'Leadroom',
@@ -1328,7 +1406,7 @@ export async function checkModelVisionCapability(provider: string, modelName: st
   if (p === 'gemini') {
     try {
       const formattedModel = modelName.startsWith('models/') ? modelName : `models/${modelName}`;
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${formattedModel}?key=${apiKey}`);
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${formattedModel}`, { headers: { 'x-goog-api-key': apiKey }, signal: AbortSignal.timeout(10000) });
       if (response.ok) {
         const data = (await response.json()) as any;
         const result = data.name?.includes('gemini') && !data.name?.includes('embedding');
@@ -1344,6 +1422,7 @@ export async function checkModelVisionCapability(provider: string, modelName: st
   if (p === 'openai') {
     try {
       const response = await fetch('https://api.openai.com/v1/models', {
+        signal: AbortSignal.timeout(10000),
         headers: { 'Authorization': `Bearer ${apiKey}` }
       });
       if (response.ok) {
@@ -1368,6 +1447,7 @@ export async function checkModelVisionCapability(provider: string, modelName: st
                   p === 'nvidia' ? 'https://integrate.api.nvidia.com/v1/models' :
                   'https://api.aimlapi.com/v1/models';
       const response = await fetch(url, {
+        signal: AbortSignal.timeout(10000),
         headers: {
           'Authorization': `Bearer ${apiKey}`
         }
@@ -1422,14 +1502,14 @@ export async function generateContactExtraction(
   userId?: string | null
 ): Promise<AIContactExtractionOutput> {
   try {
-    return await callWithProviderChain(db, 'research', userId, async (provider, apiKey, modelName) => {
+    return await callWithProviderChain(db, 'research', userId, async (provider, apiKey, modelName, signal) => {
       const name = companyName || leadName;
 
       const prompt = `Extract contact information from the website of "${name}".
 
 Here is the scraped content of their website:
 --- START OF WEBSITE CONTENT ---
-${scrapedContent || 'No website content available.'}
+${truncateContent(scrapedContent) || 'No website content available.'}
 --- END OF WEBSITE CONTENT ---
 
 You are a research assistant extracting contact details from a business website. Extract any contact information you can find.
@@ -1448,10 +1528,11 @@ Rules:
 
       if (provider === 'gemini') {
         const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`,
           {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+            signal: signal ?? AbortSignal.timeout(25000),
             body: JSON.stringify({
               contents: [{ parts: [{ text: prompt }] }],
               generationConfig: {
@@ -1492,21 +1573,24 @@ Rules:
             }),
           }
         );
-        if (!response.ok) throw new Error(`Gemini API returned status ${response.status}`);
+        if (!response.ok) { await response.body?.cancel(); throw new Error(`Gemini API returned status ${response.status}`); }
         const data = (await response.json()) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
         const textResult = data.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!textResult) throw new Error('Invalid response structure from Gemini API');
-        const parsed = JSON.parse(textResult);
-        return AIContactExtractionSchema.parse(parsed);
+        let parsed;
+        try { parsed = JSON.parse(textResult); } catch (e) { throw new Error(`Failed to parse Gemini response as JSON: ${e}`); }
+        try { return AIContactExtractionSchema.parse(parsed); } catch { return { people: null, socialLinks: null, emails: null, phones: null }; }
       }
 
       if (provider === 'anthropic') {
         const textResult = await callAnthropic(
           prompt, apiKey, modelName,
           'Extract contact information from business website content. Output strictly in valid JSON.',
+          signal,
         );
-        const parsed = JSON.parse(textResult);
-        return AIContactExtractionSchema.parse(parsed);
+        let parsed;
+        try { parsed = JSON.parse(textResult); } catch (e) { throw new Error(`Failed to parse Anthropic response as JSON: ${e}`); }
+        try { return AIContactExtractionSchema.parse(parsed); } catch { return { people: null, socialLinks: null, emails: null, phones: null }; }
       }
 
       // OpenAI-compatible providers
@@ -1524,6 +1608,7 @@ Rules:
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiKey}`,
         },
+        signal: signal ?? AbortSignal.timeout(25000),
         body: JSON.stringify({
           model: modelName,
           messages: [
@@ -1535,65 +1620,25 @@ Rules:
         }),
       });
 
-      if (!response.ok) throw new Error(`${provider} API returned status ${response.status}`);
+      if (!response.ok) { await response.body?.cancel(); throw new Error(`${provider} API returned status ${response.status}`); }
       const result = (await response.json()) as any;
       let textResult = result.choices?.[0]?.message?.content;
       if (!textResult) throw new Error('Invalid response structure');
 
       textResult = textResult.trim().replace(/^```json?\n?/, '').replace(/\n```$/, '');
-      const parsed = JSON.parse(textResult);
-      return AIContactExtractionSchema.parse(parsed);
+      let parsed;
+      try { parsed = JSON.parse(textResult); } catch (e) { throw new Error(`Failed to parse ${provider} response as JSON: ${e}`); }
+      try { return AIContactExtractionSchema.parse(parsed); } catch { return { people: null, socialLinks: null, emails: null, phones: null }; }
     });
-  } catch {
+  } catch (e) {
+    log.error('Contact extraction failed, returning empty', e);
     return { people: null, socialLinks: null, emails: null, phones: null };
-  }
-}
-
-export function generateMockOutreachDraft(
-  leadName: string,
-  companyName: string | null,
-  websiteUrl: string | null,
-  industry: string | null,
-  channel: 'EMAIL' | 'LINKEDIN' | 'CALL' | 'MEETING',
-  contactsList: any[],
-  researchSnapshot: any | null,
-  auditSnapshot: any | null
-): AIOutreachDraftOutput {
-  const name = companyName || leadName;
-  const primaryContact = contactsList.find(c => c.isPrimary) || contactsList[0];
-  const contactName = primaryContact ? primaryContact.name : 'there';
-  const fallbackPrefix = '[Fallback — AI not configured. Edit before using.]\n\n';
-
-  if (channel === 'EMAIL') {
-    return { drafts: [{
-      subject: `Question about ${name}'s digital presence`,
-      body: `${fallbackPrefix}Hi ${contactName},\n\nI was looking at ${name}'s website and noticed opportunities to improve the brand presence and user flow. Happy to share a few specific thoughts if you're open to it.\n\nBest,\n[Your Name]`,
-      variationTone: 'Direct',
-    }]};
-  } else if (channel === 'LINKEDIN') {
-    return { drafts: [{
-      subject: null,
-      body: `${fallbackPrefix}Hi ${contactName}, I came across ${name} and noticed some opportunities on the website that could improve conversions. Would love to connect and share a quick thought.`,
-      variationTone: 'Conversational',
-    }]};
-  } else if (channel === 'CALL') {
-    return { drafts: [{
-      subject: null,
-      body: `${fallbackPrefix}CALL PREP FOR ${name.toUpperCase()}\n\nContact: ${contactName} (${primaryContact?.role || 'Stakeholder'})\n\nOpening:\n"Hi ${contactName}, I was reviewing ${name}'s digital presence and noticed a few opportunities I'd like to share."\n\nQuestions:\n- How are you currently handling website updates?\n- What's the biggest challenge with your current site?\n- What would success look like for a redesign?\n\nGoal: Schedule a discovery call.`,
-      variationTone: 'Direct',
-    }]};
-  } else {
-    return { drafts: [{
-      subject: null,
-      body: `${fallbackPrefix}MEETING PREP GUIDE FOR ${name.toUpperCase()}\n\nAttendee: ${contactName} (${primaryContact?.role || 'Decision Maker'})\n\nAgenda:\n1. Introductions and context\n2. ${name}'s current digital presence review\n3. Key opportunities identified\n4. Next steps\n\nQuestions:\n- What are your main conversion challenges?\n- How does your brand identity align with future goals?\n- What digital improvements would have the biggest impact?`,
-      variationTone: 'Direct',
-    }]};
   }
 }
 
 export const AILeadScoreSchema = z.object({
   score: z.number().int().min(0).max(100),
-  rationaleSummary: z.string(),
+  rationaleSummary: z.string().min(1),
   factors: z.array(z.string()),
 });
 
@@ -1606,15 +1651,15 @@ export async function generateLeadScore(
   auditSnapshot: any | null,
   userId?: string | null
 ): Promise<AILeadScoreOutput> {
-  return callWithProviderChain(db, 'scoring', userId, async (provider, apiKey, modelName) => {
+  return callWithProviderChain(db, 'scoring', userId, async (provider, apiKey, modelName, signal) => {
     const prompt = `Evaluate the following lead and assign a priority score from 0 to 100.
 Lead Name: ${leadName}
 
 --- RESEARCH SNAPSHOT ---
-${JSON.stringify(researchSnapshot || {}, null, 2)}
+${JSON.stringify(researchSnapshot || {})}
 
 --- DESIGN AUDIT ---
-${JSON.stringify(auditSnapshot || {}, null, 2)}
+${JSON.stringify(auditSnapshot || {})}
 
 You are evaluating how good of an opportunity this lead is for a creative/digital agency.
 Score Criteria:
@@ -1635,23 +1680,13 @@ Provide your response strictly in JSON format matching this schema:
   "factors": ["Factor 1", "Factor 2"]
 }`;
 
-    const SCORE_JSON_SCHEMA = {
-      type: 'object',
-      properties: {
-        score: { type: 'integer' },
-        rationaleSummary: { type: 'string' },
-        factors: { type: 'array', items: { type: 'string' } }
-      },
-      required: ['score', 'rationaleSummary', 'factors'],
-      additionalProperties: false,
-    };
-
     if (provider === 'gemini') {
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+          signal: signal ?? AbortSignal.timeout(25000),
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: {
@@ -1673,8 +1708,11 @@ Provide your response strictly in JSON format matching this schema:
       if (response.ok) {
         const data = await response.json() as any;
         const textResult = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-        return AILeadScoreSchema.parse(JSON.parse(textResult));
+        let parsed;
+        try { parsed = JSON.parse(textResult); } catch (e) { throw new Error(`Failed to parse Gemini response as JSON: ${e}`); }
+        try { return AILeadScoreSchema.parse(parsed); } catch { return { score: 0, rationaleSummary: '', factors: [] }; }
       } else {
+        await response.body?.cancel();
         throw new Error(`Gemini API returned status ${response.status}`);
       }
     }
@@ -1683,26 +1721,43 @@ Provide your response strictly in JSON format matching this schema:
       const textResult = await callAnthropic(
         prompt, apiKey, modelName,
         'You are a lead scoring evaluator. Output strictly valid JSON.',
+        signal,
       );
-      return AILeadScoreSchema.parse(JSON.parse(textResult));
+      let parsed;
+      try { parsed = JSON.parse(textResult); } catch (e) { throw new Error(`Failed to parse Anthropic response as JSON: ${e}`); }
+      try { return AILeadScoreSchema.parse(parsed); } catch { return { score: 0, rationaleSummary: '', factors: [] }; }
     }
 
     const textResult = await callOpenAICompatible(
-      provider, prompt, apiKey, modelName,
-      'You are a lead scoring evaluator. Output strictly valid JSON.',
-      SCORE_JSON_SCHEMA
-    );
-    return AILeadScoreSchema.parse(JSON.parse(textResult));
+        provider, prompt, apiKey, modelName,
+        'You are a lead scoring evaluator. Output strictly valid JSON.',
+        SCORE_JSON_SCHEMA,
+        signal,
+      );
+    let parsed;
+    try { parsed = JSON.parse(textResult); } catch (e) { throw new Error(`Failed to parse OpenAI-compatible response as JSON: ${e}`); }
+    try { return AILeadScoreSchema.parse(parsed); } catch { return { score: 0, rationaleSummary: '', factors: [] }; }
   });
 }
 
+const SCORE_JSON_SCHEMA = {
+  type: 'object',
+  properties: {
+    score: { type: 'integer' },
+    rationaleSummary: { type: 'string' },
+    factors: { type: 'array', items: { type: 'string' } }
+  },
+  required: ['score', 'rationaleSummary', 'factors'],
+  additionalProperties: false,
+};
+
 export const AIExtractedSignalsSchema = z.object({
   signals: z.array(z.object({
-    signalName: z.string(),
-    matchedIcpRule: z.string(),
+    signalName: z.string().min(1),
+    matchedIcpRule: z.string().min(1),
     matchStrength: z.enum(['strong', 'partial', 'weak']),
-    evidenceQuote: z.string(),
-    sourceUrl: z.string(),
+    evidenceQuote: z.string().min(1),
+    sourceUrl: z.string().url(),
   }))
 });
 
@@ -1742,7 +1797,7 @@ ${disqualifiersText || 'None defined'}
 
 Here is the scraped content of their website:
 --- START OF WEBSITE CONTENT ---
-${scrapedContent || '[No content scraped]'}
+${truncateContent(scrapedContent) || '[No content scraped]'}
 --- END OF WEBSITE CONTENT ---
 
 For each matched criteria (positive signal, negative signal, or disqualifier):
@@ -1787,13 +1842,14 @@ Provide your response strictly in JSON format matching this schema:
   };
 
   try {
-    return await callWithProviderChain(db, 'research', userId, async (provider, apiKey, modelName) => {
+    return await callWithProviderChain(db, 'research', userId, async (provider, apiKey, modelName, signal) => {
       if (provider === 'gemini') {
         const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`,
           {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+            signal: signal ?? AbortSignal.timeout(25000),
             body: JSON.stringify({
               contents: [{ parts: [{ text: prompt }] }],
               generationConfig: {
@@ -1823,21 +1879,24 @@ Provide your response strictly in JSON format matching this schema:
             }),
           }
         );
-        if (!response.ok) throw new Error(`Gemini API returned status ${response.status}`);
+        if (!response.ok) { await response.body?.cancel(); throw new Error(`Gemini API returned status ${response.status}`); }
         const data = (await response.json()) as any;
         const textResult = data.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!textResult) throw new Error('Invalid response structure from Gemini API');
-        const parsed = JSON.parse(textResult);
-        return AIExtractedSignalsSchema.parse(parsed).signals;
+        let parsed;
+        try { parsed = JSON.parse(textResult); } catch (e) { throw new Error(`Failed to parse Gemini response as JSON: ${e}`); }
+        try { return AIExtractedSignalsSchema.parse(parsed).signals; } catch { return []; }
       }
 
       if (provider === 'anthropic') {
         const textResult = await callAnthropic(
           prompt, apiKey, modelName,
           'You are a competitive intelligence analyst. Output strictly in valid JSON matching the requested schema.',
+          signal,
         );
-        const parsed = JSON.parse(textResult);
-        return AIExtractedSignalsSchema.parse(parsed).signals;
+        let parsed;
+        try { parsed = JSON.parse(textResult); } catch (e) { throw new Error(`Failed to parse Anthropic response as JSON: ${e}`); }
+        try { return AIExtractedSignalsSchema.parse(parsed).signals; } catch { return []; }
       }
 
       // OpenAI-compatible providers
@@ -1845,9 +1904,11 @@ Provide your response strictly in JSON format matching this schema:
         provider, prompt, apiKey, modelName,
         'You are a competitive intelligence analyst. Output strictly in valid JSON matching the requested schema.',
         schemaJson,
+        signal,
       );
-      const parsed = JSON.parse(textResult);
-      return AIExtractedSignalsSchema.parse(parsed).signals;
+      let parsed;
+      try { parsed = JSON.parse(textResult); } catch (e) { throw new Error(`Failed to parse OpenAI-compatible response as JSON: ${e}`); }
+      try { return AIExtractedSignalsSchema.parse(parsed).signals; } catch { return []; }
     });
   } catch (err) {
     log.error('Failed to run AI signal extraction, falling back to empty', err);
@@ -1857,23 +1918,23 @@ Provide your response strictly in JSON format matching this schema:
 
 export const AIGeneratedStrategySchema = z.object({
   offer: z.object({
-    name: z.string(),
-    targetPain: z.string(),
-    desiredOutcome: z.string(),
+    name: z.string().min(1),
+    targetPain: z.string().min(1),
+    desiredOutcome: z.string().min(1),
     proofPoints: z.array(z.string()),
     forbiddenClaims: z.array(z.string()),
   }),
   icp: z.object({
-    name: z.string(),
+    name: z.string().min(1),
     positiveSignals: z.array(z.object({
-      name: z.string(),
+      name: z.string().min(1),
       weight: z.number().int().min(1).max(10),
-      description: z.string(),
+      description: z.string().min(1),
     })),
     negativeSignals: z.array(z.object({
-      name: z.string(),
+      name: z.string().min(1),
       weight: z.number().int().min(1).max(10),
-      description: z.string(),
+      description: z.string().min(1),
     })),
     disqualifiers: z.array(z.string()),
   })
@@ -1942,12 +2003,12 @@ export async function generateSDRWebsiteAnalysis(
     return fallback;
   }
 
-  return callWithProviderChain(db, 'research', userId, async (provider, apiKey, modelName) => {
+  return callWithProviderChain(db, 'research', userId, async (provider, apiKey, modelName, signal) => {
     const prompt = `Analyze the company "${companyName}" based on the scraped content from their website (${web}).
 
 Here is the scraped content:
 --- START OF WEBSITE CONTENT ---
-${scrapedContent}
+${truncateContent(scrapedContent)}
 --- END OF WEBSITE CONTENT ---
 
 Extract the following structured information:
@@ -2021,10 +2082,11 @@ Provide your response strictly in JSON format matching this schema:
 
     if (provider === 'gemini') {
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+          signal: signal ?? AbortSignal.timeout(25000),
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: {
@@ -2035,27 +2097,35 @@ Provide your response strictly in JSON format matching this schema:
           }),
         }
       );
-      if (!response.ok) throw new Error(`Gemini API returned status ${response.status}`);
+      if (!response.ok) { await response.body?.cancel(); throw new Error(`Gemini API returned status ${response.status}`); }
       const data = (await response.json()) as any;
       const textResult = data.candidates?.[0]?.content?.parts?.[0]?.text;
       if (!textResult) throw new Error('Invalid response structure from Gemini API');
-      return SDRWebsiteAnalysisSchema.parse(JSON.parse(textResult));
+      let parsed;
+      try { parsed = JSON.parse(textResult); } catch { return fallback; }
+      try { return SDRWebsiteAnalysisSchema.parse(parsed); } catch { return fallback; }
     }
 
     if (provider === 'anthropic') {
       const textResult = await callAnthropic(
         prompt, apiKey, modelName,
         'You are a senior market research analyst. Output strictly in valid JSON matching the requested schema.',
+        signal,
       );
-      return SDRWebsiteAnalysisSchema.parse(JSON.parse(textResult));
+      let parsed;
+      try { parsed = JSON.parse(textResult); } catch { return fallback; }
+      try { return SDRWebsiteAnalysisSchema.parse(parsed); } catch { return fallback; }
     }
 
     const textResult = await callOpenAICompatible(
-      provider, prompt, apiKey, modelName,
-      'You are a senior market research analyst. Output strictly in valid JSON matching the requested schema.',
-      openAiSchema,
-    );
-    return SDRWebsiteAnalysisSchema.parse(JSON.parse(textResult));
+        provider, prompt, apiKey, modelName,
+        'You are a senior market research analyst. Output strictly in valid JSON matching the requested schema.',
+        openAiSchema,
+        signal,
+      );
+      let parsed;
+      try { parsed = JSON.parse(textResult); } catch { return fallback; }
+      try { return SDRWebsiteAnalysisSchema.parse(parsed); } catch { return fallback; }
   });
 }
 
@@ -2072,8 +2142,9 @@ export async function generateSDRICPFit(
   const disqText = (icpProfile.disqualifiers || []).map(d => `- "${d}"`).join('\n');
 
   const web = websiteUrl || 'Unknown';
+  const icpFallback: SDRICPFitOutput = { matchedPositiveSignals: [], matchedNegativeSignals: [], disqualifiersTriggered: [], overallAssessment: '', confidence: 0 };
 
-  return callWithProviderChain(db, 'research', userId, async (provider, apiKey, modelName) => {
+  return callWithProviderChain(db, 'research', userId, async (provider, apiKey, modelName, signal) => {
     const prompt = `Evaluate the company "${companyName}" (website: ${web}) against our Ideal Customer Profile (ICP) criteria.
 Analyze the scraped website content below to identify matches.
 
@@ -2089,7 +2160,7 @@ ${disqText || 'None defined'}
 
 Here is the scraped content:
 --- START OF WEBSITE CONTENT ---
-${scrapedContent || '[No content scraped]'}
+${truncateContent(scrapedContent) || '[No content scraped]'}
 --- END OF WEBSITE CONTENT ---
 
 For each matched criteria:
@@ -2190,10 +2261,11 @@ Provide your response strictly in JSON format matching this schema:
 
     if (provider === 'gemini') {
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+          signal: signal ?? AbortSignal.timeout(25000),
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: {
@@ -2204,27 +2276,35 @@ Provide your response strictly in JSON format matching this schema:
           }),
         }
       );
-      if (!response.ok) throw new Error(`Gemini API returned status ${response.status}`);
+      if (!response.ok) { await response.body?.cancel(); throw new Error(`Gemini API returned status ${response.status}`); }
       const data = (await response.json()) as any;
       const textResult = data.candidates?.[0]?.content?.parts?.[0]?.text;
       if (!textResult) throw new Error('Invalid response structure from Gemini API');
-      return SDRICPFitSchema.parse(JSON.parse(textResult));
+      let parsed;
+      try { parsed = JSON.parse(textResult); } catch { return icpFallback; }
+      try { return SDRICPFitSchema.parse(parsed); } catch { return icpFallback; }
     }
 
     if (provider === 'anthropic') {
       const textResult = await callAnthropic(
         prompt, apiKey, modelName,
         'You are a competitive intelligence analyst. Output strictly in valid JSON matching the requested schema.',
+        signal,
       );
-      return SDRICPFitSchema.parse(JSON.parse(textResult));
+      let parsed;
+      try { parsed = JSON.parse(textResult); } catch { return icpFallback; }
+      try { return SDRICPFitSchema.parse(parsed); } catch { return icpFallback; }
     }
 
     const textResult = await callOpenAICompatible(
-      provider, prompt, apiKey, modelName,
-      'You are a competitive intelligence analyst. Output strictly in valid JSON matching the requested schema.',
-      openAiSchema,
-    );
-    return SDRICPFitSchema.parse(JSON.parse(textResult));
+        provider, prompt, apiKey, modelName,
+        'You are a competitive intelligence analyst. Output strictly in valid JSON matching the requested schema.',
+        openAiSchema,
+        signal,
+      );
+      let parsed;
+      try { parsed = JSON.parse(textResult); } catch { return icpFallback; }
+      try { return SDRICPFitSchema.parse(parsed); } catch { return icpFallback; }
   });
 }
 
@@ -2235,6 +2315,7 @@ export async function generateOfferAndICPFromDescription(
   icpDescription: string,
   userId?: string | null
 ): Promise<AIGeneratedStrategyOutput> {
+  const strategyFallback: AIGeneratedStrategyOutput = { offer: { name: '', targetPain: '', desiredOutcome: '', proofPoints: [], forbiddenClaims: [] }, icp: { name: '', positiveSignals: [], negativeSignals: [], disqualifiers: [] } };
   const prompt = `You are a world-class growth strategist and B2B copywriter.
 A user wants to configure a target market campaign in their sales intelligence system.
 Based on the following informal descriptions, generate a structured Offer profile and an Ideal Customer Profile (ICP).
@@ -2377,13 +2458,14 @@ Provide your response strictly in JSON format matching this schema:
     required: ['offer', 'icp']
   };
 
-  return callWithProviderChain(db, 'scoring', userId, async (provider, apiKey, modelName) => {
+  return callWithProviderChain(db, 'scoring', userId, async (provider, apiKey, modelName, signal) => {
     if (provider === 'gemini') {
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+          signal: signal ?? AbortSignal.timeout(25000),
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: {
@@ -2394,26 +2476,34 @@ Provide your response strictly in JSON format matching this schema:
           })
         }
       );
-      if (!response.ok) throw new Error(`Gemini API returned status ${response.status}`);
+      if (!response.ok) { await response.body?.cancel(); throw new Error(`Gemini API returned status ${response.status}`); }
       const data = (await response.json()) as any;
       const textResult = data.candidates?.[0]?.content?.parts?.[0]?.text;
       if (!textResult) throw new Error('Invalid response from Gemini API');
-      return AIGeneratedStrategySchema.parse(JSON.parse(textResult));
+      let parsed;
+      try { parsed = JSON.parse(textResult); } catch { return strategyFallback; }
+      try { return AIGeneratedStrategySchema.parse(parsed); } catch { return strategyFallback; }
     }
 
     if (provider === 'anthropic') {
       const textResult = await callAnthropic(
         prompt, apiKey, modelName,
         'You are a world-class growth strategist. Output strictly in valid JSON matching the requested schema.',
+        signal,
       );
-      return AIGeneratedStrategySchema.parse(JSON.parse(textResult));
+      let parsed;
+      try { parsed = JSON.parse(textResult); } catch { return strategyFallback; }
+      try { return AIGeneratedStrategySchema.parse(parsed); } catch { return strategyFallback; }
     }
 
     const textResult = await callOpenAICompatible(
-      provider, prompt, apiKey, modelName,
-      'You are a world-class growth strategist. Output strictly in valid JSON matching the requested schema.',
-      openAiSchema,
-    );
-    return AIGeneratedStrategySchema.parse(JSON.parse(textResult));
+        provider, prompt, apiKey, modelName,
+        'You are a world-class growth strategist. Output strictly in valid JSON matching the requested schema.',
+        openAiSchema,
+        signal,
+      );
+      let parsed;
+      try { parsed = JSON.parse(textResult); } catch { return strategyFallback; }
+      try { return AIGeneratedStrategySchema.parse(parsed); } catch { return strategyFallback; }
   });
 }

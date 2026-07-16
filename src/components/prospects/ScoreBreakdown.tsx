@@ -44,7 +44,7 @@ export function ScoreBreakdown({
   overrideReason,
   fitReasoning,
 }: ScoreBreakdownProps) {
-  const [expanded, setExpanded] = useState<number | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   return (
     <div className="space-y-6">
@@ -85,15 +85,15 @@ export function ScoreBreakdown({
         {breakdown.length === 0 ? (
           <p className="text-copy-14 text-muted-foreground">No signals evaluated yet.</p>
         ) : (
-          breakdown.map((item, i) => (
-            <div key={i} className="rounded-lg border border-border overflow-hidden">
+          breakdown.map((item) => (
+            <div key={item.factor} className="rounded-lg border border-border overflow-hidden">
               <button
                 type="button"
-                onClick={() => setExpanded(expanded === i ? null : i)}
+                onClick={() => setExpanded(expanded === item.factor ? null : item.factor)}
                 className="flex w-full items-center justify-between px-3 py-2 text-left hover:bg-muted/50 transition-colors"
               >
                 <div className="flex items-center gap-2 min-w-0">
-                  {expanded === i ? <ChevronDown className="w-3.5 h-3.5 shrink-0 text-muted-foreground" /> : <ChevronRight className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />}
+                  {expanded === item.factor ? <ChevronDown className="w-3.5 h-3.5 shrink-0 text-muted-foreground" /> : <ChevronRight className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />}
                   <span className="text-copy-14 truncate">{item.factor}</span>
                 </div>
                 <span className={cn('text-label-12 font-semibold shrink-0 ml-2 px-2 py-0.5 rounded border', 
@@ -104,7 +104,7 @@ export function ScoreBreakdown({
                   {item.contribution < 0 ? 'Negative Signal' : item.contribution > 0 ? 'Positive Match' : 'Neutral'}
                 </span>
               </button>
-              {expanded === i && (
+              {expanded === item.factor && (
                 <div className="border-t border-border px-3 py-2.5 space-y-2 bg-muted/20">
                   <p className="text-copy-14 italic text-muted-foreground">&ldquo;{item.evidenceQuote}&rdquo;</p>
                   {item.sourceUrl && (

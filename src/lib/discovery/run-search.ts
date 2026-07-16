@@ -1,6 +1,6 @@
 import { getLogger } from '../logger';
 import { startGoogleMapsSearch } from './apify';
-import { Db } from '@/db';
+import { type Db } from '@/db';
 import { jobRuns } from '@/db/schema/research';
 import { triggerDiscoverySearchWorkflow } from '@/lib/workflow-client';
 
@@ -51,7 +51,7 @@ export async function runSearchForScope(
     log.info('getCloudflareContext unavailable — falling back to process.env for workflow binding');
   }
   if (!workflowBinding) {
-    workflowBinding = (process.env as any)?.DISCOVERY_SEARCH_WORKFLOW;
+    workflowBinding = process.env.DISCOVERY_SEARCH_WORKFLOW;
   }
 
   await triggerDiscoverySearchWorkflow(

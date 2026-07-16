@@ -1,6 +1,6 @@
 'use client';
 
-import { memo } from 'react';
+import { memo, useState, useEffect } from 'react';
 import { RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,8 +30,7 @@ interface StageThresholdRowProps {
   onReset: (stage: string) => void;
 }
 
-function formatRelativeTime(date: Date): string {
-  const now = Date.now();
+function formatRelativeTime(date: Date, now: number): string {
   const diff = now - date.getTime();
   const mins = Math.floor(diff / 60_000);
   if (mins < 1) return 'just now';
@@ -43,6 +42,8 @@ function formatRelativeTime(date: Date): string {
 }
 
 function StatusBadge({ dbRow, isDirty }: { dbRow: StageThresholdDbRow | null; isDirty: boolean }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const id = setInterval(() => setNow(Date.now()), 60_000); return () => clearInterval(id); }, []);
   if (isDirty) {
     return (
       <span className="inline-flex items-center gap-1.5 text-label-12 font-semibold text-chart-5 bg-chart-5/10 border border-chart-5/20 rounded-full px-2.5 py-0.5">
@@ -60,7 +61,7 @@ function StatusBadge({ dbRow, isDirty }: { dbRow: StageThresholdDbRow | null; is
     );
   }
 
-  const relative = dbRow.updatedAt ? formatRelativeTime(new Date(dbRow.updatedAt)) : null;
+  const relative = dbRow.updatedAt ? formatRelativeTime(new Date(dbRow.updatedAt), now) : null;
   const exact = dbRow.updatedAt ? new Date(dbRow.updatedAt).toLocaleString() : null;
 
   return (

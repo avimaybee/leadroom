@@ -47,7 +47,7 @@ export function ProspectsClient({ initialProspects, markets }: ProspectsClientPr
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
 
-  const marketMap = new Map(markets.map(m => [m.id, m.name]));
+  const marketMap = useMemo(() => new Map(markets.map(m => [m.id, m.name])), [markets]);
 
   const stages = useMemo(() => {
     const s = new Set(initialProspects.map(p => p.stage).filter(Boolean));

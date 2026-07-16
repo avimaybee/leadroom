@@ -13,7 +13,7 @@ export const audits = sqliteTable('audits', {
   recommendedImprovements: text('recommended_improvements'), // Markdown-enabled text or paragraph
   opportunityNotes: text('opportunity_notes'), // Hypotheses or comments
   contentHash: text('content_hash'),
-  sources: text('sources'), // JSON stringified array of URLs
+  sources: text('sources', { mode: 'json' }), // JSON array of URLs
   jobRunId: text('job_run_id').references(() => jobRuns.id),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
@@ -27,7 +27,7 @@ export const leadScores = sqliteTable('lead_scores', {
   scoreValue: integer('score_value').notNull(), // 0 to 100
   scoreLabel: text('score_label'), // 'High' | 'Medium' | 'Low'
   rationaleSummary: text('rationale_summary'), // Explanation of the score
-  factors: text('factors'), // JSON object listing scoring sub-weights or factors
+  factors: text('factors', { mode: 'json' }), // JSON object listing scoring sub-weights or factors
   origin: text('origin').notNull().default('RULE_BASED'), // 'RULE_BASED' | 'AI_SUGGESTED' | 'MANUAL_OVERRIDE'
   isCurrent: integer('is_current').notNull().default(1), // 1 = true, 0 = false
   createdByUserId: text('created_by_user_id').references(() => users.id),
@@ -36,4 +36,5 @@ export const leadScores = sqliteTable('lead_scores', {
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
 }, (table) => ({
   leadIdIsCurrentIndex: index('lead_scores_lead_id_is_current_idx').on(table.leadId, table.isCurrent),
+  createdAtIsCurrentIndex: index('lead_scores_created_at_is_current_idx').on(table.createdAt, table.isCurrent),
 }));

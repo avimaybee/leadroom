@@ -1,5 +1,7 @@
 'use client';
 
+import { useState, useEffect } from 'react';
+
 interface Props {
   stage: string;
   stageUpdatedAt: Date | null;
@@ -8,9 +10,11 @@ interface Props {
 }
 
 export function StageAgingBar({ stage, stageUpdatedAt, daysThreshold, autoFollowUpDue }: Props) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const id = setInterval(() => setNow(Date.now()), 60_000); return () => clearInterval(id); }, []);
   if (!stageUpdatedAt) return null;
 
-  const ageMs = Date.now() - new Date(stageUpdatedAt).getTime();
+  const ageMs = now - new Date(stageUpdatedAt).getTime();
   const ageDays = Math.round((ageMs / (24 * 60 * 60 * 1000)) * 10) / 10;
   const progress = Math.min(ageDays / daysThreshold, 1);
   const percent = Math.round(progress * 100);
@@ -20,7 +24,7 @@ export function StageAgingBar({ stage, stageUpdatedAt, daysThreshold, autoFollow
 
   const barColor = isStale ? 'bg-destructive' : isWarning ? 'bg-chart-5' : 'bg-primary/60';
   const remainingDays = Math.max(0, daysThreshold - ageDays);
-  const expectedExit = new Date(Date.now() + remainingDays * 24 * 60 * 60 * 1000);
+  const expectedExit = new Date(now + remainingDays * 24 * 60 * 60 * 1000);
 
   return (
     <div className="bg-card p-5 rounded-xl border border-border space-y-3">

@@ -51,7 +51,7 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
       )
       .limit(1)
       .then(rows => rows[0] || null),
-    db.select({ days: stageThresholds.days }).from(stageThresholds).where(eq(stageThresholds.stage, lead.stage)).limit(1).then(r => r[0]),
+    db.select({ days: stageThresholds.days }).from(stageThresholds).where(eq(stageThresholds.stage, lead.stage)).limit(1).then(r => r[0] || null),
     db.select().from(pipelineConfig).where(eq(pipelineConfig.id, 'global')).limit(1).then(r => r[0] || null),
     db.select({ dueDate: tasks.dueDate }).from(tasks).where(and(eq(tasks.leadId, id), eq(tasks.status, 'Open'), like(tasks.title, 'Follow up on %'))).orderBy(tasks.dueDate).limit(1).then(r => r[0] || null),
     service.getUnmetStageRequirements(id, lead.email || null),
@@ -70,9 +70,9 @@ export default async function LeadDetailPage({ params, searchParams }: { params:
 
   const stageThreshold = stageThresholdRow?.days ?? 5;
 
-  let nbaRules = DEFAULT_NBA_RULES;
+  let nbaRules: typeof DEFAULT_NBA_RULES = DEFAULT_NBA_RULES;
   if (pcRow?.nbaRules) {
-    try { nbaRules = JSON.parse(pcRow.nbaRules); } catch {}
+    nbaRules = pcRow.nbaRules as typeof DEFAULT_NBA_RULES;
   }
   const nbaResults = await service.getNextBestActions(id, nbaRules, {
     tasks: tasksData,

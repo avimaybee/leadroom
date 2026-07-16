@@ -42,7 +42,7 @@ export function NextBestActionsList({ recommendations, leadId }: Props) {
 
   const handleClick = (r: NBAResult) => {
     if (leadId) {
-      logNbaActionAction(leadId, r.action, r.priority).catch(() => {});
+      logNbaActionAction(leadId, r.action, r.priority).catch((err) => console.error('Failed to log NBA action', err));
     }
   };
 
@@ -55,9 +55,9 @@ export function NextBestActionsList({ recommendations, leadId }: Props) {
       </div>
 
       <div className="space-y-2">
-        {displayed.map((r, i) => (
+        {displayed.map((r) => (
           <div
-            key={i}
+            key={r.action}
             className="flex items-start gap-3 p-3 rounded-lg border border-border/50 bg-muted/30 hover:bg-muted/60 transition-colors"
           >
             <div className="flex-1 min-w-0">

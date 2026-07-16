@@ -26,7 +26,7 @@ export default async function DashboardPage() {
 
   // Fetch all core data in parallel
   const [allProspects, activeMarkets, pendingApprovalRow, thresholds, funnel, myTasks] = await Promise.all([
-    db.select().from(prospects).where(and(eq(prospects.status, 'Active'), eq(prospects.ownerId, userId))).orderBy(sql`COALESCE(${prospects.fitScore}, 0) DESC`),
+    db.select().from(prospects).where(and(eq(prospects.status, 'Active'), eq(prospects.ownerId, userId))).orderBy(sql`COALESCE(${prospects.fitScore}, 0) DESC`).limit(500),
     db.select().from(markets).where(and(eq(markets.workspaceId, userId), eq(markets.status, 'active'))),
     db.select({ count: count() }).from(outreachDrafts).innerJoin(prospects, eq(outreachDrafts.leadId, prospects.id)).where(and(eq(outreachDrafts.status, 'DRAFT'), eq(prospects.ownerId, userId))),
     db.select().from(stageThresholds),

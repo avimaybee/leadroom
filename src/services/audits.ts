@@ -1,5 +1,5 @@
 import { LoggingService } from './logging';
-import { Db } from '../db';
+import { type Db } from '../db';
 import { eq, desc } from 'drizzle-orm';
 import { audits, activities, leads } from '../db/schema';
 import { ScoringService } from './scoring';

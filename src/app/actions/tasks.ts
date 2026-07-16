@@ -18,11 +18,11 @@ export async function createTaskAction(prevState: ActionState, formData: FormDat
 
   const service = await getService();
   
-  const leadId = formData.get('leadId') as string;
-  const title = formData.get('title') as string;
-  const description = formData.get('description') as string;
-  const dueDateStr = formData.get('dueDate') as string;
-  const priority = formData.get('priority') as string;
+  const leadId = String(formData.get('leadId') ?? '');
+  const title = String(formData.get('title') ?? '');
+  const description = String(formData.get('description') ?? '');
+  const dueDateStr = String(formData.get('dueDate') ?? '');
+  const priority = String(formData.get('priority') ?? '');
 
   if (!title || title.trim() === '') {
     return { error: 'Task title is required' };

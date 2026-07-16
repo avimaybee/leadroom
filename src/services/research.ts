@@ -1,5 +1,5 @@
 import { LoggingService } from './logging';
-import { Db } from '../db';
+import { type Db } from '../db';
 import { eq, desc, and, isNull } from 'drizzle-orm';
 import { researchSnapshots, contacts } from '../db/schema/research';
 import { activities } from '../db/schema/core';

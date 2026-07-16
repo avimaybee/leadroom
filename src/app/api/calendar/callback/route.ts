@@ -8,7 +8,7 @@ export async function GET(request: Request) {
   const state = searchParams.get('state');
 
   if (!code || !state) {
-    return new Response('Missing code or state parameter', { status: 400 });
+    return Response.json({ error: 'Missing code or state parameter' }, { status: 400 });
   }
 
   const db = getDb();
@@ -16,7 +16,7 @@ export async function GET(request: Request) {
   const result = await calendarService.exchangeCode(code, state);
 
   if (result.error) {
-    return new Response(result.error, { status: 400 });
+    return Response.json({ error: result.error }, { status: 400 });
   }
 
   redirect('/settings/integrations?calendar=connected');

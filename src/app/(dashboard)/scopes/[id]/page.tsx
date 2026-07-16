@@ -111,6 +111,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
   const [activeJobRun, setActiveJobRun] = useState<RecentRun | null>(null);
   const [pollingJobId, setPollingJobId] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval>>(undefined);
 
   // Settings sheet states
   const [isSettingsSheetOpen, setIsSettingsSheetOpen] = useState(false);
@@ -217,10 +218,9 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
   useEffect(() => {
     if (!pollingJobId) return;
 
-    // Active REST polling every 3 seconds while job is running
-    const interval = setInterval(() => {
+    intervalRef.current = setInterval(() => {
       fetchRecentRuns();
-    }, 3000);
+    }, 10000);
 
     const status = recentJobUpdates[pollingJobId];
     if (status === 'SUCCESS' || status === 'ERROR') {
@@ -230,7 +230,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
       fetchData();
     }
 
-    return () => clearInterval(interval);
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [pollingJobId, recentJobUpdates, fetchRecentRuns, fetchData]);
 
   const handleUpdateStatus = async (candidateId: string, status: 'PROMOTED' | 'DISCARDED') => {
@@ -842,12 +842,12 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                         <div className="flex flex-wrap items-center gap-2">
                           {candidate.status === 'PROMOTED' && candidate.promotedLeadId ? (
                             <Link href={`/leads/${candidate.promotedLeadId}`} className="hover:underline group block">
-                              <h4 className="font-semibold text-primary heading-lg leading-snug mr-1 group-hover:text-primary/80 transition-colors">
+                              <h4 className="font-semibold text-primary text-heading-lg leading-snug mr-1 group-hover:text-primary/80 transition-colors">
                                 {candidate.rawName}
                               </h4>
                             </Link>
                           ) : (
-                            <h4 className="font-semibold text-card-foreground heading-lg leading-snug mr-1">
+                            <h4 className="font-semibold text-card-foreground text-heading-lg leading-snug mr-1">
                               {candidate.rawName}
                             </h4>
                           )}

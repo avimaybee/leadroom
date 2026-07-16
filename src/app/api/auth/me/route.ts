@@ -7,11 +7,11 @@ import { users } from '@/db/schema/core';
 
 const log = getLogger('AuthMeAPI');
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 30;
 
 export async function GET(request: NextRequest) {
   try {
-    const session = request.cookies.get('session')?.value;
+    const session = request.cookies.get('__Secure-session')?.value;
     const payload = await decrypt(session);
 
     if (!payload || !payload.userId) {

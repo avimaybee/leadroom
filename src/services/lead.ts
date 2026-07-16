@@ -1,4 +1,4 @@
-import { Db } from '../db';
+import { type Db } from '../db';
 import { eq, desc, and, or, isNull, isNotNull, count, gt, gte, lte, like, sql, inArray } from 'drizzle-orm';
 import { prospects as leads, activities, activityMetadata, tasks, notes, leadStageHistory, pipelineConfig, notifications, nbaActionLogs } from '../db/schema/core';
 import { researchSnapshots } from '../db/schema/research';
@@ -13,6 +13,23 @@ import { CalendarService } from './calendar';
 import { getLogger } from '../lib/logger';
 
 const log = getLogger('LeadService');
+const _calendarSyncInFlight = new Set<string>();
+
+let _cfEnvResolved = false;
+let _cfEnv: any = null;
+
+function getCloudflareEnvOnce(): any {
+  if (!_cfEnvResolved) {
+    _cfEnvResolved = true;
+    try {
+      const { getCloudflareContext } = require('@opennextjs/cloudflare');
+      _cfEnv = getCloudflareContext().env;
+    } catch (e) {
+      _cfEnv = null;
+    }
+  }
+  return _cfEnv;
+}
 
 export const PIPELINE_STAGES = [
   'New',
@@ -43,7 +60,10 @@ export const CANONICAL_STAGE_MAP: Record<string, PipelineStage> = {
 
 export function getCanonicalStage(stage: string | null | undefined): PipelineStage {
   if (!stage) return 'New';
-  return CANONICAL_STAGE_MAP[stage] || (stage as PipelineStage);
+  const mapped = CANONICAL_STAGE_MAP[stage];
+  if (mapped) return mapped;
+  if (PIPELINE_STAGES.includes(stage as PipelineStage)) return stage as PipelineStage;
+  return 'New';
 }
 
 // ── Hardcoded stage defaults (industry-standard, AI-era velocity) ──
@@ -116,12 +136,12 @@ export class LeadService {
       try {
         const { triggerMonitorStalledLeadWorkflow } = await import('../lib/workflow-client');
         let workflowBinding: any = undefined;
-        try {
-          const { getCloudflareContext } = await import('@opennextjs/cloudflare');
-          workflowBinding = getCloudflareContext().env?.MONITOR_STALLED_LEAD_WORKFLOW;
-        } catch (e) {}
+        const cfEnv = getCloudflareEnvOnce();
+        if (cfEnv) {
+          workflowBinding = cfEnv.MONITOR_STALLED_LEAD_WORKFLOW;
+        }
         if (!workflowBinding) {
-          workflowBinding = (process.env as any)?.MONITOR_STALLED_LEAD_WORKFLOW;
+          workflowBinding = process.env.MONITOR_STALLED_LEAD_WORKFLOW;
         }
         await triggerMonitorStalledLeadWorkflow(this.db, workflowBinding, leadId, stageUpdatedAt ? stageUpdatedAt.getTime() : Date.now());
       } catch (e) {
@@ -185,30 +205,15 @@ export class LeadService {
       log.warn('createLead called without ownerId — prospect will have no owner. All production callers should supply ownerId.');
     }
     
-    await this.db.insert(leads).values({
-      ...leadData,
-      id,
-      stage: leadData.stage || 'New',
-      status: 'Active',
-      createdAt: now,
-      updatedAt: now,
-    });
-
-    await this.db.insert(leadStageHistory).values({
-      id: crypto.randomUUID(),
-      leadId: id,
-      stage: leadData.stage || 'New',
-      enteredAt: now,
-    });
-
     let finalSourceName = sourceName?.trim() || 'Manual Entry';
     
     // Find or create Discovery Scope
     const ownerId = leadData.ownerId || 'system';
     let [scope] = await this.db.select().from(discoveryScopes).where(and(eq(discoveryScopes.name, finalSourceName), eq(discoveryScopes.createdByUserId, ownerId))).limit(1);
     
+    let scopeId: string;
     if (!scope) {
-      const scopeId = crypto.randomUUID();
+      scopeId = crypto.randomUUID();
       await this.db.insert(discoveryScopes).values({
         id: scopeId,
         name: finalSourceName,
@@ -218,21 +223,38 @@ export class LeadService {
         updatedAt: now,
       });
       [scope] = await this.db.select().from(discoveryScopes).where(eq(discoveryScopes.id, scopeId)).limit(1);
+    } else {
+      scopeId = scope.id;
     }
-    
-    // Create candidate lead linking to the scope
-    await this.db.insert(candidateLeads).values({
-      id: crypto.randomUUID(),
-      discoveryScopeId: scope.id,
-      rawName: leadData.name,
-      rawWebsiteUrl: leadData.website || null,
-      rawContactInfo: leadData.email || leadData.phone || null,
-      rawLocation: [leadData.city, leadData.region].filter(Boolean).join(', ') || null,
-      status: 'PROMOTED',
-      promotedLeadId: id,
-      createdAt: now,
-      updatedAt: now,
-    });
+
+    await this.db.batch([
+      this.db.insert(leads).values({
+        ...leadData,
+        id,
+        stage: leadData.stage || 'New',
+        status: 'Active',
+        createdAt: now,
+        updatedAt: now,
+      }),
+      this.db.insert(leadStageHistory).values({
+        id: crypto.randomUUID(),
+        leadId: id,
+        stage: leadData.stage || 'New',
+        enteredAt: now,
+      }),
+      this.db.insert(candidateLeads).values({
+        id: crypto.randomUUID(),
+        discoveryScopeId: scopeId,
+        rawName: leadData.name,
+        rawWebsiteUrl: leadData.website || null,
+        rawContactInfo: leadData.email || leadData.phone || null,
+        rawLocation: [leadData.city, leadData.region].filter(Boolean).join(', ') || null,
+        status: 'PROMOTED',
+        promotedLeadId: id,
+        createdAt: now,
+        updatedAt: now,
+      }),
+    ]);
 
     await new LoggingService(this.db).log({
       leadId: id,
@@ -261,7 +283,30 @@ export class LeadService {
   async listLeads(userId?: string) {
     const conditions = [eq(leads.status, 'Active')];
     if (userId) conditions.push(eq(leads.ownerId, userId));
-    return this.db.select().from(leads).where(and(...conditions)).orderBy(desc(leads.updatedAt));
+    return this.db.select({
+      id: leads.id,
+      name: leads.name,
+      company: leads.company,
+      email: leads.email,
+      phone: leads.phone,
+      website: leads.website,
+      city: leads.city,
+      region: leads.region,
+      industry: leads.industry,
+      stage: leads.stage,
+      isRead: leads.isRead,
+      status: leads.status,
+      workspaceId: leads.workspaceId,
+      marketId: leads.marketId,
+      fitScore: leads.fitScore,
+      confidenceScore: leads.confidenceScore,
+      priorityTier: leads.priorityTier,
+      ownerId: leads.ownerId,
+      createdAt: leads.createdAt,
+      updatedAt: leads.updatedAt,
+      stageUpdatedAt: leads.stageUpdatedAt,
+      lastActivityAt: leads.lastActivityAt,
+    }).from(leads).where(and(...conditions)).orderBy(desc(leads.updatedAt)).limit(200);
   }
 
   async getDashboardProspects(userId: string) {
@@ -409,25 +454,25 @@ export class LeadService {
       }
     }
 
-    await this.db.update(leadStageHistory)
-      .set({ exitedAt: now })
-      .where(and(eq(leadStageHistory.leadId, id), isNull(leadStageHistory.exitedAt)));
-      
-    await this.db.insert(leadStageHistory).values({
-      id: crypto.randomUUID(),
-      leadId: id,
-      stage: newStage,
-      enteredAt: now,
-    });
-
-    const updates: any = {
+    const stageUpdates: any = {
       stage: newStage,
       updatedAt: now,
       stageUpdatedAt: now,
     };
-    if (newStage !== 'New') updates.isRead = true;
+    if (newStage !== 'New') stageUpdates.isRead = true;
 
-    await this.db.update(leads).set(updates).where(eq(leads.id, id));
+    await this.db.transaction(async (tx) => {
+      await tx.update(leadStageHistory)
+        .set({ exitedAt: now })
+        .where(and(eq(leadStageHistory.leadId, id), isNull(leadStageHistory.exitedAt)));
+      await tx.insert(leadStageHistory).values({
+        id: crypto.randomUUID(),
+        leadId: id,
+        stage: newStage,
+        enteredAt: now,
+      });
+      await tx.update(leads).set(stageUpdates).where(eq(leads.id, id));
+    });
 
     await new LoggingService(this.db).log({
       leadId: id,
@@ -484,11 +529,12 @@ export class LeadService {
       .from(activities)
       .leftJoin(activityMetadata, eq(activities.id, activityMetadata.activityId))
       .where(eq(activities.leadId, leadId))
-      .orderBy(desc(activities.timestamp));
+      .orderBy(desc(activities.timestamp))
+      .limit(200);
 
     return results.map(row => ({
       ...row,
-      metadata: row.metadata ? JSON.parse(row.metadata) : null,
+      metadata: row.metadata ?? null,
     }));
   }
 
@@ -519,7 +565,7 @@ export class LeadService {
   }
 
   async getNotes(leadId: string) {
-    return this.db.select().from(notes).where(eq(notes.leadId, leadId)).orderBy(desc(notes.createdAt));
+    return this.db.select().from(notes).where(eq(notes.leadId, leadId)).orderBy(desc(notes.createdAt)).limit(200);
   }
 
   async addTask(leadId: string, title: string, description: string | null, dueDate: Date | null, priority: string, assigneeId?: string | null, category?: string | null, source?: string | null, playbookId?: string | null) {
@@ -550,10 +596,13 @@ export class LeadService {
       summary: `Created task: "${title}"`,
     });
 
-    // Auto-sync to Google Calendar if assignee has calendar connected
-    if (assigneeId) {
+    // Auto-sync to Google Calendar if assignee has calendar connected (gated)
+    if (assigneeId && !_calendarSyncInFlight.has(assigneeId)) {
+      _calendarSyncInFlight.add(assigneeId);
       const calendarService = new CalendarService(this.db);
-      calendarService.syncTasksToCalendar(assigneeId).catch((err) => {
+      calendarService.syncTasksToCalendar(assigneeId).finally(() => {
+        _calendarSyncInFlight.delete(assigneeId);
+      }).catch((err) => {
         log.error('Calendar sync failed for assignee', err, { assigneeId });
       });
     }
@@ -584,7 +633,8 @@ export class LeadService {
       })
       .from(tasks)
       .where(eq(tasks.leadId, leadId))
-      .orderBy(desc(tasks.createdAt));
+      .orderBy(desc(tasks.createdAt))
+      .limit(200);
   }
 
   async toggleTaskStatus(taskId: string, currentStatus: string) {
@@ -612,10 +662,13 @@ export class LeadService {
       });
     }
 
-    // Auto-sync to Google Calendar if assignee has calendar connected
-    if (oldTask.assigneeId) {
+    // Auto-sync to Google Calendar if assignee has calendar connected (gated)
+    if (oldTask.assigneeId && !_calendarSyncInFlight.has(oldTask.assigneeId)) {
+      _calendarSyncInFlight.add(oldTask.assigneeId);
       const calendarService = new CalendarService(this.db);
-      calendarService.syncTasksToCalendar(oldTask.assigneeId).catch((err) => {
+      calendarService.syncTasksToCalendar(oldTask.assigneeId).finally(() => {
+        _calendarSyncInFlight.delete(oldTask.assigneeId!);
+      }).catch((err) => {
         log.error('Calendar sync failed for assignee', err, { assigneeId: oldTask.assigneeId });
       });
     }
@@ -654,20 +707,25 @@ export class LeadService {
 
     const [lead] = await this.db.select({ ownerId: leads.ownerId }).from(leads).where(eq(leads.id, leadId)).limit(1);
 
-    for (const template of tasksToCreate) {
-      const [existing] = await this.db
-        .select({ count: count() })
-        .from(tasks)
-        .where(and(eq(tasks.leadId, leadId), eq(tasks.title, template.title), eq(tasks.status, 'Open')))
-        .limit(1);
-      if (existing?.count > 0) continue;
+    const existingTitles = new Set<string>();
+    const existing = await this.db
+      .select({ title: tasks.title })
+      .from(tasks)
+      .where(and(eq(tasks.leadId, leadId), eq(tasks.status, 'Open'), inArray(tasks.title, tasksToCreate.map(t => t.title))))
+      .limit(200);
+    for (const t of existing) existingTitles.add(t.title);
 
-      let dueDate = new Date();
+    const now = new Date();
+    const assigneeId = lead?.ownerId || null;
+    for (const template of tasksToCreate) {
+      if (existingTitles.has(template.title)) continue;
+
+      let dueDate = new Date(now);
       dueDate.setDate(dueDate.getDate() + template.daysOffset);
       if (dueDate.getDay() === 0) dueDate.setDate(dueDate.getDate() + 1);
       else if (dueDate.getDay() === 6) dueDate.setDate(dueDate.getDate() + 2);
 
-      await this.addTask(leadId, template.title, null, dueDate, template.priority, lead?.ownerId || null, template.category, 'auto');
+      await this.addTask(leadId, template.title, null, dueDate, template.priority, assigneeId, template.category, 'auto');
     }
   }
 
@@ -686,7 +744,8 @@ export class LeadService {
     .from(tasks)
     .leftJoin(leads, eq(tasks.leadId, leads.id))
     .where(and(...conditions))
-    .orderBy(desc(tasks.dueDate));
+    .orderBy(desc(tasks.dueDate))
+    .limit(200);
   }
 
   async getMyTasks(userId: string) {
@@ -704,7 +763,8 @@ export class LeadService {
       .from(tasks)
       .leftJoin(leads, eq(tasks.leadId, leads.id))
       .where(and(eq(tasks.assigneeId, userId), eq(tasks.status, 'Open')))
-      .orderBy(tasks.dueDate);
+      .orderBy(tasks.dueDate)
+      .limit(200);
   }
 
   // ── Pipeline Funnel Analytics ──
@@ -767,7 +827,7 @@ export class LeadService {
       })
       .from(leadStageHistory)
       .innerJoin(leads, eq(leadStageHistory.leadId, leads.id))
-      .where(and(...conditions))
+      .where(and(...conditions)).limit(1000);
     const map = new Map<string, number | null>();
     for (const row of rows) {
       if (row.avgMs === null) {
@@ -786,12 +846,66 @@ export class LeadService {
     const conditions: any[] = [eq(leads.status, 'Active')];
     if (userId) conditions.push(eq(leads.ownerId, userId));
     const activeLeads = await this.db
-      .select()
+      .select({ id: leads.id, name: leads.name, stage: leads.stage, stageUpdatedAt: leads.stageUpdatedAt, ownerId: leads.ownerId })
       .from(leads)
-      .where(and(...conditions));
+      .where(and(...conditions))
+      .limit(500);
     const [firstUser] = await this.db.select({ id: leads.ownerId }).from(leads).where(isNotNull(leads.ownerId)).limit(1);
     const fallbackUserId = firstUser?.id || null;
     let alertCount = 0;
+
+    // Batch-fetch existing notifications to avoid per-lead queries
+    const cutoff48 = new Date(Date.now() - 48 * 60 * 60 * 1000);
+    const cutoff24 = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const allNotifications = await this.db
+      .select({ title: notifications.title })
+      .from(notifications)
+      .where(and(
+        isNull(notifications.jobRunId),
+        gte(notifications.createdAt, cutoff24),
+        // Match both "Lead aging:" and "Lead stale:" prefixes
+      ))
+      .limit(2000);
+    const agingNotified = new Set<string>();
+    const staleNotified = new Set<string>();
+    for (const n of allNotifications) {
+      if (n.title.startsWith('Lead aging: ')) agingNotified.add(n.title.slice('Lead aging: '.length));
+      else if (n.title.startsWith('Lead stale: ')) staleNotified.add(n.title.slice('Lead stale: '.length));
+    }
+
+    // Batch-fetch existing outreach jobs for stale leads in Outreach Sent
+    const staleOutreachLeads = activeLeads.filter(l => l.stage === 'Outreach Sent' && l.ownerId);
+    const existingJobsMap = new Map<string, boolean>();
+    if (staleOutreachLeads.length > 0) {
+      let jobRuns: any;
+      try {
+        ({ jobRuns } = await import('../db/schema/research'));
+      } catch (e) {
+        log.error('Failed to import research schema', e);
+        return 0;
+      }
+      const existingJobs = await this.db
+        .select({ targetLeadId: jobRuns.targetLeadId })
+        .from(jobRuns)
+        .where(and(
+          inArray(jobRuns.targetLeadId, staleOutreachLeads.map(l => l.id)),
+          eq(jobRuns.jobType, 'OUTREACH_DRAFT'),
+          inArray(jobRuns.status, ['QUEUED', 'RUNNING']),
+        ))
+        .limit(500);
+      for (const j of existingJobs) if (j.targetLeadId) existingJobsMap.set(j.targetLeadId, true);
+    }
+
+    const notificationRows: Array<typeof notifications.$inferInsert> = [];
+    const batchActions: Promise<any>[] = [];
+    const now = new Date();
+    let jobRuns: any;
+      try {
+        ({ jobRuns } = await import('../db/schema/research'));
+      } catch (e) {
+        log.error('Failed to import research schema', e);
+        return 0;
+      }
 
     for (const lead of activeLeads) {
       if (lead.stage === 'Won' || lead.stage === 'Lost') continue;
@@ -801,48 +915,53 @@ export class LeadService {
       if (ageDays === null || ageDays < thresholdDays * 0.8) continue;
 
       if (ageDays < thresholdDays) {
-        const alreadyWarned = await this.hasRecentStaleNotification(lead.name, 48, 'Lead aging:');
-        if (alreadyWarned) continue;
+        if (agingNotified.has(lead.name)) continue;
         const recipientId = lead.ownerId || fallbackUserId;
         if (recipientId) {
-          await createNotification(
-            this.db, recipientId, null,
-            `Lead aging: ${lead.name}`,
-            `${lead.name} has been in "${lead.stage}" for ${Math.round(ageDays)} days (${Math.round((ageDays / thresholdDays) * 100)}% of threshold).`,
-            'INFO', `/leads/${lead.id}`,
-          );
+          notificationRows.push({
+            id: crypto.randomUUID(),
+            userId: recipientId,
+            jobRunId: null,
+            title: `Lead aging: ${lead.name}`,
+            message: `${lead.name} has been in "${lead.stage}" for ${Math.round(ageDays)} days (${Math.round((ageDays / thresholdDays) * 100)}% of threshold).`,
+            status: 'INFO',
+            link: `/leads/${lead.id}`,
+            isRead: false,
+            createdAt: now,
+          });
+          agingNotified.add(lead.name);
         }
         continue;
       }
 
-      const alreadyAlerted = await this.hasRecentStaleNotification(lead.name, 24, 'Lead stale:');
-      if (alreadyAlerted) continue;
+      if (staleNotified.has(lead.name)) continue;
       const recipientId = lead.ownerId || fallbackUserId;
       if (recipientId) {
-        await createNotification(
-          this.db, recipientId, null,
-          `Lead stale: ${lead.name}`,
-          `${lead.name} has been idle in "${lead.stage}" for ${Math.round(ageDays)} days (threshold: ${thresholdDays}).`,
-          'ERROR', `/leads/${lead.id}`,
-        );
+        notificationRows.push({
+          id: crypto.randomUUID(),
+          userId: recipientId,
+          jobRunId: null,
+          title: `Lead stale: ${lead.name}`,
+          message: `${lead.name} has been idle in "${lead.stage}" for ${Math.round(ageDays)} days (threshold: ${thresholdDays}).`,
+          status: 'ERROR',
+          link: `/leads/${lead.id}`,
+          isRead: false,
+          createdAt: now,
+        });
+        staleNotified.add(lead.name);
         alertCount++;
       }
 
       // Auto-queue outreach draft for stale leads in Outreach Sent
-      if (lead.stage === 'Outreach Sent' && lead.ownerId) {
-        const { jobRuns } = await import('../db/schema/research');
-        const [existingJob] = await this.db
-          .select({ id: jobRuns.id })
-          .from(jobRuns)
-          .where(and(eq(jobRuns.targetLeadId, lead.id), eq(jobRuns.jobType, 'OUTREACH_DRAFT'), inArray(jobRuns.status, ['QUEUED', 'RUNNING'])))
-          .limit(1);
-        if (existingJob) continue;
+      if (lead.stage === 'Outreach Sent' && lead.ownerId && !existingJobsMap.has(lead.id)) {
         const jobId = crypto.randomUUID();
-        await this.db.insert(jobRuns).values({
-          id: jobId, jobType: 'OUTREACH_DRAFT', status: 'QUEUED',
-          targetLeadId: lead.id, triggeredByUserId: lead.ownerId,
-          externalRunId: 'STALE_AUTO', startedAt: null, finishedAt: null, createdAt: new Date(),
-        });
+        batchActions.push(
+          this.db.insert(jobRuns).values({
+            id: jobId, jobType: 'OUTREACH_DRAFT', status: 'QUEUED',
+            targetLeadId: lead.id, triggeredByUserId: lead.ownerId,
+            externalRunId: 'STALE_AUTO', startedAt: null, finishedAt: null, createdAt: new Date(),
+          })
+        );
         await this.addTask(
           lead.id, 'Review auto-generated follow-up draft',
           `Auto-queued follow-up draft because ${lead.name} is idle in "${lead.stage}" ${Math.round(ageDays)} days.`,
@@ -850,17 +969,14 @@ export class LeadService {
         );
       }
     }
-    return alertCount;
-  }
 
-  private async hasRecentStaleNotification(leadName: string, withinHours: number, titlePrefix: string): Promise<boolean> {
-    const cutoff = new Date(Date.now() - withinHours * 60 * 60 * 1000);
-    const [row] = await this.db
-      .select({ count: count() })
-      .from(notifications)
-      .where(and(isNull(notifications.jobRunId), like(notifications.title, `${titlePrefix} ${leadName}%`), gte(notifications.createdAt, cutoff)))
-      .limit(1);
-    return (row?.count ?? 0) > 0;
+    if (notificationRows.length > 0) {
+      await this.db.insert(notifications).values(notificationRows);
+    }
+    if (batchActions.length > 0) {
+      await this.db.batch(batchActions as any);
+    }
+    return alertCount;
   }
 
   private getDaysSinceStageChange(stageUpdatedAt: Date | string | number | null | undefined): number | null {
@@ -1070,18 +1186,54 @@ export class LeadService {
     const conditions: any[] = [eq(leads.status, 'Active')];
     if (userId) conditions.push(eq(leads.ownerId, userId));
     const activeLeads = await this.db
-      .select({ id: leads.id, name: leads.name })
+      .select({ id: leads.id, name: leads.name, stage: leads.stage, stageUpdatedAt: leads.stageUpdatedAt, status: leads.status, isRead: leads.isRead })
       .from(leads)
       .where(and(...conditions))
+      .limit(200);
+
+    const leadIds = activeLeads.map(l => l.id);
+
+    // Batch-fetch all NBA data upfront
+    const [allTasks, allResearch, allAudits, allDrafts] = await Promise.all([
+      this.db.select({ id: tasks.id, leadId: tasks.leadId, status: tasks.status, dueDate: tasks.dueDate }).from(tasks).where(inArray(tasks.leadId, leadIds)).limit(2000),
+      this.db.select({ leadId: researchSnapshots.leadId }).from(researchSnapshots).where(inArray(researchSnapshots.leadId, leadIds)).limit(2000),
+      this.db.select({ leadId: audits.leadId }).from(audits).where(inArray(audits.leadId, leadIds)).limit(2000),
+      this.db.select({ leadId: outreachDrafts.leadId }).from(outreachDrafts).where(and(inArray(outreachDrafts.leadId, leadIds), eq(outreachDrafts.status, 'DRAFT'))).limit(2000),
+    ]);
+
+    // Build per-lead prefetch maps
+    const tasksByLead = new Map<string, any[]>();
+    for (const t of allTasks) {
+      if (!t.leadId) continue;
+      if (!tasksByLead.has(t.leadId)) tasksByLead.set(t.leadId, []);
+      tasksByLead.get(t.leadId)!.push(t);
+    }
+    const hasResearch = new Set(allResearch.map(r => r.leadId).filter(Boolean));
+    const hasAudit = new Set(allAudits.map(a => a.leadId).filter(Boolean));
+    const hasDraft = new Set(allDrafts.map(d => d.leadId).filter(Boolean));
 
     const allResults: (NBAResult & { leadName: string })[] = [];
+    const executing = new Set<Promise<void>>();
+    const CONCURRENCY = 5;
 
     for (const lead of activeLeads) {
-      const actions = await this.getNextBestActions(lead.id, draftRules);
-      if (actions.length > 0) {
-        allResults.push({ ...actions[0], leadName: lead.name });
+      const p = (async () => {
+        const actions = await this.getNextBestActions(lead.id, draftRules, {
+          tasks: tasksByLead.get(lead.id),
+          hasResearch: hasResearch.has(lead.id),
+          hasAudit: hasAudit.has(lead.id),
+          hasDraft: hasDraft.has(lead.id),
+        });
+        if (actions.length > 0) {
+          allResults.push({ ...actions[0], leadName: lead.name });
+        }
+      })().finally(() => executing.delete(p));
+      executing.add(p);
+      if (executing.size >= CONCURRENCY) {
+        await Promise.race(executing);
       }
     }
+    await Promise.allSettled(executing);
 
     allResults.sort((a, b) => b.score - a.score);
     return allResults.slice(0, limit);

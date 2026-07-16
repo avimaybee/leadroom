@@ -1,9 +1,28 @@
 import { getLogger } from '../lib/logger';
-import { Db } from '../db';
+import { type Db } from '../db';
 import { googleCalendarTokens, tasks, reminders } from '../db/schema/core';
 import { eq, and, or, isNull, ne } from 'drizzle-orm';
 import { prospects as leads } from '../db/schema/core';
 import { encrypt, decrypt } from '@/lib/crypto';
+
+// Module-level guard — fails fast if encryption key is missing.
+if (!process.env.DB_ENCRYPTION_KEY) {
+  throw new Error(
+    'DB_ENCRYPTION_KEY is required. Set it in your environment or .env file before using CalendarService.'
+  );
+}
+
+async function hmacSign(data: string, secret: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(data));
+  return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
 const log = getLogger('CalendarService');
 
@@ -52,14 +71,26 @@ export class CalendarService {
     if (!clientId) return null;
     const redirectUri = this.getRedirectUri();
     const scope = 'https://www.googleapis.com/auth/calendar.events';
-    const state = Buffer.from(JSON.stringify({ userId })).toString('base64');
+    const secret = getEncryptionSecret();
+    const payload = JSON.stringify({ userId });
+    const b64 = btoa(payload);
+    const sig = await hmacSign(payload, secret);
+    const state = `${b64}.${sig}`;
     return `https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&access_type=offline&prompt=consent&state=${encodeURIComponent(state)}`;
   }
 
   async exchangeCode(code: string, state: string): Promise<{ userId: string; error?: string }> {
     let userId: string;
     try {
-      const parsed = JSON.parse(Buffer.from(state, 'base64').toString());
+      const dotIdx = state.lastIndexOf('.');
+      if (dotIdx === -1) return { userId: '', error: 'Invalid state parameter' };
+      const b64 = state.slice(0, dotIdx);
+      const sig = state.slice(dotIdx + 1);
+      const payload = atob(b64);
+      const secret = getEncryptionSecret();
+      const expectedSig = await hmacSign(payload, secret);
+      if (sig !== expectedSig) return { userId: '', error: 'Invalid state parameter' };
+      const parsed = JSON.parse(payload);
       userId = parsed.userId;
     } catch {
       return { userId: '', error: 'Invalid state parameter' };
@@ -82,8 +113,16 @@ export class CalendarService {
     });
 
     if (!resp.ok) {
-      const body = await resp.text();
-      return { userId, error: `Token exchange failed: ${body}` };
+      const rawBody = await resp.text();
+      let sanitizedBody = rawBody;
+      try {
+        const parsed = JSON.parse(rawBody);
+        delete parsed.access_token;
+        delete parsed.refresh_token;
+        delete parsed.id_token;
+        sanitizedBody = JSON.stringify(parsed);
+      } catch {}
+      return { userId, error: `Token exchange failed: ${sanitizedBody}` };
     }
 
     const data = await resp.json() as any;
@@ -217,13 +256,15 @@ export class CalendarService {
         eq(tasks.assigneeId, userId),
         eq(tasks.status, 'Open'),
         or(isNull(tasks.googleCalendarSyncStatus), ne(tasks.googleCalendarSyncStatus, 'Synced'))
-      ));
+      ))
+      .limit(200);
 
     let synced = 0;
     let errors = 0;
+    const CONCURRENCY = 5;
 
-    for (const task of openTasks) {
-      if (!task.dueDate) continue;
+    const syncTask = async (task: typeof openTasks[number]) => {
+      if (!task.dueDate) return;
 
       const startDate = new Date(task.dueDate);
       const endDate = new Date(startDate);
@@ -244,11 +285,22 @@ export class CalendarService {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(eventBody),
+          signal: AbortSignal.timeout(15000),
         });
 
         if (!resp.ok) {
           const errBody = await resp.text();
-          log.error('Failed to sync task', null, { taskId: task.id, response: errBody });
+          let sanitized = errBody;
+          try {
+            const parsed = JSON.parse(errBody);
+            delete parsed.access_token;
+            delete parsed.refresh_token;
+            delete parsed.id_token;
+            delete parsed.error_description;
+            delete parsed.error_uri;
+            sanitized = JSON.stringify(parsed);
+          } catch {}
+          log.error('Failed to sync task', null, { taskId: task.id, response: sanitized.substring(0, 500) });
           await this.db.update(tasks).set({
             googleCalendarSyncStatus: 'Error',
             googleCalendarSyncError: errBody.substring(0, 255),
@@ -265,16 +317,27 @@ export class CalendarService {
           }).where(eq(tasks.id, task.id));
           synced++;
         }
-      } catch (err: any) {
-        log.error('Network error syncing task', err, { taskId: task.id });
+      } catch (err: unknown) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        log.error('Network error syncing task', err instanceof Error ? err : new Error(errMsg), { taskId: task.id });
         await this.db.update(tasks).set({
           googleCalendarSyncStatus: 'Error',
-          googleCalendarSyncError: err?.message || 'Network error',
+          googleCalendarSyncError: errMsg || 'Network error',
           updatedAt: new Date(),
         }).where(eq(tasks.id, task.id));
         errors++;
       }
+    };
+
+    const executing = new Set<Promise<void>>();
+    for (const task of openTasks) {
+      const p = syncTask(task).finally(() => executing.delete(p));
+      executing.add(p);
+      if (executing.size >= CONCURRENCY) {
+        await Promise.race(executing);
+      }
     }
+    await Promise.allSettled(executing);
 
     return { synced, errors };
   }

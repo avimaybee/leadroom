@@ -62,7 +62,7 @@ export async function listOffersAction() {
   const ws = await getOrCreateWorkspaceAction();
   if (!ws.success || !ws.workspace) return { error: 'No workspace' };
 
-  const rows = await db.select().from(offers).where(eq(offers.workspaceId, ws.workspace.id));
+  const rows = await db.select().from(offers).where(eq(offers.workspaceId, ws.workspace.id)).limit(1);
   return { success: true, offers: rows };
 }
 
@@ -88,22 +88,22 @@ async function saveOfferActionImpl(prev: any, form: FormData) {
   if (!ws.success || !ws.workspace) return { error: 'No workspace' };
 
   const raw: Record<string, unknown> = {
-    name: form.get('name'),
-    targetPain: form.get('targetPain') || '',
-    desiredOutcome: form.get('desiredOutcome') || '',
+    name: form.get('name') ?? '',
+    targetPain: form.get('targetPain') ?? '',
+    desiredOutcome: form.get('desiredOutcome') ?? '',
   };
 
   const proofsRaw = form.get('proofPoints');
   const claimsRaw = form.get('forbiddenClaims');
-  if (typeof proofsRaw === 'string') raw.proofPoints = proofsRaw ? JSON.parse(proofsRaw) : [];
-  if (typeof claimsRaw === 'string') raw.forbiddenClaims = claimsRaw ? JSON.parse(claimsRaw) : [];
+  if (typeof proofsRaw === 'string') { try { raw.proofPoints = proofsRaw ? JSON.parse(proofsRaw) : []; } catch { raw.proofPoints = []; } }
+  if (typeof claimsRaw === 'string') { try { raw.forbiddenClaims = claimsRaw ? JSON.parse(claimsRaw) : []; } catch { raw.forbiddenClaims = []; } }
 
   const validated = OfferSchema.safeParse(raw);
   if (!validated.success) {
     return { error: 'Validation failed', issues: validated.error.format() };
   }
 
-  const offerId = form.get('id') as string || crypto.randomUUID();
+  const offerId = String(form.get('id') ?? crypto.randomUUID());
   const now = new Date();
   const data = {
     name: validated.data.name,
@@ -134,7 +134,7 @@ export async function listICPProfilesAction() {
   const ws = await getOrCreateWorkspaceAction();
   if (!ws.success || !ws.workspace) return { error: 'No workspace' };
 
-  const rows = await db.select().from(icpProfiles).where(eq(icpProfiles.workspaceId, ws.workspace.id));
+  const rows = await db.select().from(icpProfiles).where(eq(icpProfiles.workspaceId, ws.workspace.id)).limit(1);
   return { success: true, profiles: rows };
 }
 
@@ -160,22 +160,22 @@ async function saveICPProfileActionImpl(prev: any, form: FormData) {
   if (!ws.success || !ws.workspace) return { error: 'No workspace' };
 
   const raw: Record<string, unknown> = {
-    name: form.get('name'),
+    name: form.get('name') ?? '',
   };
 
   const posRaw = form.get('positiveSignals');
   const negRaw = form.get('negativeSignals');
   const disqRaw = form.get('disqualifiers');
-  if (typeof posRaw === 'string') raw.positiveSignals = posRaw ? JSON.parse(posRaw) : [];
-  if (typeof negRaw === 'string') raw.negativeSignals = negRaw ? JSON.parse(negRaw) : [];
-  if (typeof disqRaw === 'string') raw.disqualifiers = disqRaw ? JSON.parse(disqRaw) : [];
+  if (typeof posRaw === 'string') { try { raw.positiveSignals = posRaw ? JSON.parse(posRaw) : []; } catch { raw.positiveSignals = []; } }
+  if (typeof negRaw === 'string') { try { raw.negativeSignals = negRaw ? JSON.parse(negRaw) : []; } catch { raw.negativeSignals = []; } }
+  if (typeof disqRaw === 'string') { try { raw.disqualifiers = disqRaw ? JSON.parse(disqRaw) : []; } catch { raw.disqualifiers = []; } }
 
   const validated = ICPSchema.safeParse(raw);
   if (!validated.success) {
     return { error: 'Validation failed', issues: validated.error.format() };
   }
 
-  const icpId = form.get('id') as string || crypto.randomUUID();
+  const icpId = String(form.get('id') ?? crypto.randomUUID());
   const now = new Date();
   const data = {
     name: validated.data.name,
@@ -247,10 +247,10 @@ async function saveMarketActionImpl(prev: any, form: FormData) {
   if (!ws.success || !ws.workspace) return { error: 'No workspace' };
 
   const raw: Record<string, unknown> = {
-    name: form.get('name'),
-    icpProfileId: form.get('icpProfileId') || undefined,
-    offerId: form.get('offerId') || undefined,
-    status: form.get('status') || 'active',
+    name: form.get('name') ?? '',
+    icpProfileId: form.get('icpProfileId') ?? undefined,
+    offerId: form.get('offerId') ?? undefined,
+    status: form.get('status') ?? 'active',
   };
 
   const validated = MarketSchema.safeParse(raw);
@@ -258,7 +258,7 @@ async function saveMarketActionImpl(prev: any, form: FormData) {
     return { error: 'Validation failed', issues: validated.error.format() };
   }
 
-  const marketId = form.get('id') as string || crypto.randomUUID();
+  const marketId = String(form.get('id') ?? crypto.randomUUID());
   const now = new Date();
   const data = {
     name: validated.data.name,
@@ -305,9 +305,9 @@ export const createMarketWithWizardAction = withLogging(
     const ws = await getOrCreateWorkspaceAction();
     if (!ws.success || !ws.workspace) return { error: 'No workspace' };
 
-    const marketName = form.get('marketName') as string;
-    const offerDescription = form.get('offerDescription') as string;
-    const icpDescription = form.get('icpDescription') as string;
+    const marketName = String(form.get('marketName') ?? '');
+    const offerDescription = String(form.get('offerDescription') ?? '');
+    const icpDescription = String(form.get('icpDescription') ?? '');
 
     if (!marketName || !offerDescription || !icpDescription) {
       return { error: 'All fields are required.' };
@@ -367,8 +367,8 @@ export const createMarketWithWizardAction = withLogging(
 
       revalidatePath('/markets');
       return { success: true, marketId };
-    } catch (err: any) {
-      return { error: `Failed to create market: ${err.message}` };
+    } catch (err: unknown) {
+      return { error: `Failed to create market: ${err instanceof Error ? err.message : String(err)}` };
     }
   }
 );

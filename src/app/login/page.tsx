@@ -43,14 +43,15 @@ export default function LoginPage() {
       const cred = await signInWithEmailAndPassword(auth, email, password);
       const idToken = await cred.user.getIdToken();
       await exchangeToken(idToken);
-    } catch (err: any) {
-      const code = err?.code || '';
+    } catch (err: unknown) {
+      const e = err as { code?: string; message?: string } | undefined;
+      const code = e?.code || '';
       if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
         setError('Invalid email or password.');
       } else if (code === 'auth/too-many-requests') {
         setError('Too many attempts. Please try again later.');
       } else {
-        setError(err?.message || 'An unexpected error occurred.');
+        setError(e?.message || 'An unexpected error occurred.');
       }
     } finally {
       setLoading(false);
@@ -66,11 +67,12 @@ export default function LoginPage() {
       const cred = await signInWithPopup(auth, provider);
       const idToken = await cred.user.getIdToken();
       await exchangeToken(idToken);
-    } catch (err: any) {
-      if (err?.code === 'auth/popup-closed-by-user') {
+    } catch (err: unknown) {
+      const e = err as { code?: string; message?: string } | undefined;
+      if (e?.code === 'auth/popup-closed-by-user') {
         // User closed — no error needed
       } else {
-        setError(err?.message || 'Google sign-in failed.');
+        setError(e?.message || 'Google sign-in failed.');
       }
     } finally {
       setGoogleLoading(false);
@@ -89,7 +91,7 @@ export default function LoginPage() {
             L
           </div>
           <div>
-            <h2 className="heading-2xl font-extrabold text-foreground leading-none">
+            <h2 className="text-heading-2xl font-extrabold text-foreground leading-none">
               Leadroom
             </h2>
             <p className="mt-2 text-label-12 font-semibold text-muted-foreground uppercase tracking-widest">

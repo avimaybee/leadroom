@@ -1,4 +1,4 @@
-import { Db } from '@/db';
+import { type Db } from '@/db';
 import { LoggingService } from '@/services/logging';
 import { contacts, researchSnapshots } from '@/db/schema/research';
 import { activities } from '@/db/schema/core';
@@ -188,14 +188,13 @@ export async function saveAIExtractedContacts(
 
   // 1. Save people details
   if (extracted.people && Array.isArray(extracted.people)) {
+    const batch: Array<typeof contacts.$inferInsert> = [];
     for (const person of extracted.people) {
       if (!person) continue;
-      // Skip if email exists
       if (person.email && existingEmails.has(person.email.toLowerCase())) continue;
-      // Skip if linkedin exists
       if (person.linkedinUrl && existingUrls.has(person.linkedinUrl.toLowerCase())) continue;
 
-      await db.insert(contacts).values({
+      batch.push({
         id: crypto.randomUUID(),
         leadId,
         fullName: person.fullName || null,
@@ -205,31 +204,30 @@ export async function saveAIExtractedContacts(
         linkedinUrl: person.linkedinUrl || null,
         otherProfileUrl: null,
         isPrimary: 0,
-        confidenceLevel: 'HIGH', // AI extracted specific person
+        confidenceLevel: 'HIGH',
         sourceType: 'ENRICHMENT',
         createdByUserId: userId || null,
         createdAt: now,
         updatedAt: now,
       });
-      saved++;
-      
       if (person.email) existingEmails.add(person.email.toLowerCase());
       if (person.linkedinUrl) existingUrls.add(person.linkedinUrl.toLowerCase());
     }
+    if (batch.length > 0) { await db.insert(contacts).values(batch); saved += batch.length; }
   }
 
   // 2. Save emails
   if (extracted.emails && Array.isArray(extracted.emails)) {
+    const batch: Array<typeof contacts.$inferInsert> = [];
     for (const email of extracted.emails) {
       if (!email) continue;
       if (existingEmails.has(email.toLowerCase())) continue;
-
-      await db.insert(contacts).values({
+      batch.push({
         id: crypto.randomUUID(),
         leadId,
         fullName: null,
         roleTitle: null,
-        email: email,
+        email,
         phone: null,
         linkedinUrl: null,
         otherProfileUrl: null,
@@ -240,25 +238,25 @@ export async function saveAIExtractedContacts(
         createdAt: now,
         updatedAt: now,
       });
-      saved++;
       existingEmails.add(email.toLowerCase());
     }
+    if (batch.length > 0) { await db.insert(contacts).values(batch); saved += batch.length; }
   }
 
   // 3. Save phones
   if (extracted.phones && Array.isArray(extracted.phones)) {
+    const existingPhones = new Set(existingContacts.map(c => c.phone).filter(Boolean));
+    const batch: Array<typeof contacts.$inferInsert> = [];
     for (const phone of extracted.phones) {
       if (!phone) continue;
-      const hasPhone = existingContacts.some(c => c.phone === phone);
-      if (hasPhone) continue;
-
-      await db.insert(contacts).values({
+      if (existingPhones.has(phone)) continue;
+      batch.push({
         id: crypto.randomUUID(),
         leadId,
         fullName: null,
         roleTitle: null,
         email: null,
-        phone: phone,
+        phone,
         linkedinUrl: null,
         otherProfileUrl: null,
         isPrimary: 0,
@@ -268,15 +266,17 @@ export async function saveAIExtractedContacts(
         createdAt: now,
         updatedAt: now,
       });
-      saved++;
+      existingPhones.add(phone);
     }
+    if (batch.length > 0) { await db.insert(contacts).values(batch); saved += batch.length; }
   }
 
   // 4. Save social links
   if (extracted.socialLinks) {
     const { linkedin, facebook, instagram, twitter, youtube, tiktok } = extracted.socialLinks;
+    const batch: Array<typeof contacts.$inferInsert> = [];
     if (linkedin && !existingUrls.has(linkedin.toLowerCase())) {
-      await db.insert(contacts).values({
+      batch.push({
         id: crypto.randomUUID(),
         leadId,
         fullName: null,
@@ -292,14 +292,13 @@ export async function saveAIExtractedContacts(
         createdAt: now,
         updatedAt: now,
       });
-      saved++;
       existingUrls.add(linkedin.toLowerCase());
     }
 
     const otherSocials = [facebook, instagram, twitter, youtube, tiktok].filter(Boolean) as string[];
     for (const social of otherSocials) {
       if (existingUrls.has(social.toLowerCase())) continue;
-      await db.insert(contacts).values({
+      batch.push({
         id: crypto.randomUUID(),
         leadId,
         fullName: null,
@@ -315,9 +314,9 @@ export async function saveAIExtractedContacts(
         createdAt: now,
         updatedAt: now,
       });
-      saved++;
       existingUrls.add(social.toLowerCase());
     }
+    if (batch.length > 0) { await db.insert(contacts).values(batch); saved += batch.length; }
   }
 
   return saved;

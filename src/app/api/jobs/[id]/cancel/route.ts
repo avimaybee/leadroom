@@ -47,7 +47,7 @@ export async function POST(
     await db
       .update(jobRuns)
       .set({
-        status: 'FAILED',
+        status: 'CANCELLED',
         errorSummary: 'Cancelled by user',
         finishedAt: new Date(),
       })

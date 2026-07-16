@@ -10,7 +10,7 @@ export default async function UnifiedFeedLoader() {
   const userId = await getUserId();
 
   const [activeLeads, openTasks, draftOutreach, thresholdsData] = await Promise.all([
-    db.select().from(leads).where(and(eq(leads.status, 'Active'), eq(leads.ownerId, userId ?? ''))).orderBy(desc(leads.createdAt)),
+    db.select().from(leads).where(and(eq(leads.status, 'Active'), eq(leads.ownerId, userId ?? ''))).orderBy(desc(leads.createdAt)).limit(200),
     db.select({
       task: tasks,
       leadName: leads.name

@@ -1,13 +1,53 @@
 export type LogLevel = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
 
-let globalRequestId: string | null = null;
+let _alsStore: Map<string, unknown> | null = null;
+
+let _getStore: () => Map<string, unknown>;
+let _runWithContext: <T>(fn: () => T) => T;
+
+try {
+  const ALS = (globalThis as any).AsyncLocalStorage;
+  if (ALS && typeof ALS?.prototype?.getStore === 'function') {
+    const als = new ALS();
+    _getStore = () => als.getStore() ?? new Map();
+    _runWithContext = <T>(fn: () => T): T => als.run(new Map(), fn) as T;
+  } else {
+    throw 0;
+  }
+} catch {
+  _getStore = () => {
+    if (!_alsStore) _alsStore = new Map();
+    return _alsStore;
+  };
+  _runWithContext = <T>(fn: () => T): T => fn();
+}
 
 export function setGlobalRequestId(id: string) {
-  globalRequestId = id;
+  _getStore().set('requestId', id);
 }
 
 export function getGlobalRequestId(): string | null {
-  return globalRequestId;
+  return (_getStore().get('requestId') as string) ?? null;
+}
+
+export function setUserId(id: string) {
+  _getStore().set('userId', id);
+}
+
+export function getUserId(): string | null {
+  return (_getStore().get('userId') as string) ?? null;
+}
+
+export function setCorrelationId(id: string) {
+  _getStore().set('correlationId', id);
+}
+
+export function getCorrelationId(): string | null {
+  return (_getStore().get('correlationId') as string) ?? null;
+}
+
+export function runWithRequestContext<T>(fn: () => T): T {
+  return _runWithContext(fn);
 }
 
 const ENABLED_LEVELS: Record<string, LogLevel[]> = {
@@ -40,18 +80,9 @@ export class StructuredLogger {
   }
 
   private formatError(error: unknown): Record<string, unknown> {
-    if (error instanceof Error) {
-      return {
-        name: error.name,
-        message: error.message,
-        stack: error.stack,
-        ...((error as any).cause ? { cause: String((error as any).cause) } : {}),
-      };
-    }
-    if (typeof error === 'object' && error !== null) {
-      return { message: JSON.stringify(error) };
-    }
-    return { message: String(error) };
+    return error instanceof Error
+      ? { message: error.message, stack: error.stack, name: error.name }
+      : { message: String(error) };
   }
 
   private log(level: LogLevel, message: string, extra?: Record<string, unknown> | null, error?: unknown) {
@@ -66,9 +97,14 @@ export class StructuredLogger {
       elapsed: `${elapsed}ms`,
     };
 
-    if (globalRequestId) {
-      payload.requestId = globalRequestId;
-    }
+    const reqId = getGlobalRequestId();
+    if (reqId) payload.requestId = reqId;
+
+    const uid = getUserId();
+    if (uid) payload.userId = uid;
+
+    const cid = getCorrelationId();
+    if (cid) payload.correlationId = cid;
 
     if (extra) {
       payload.extra = extra;

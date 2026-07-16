@@ -30,7 +30,7 @@ export function SignalRow({ name, weight, description, type, onChange, onRemove 
               min={1}
               max={10}
               value={weight}
-              onChange={(e) => onChange('weight', parseInt(e.target.value))}
+              onChange={(e) => { const v = parseInt(e.target.value); onChange('weight', isNaN(v) ? 0 : v); }}
               className="w-20 accent-primary"
             />
             <span className="text-label-14 font-semibold text-foreground w-4 text-right">{weight}</span>

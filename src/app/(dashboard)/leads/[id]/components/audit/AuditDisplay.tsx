@@ -1,5 +1,7 @@
 'use client';
 
+// TODO: install rehype-sanitize (npm install rehype-sanitize) and add import rehypeSanitize from 'rehype-sanitize',
+// then pass rehypePlugins={[rehypeSanitize]} to ReactMarkdown below
 import ReactMarkdown from 'react-markdown';
 import { FileText } from 'lucide-react';
 import { AuditSnapshot, LeadScore } from './types';
@@ -61,7 +63,7 @@ export function AuditDisplay({
                   <span className="text-label-12 font-semibold text-chart-2 block">Key Strengths</span>
                   <div className="text-copy-13 text-card-foreground font-medium leading-relaxed bg-muted/30 p-3 rounded-md prose-markdown">
                     {audit.keyStrengths ? (
-                      <ReactMarkdown>{audit.keyStrengths}</ReactMarkdown>
+                      <ReactMarkdown rehypePlugins={[]}>{audit.keyStrengths}</ReactMarkdown>
                     ) : (
                       'No strengths noted.'
                     )}
@@ -72,7 +74,7 @@ export function AuditDisplay({
                   <span className="text-label-12 font-semibold text-destructive block">Key Weaknesses</span>
                   <div className="text-copy-13 text-card-foreground font-medium leading-relaxed bg-muted/30 p-3 rounded-md prose-markdown">
                     {audit.keyWeaknesses ? (
-                      <ReactMarkdown>{audit.keyWeaknesses}</ReactMarkdown>
+                      <ReactMarkdown rehypePlugins={[]}>{audit.keyWeaknesses}</ReactMarkdown>
                     ) : (
                       'No weaknesses noted.'
                     )}
@@ -84,7 +86,7 @@ export function AuditDisplay({
                 <span className="text-label-12 font-semibold text-primary block">Recommended Creative Improvements</span>
                 <div className="text-copy-13 text-muted-foreground font-medium leading-relaxed bg-primary/5 p-4 rounded-md prose-markdown">
                   {audit.recommendedImprovements ? (
-                    <ReactMarkdown>{audit.recommendedImprovements}</ReactMarkdown>
+                    <ReactMarkdown rehypePlugins={[]}>{audit.recommendedImprovements}</ReactMarkdown>
                   ) : (
                     'No creative recommendations generated.'
                   )}

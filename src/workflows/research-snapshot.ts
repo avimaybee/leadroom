@@ -1,10 +1,14 @@
+import { getLogger } from '../lib/logger';
 import { LoggingService } from '@/services/logging';
 import { WorkflowEntrypoint, WorkflowEvent, WorkflowStep } from "cloudflare:workers";
 import { getDb } from "../db";
 import { ResearchWorkflowService } from "../services/research-workflow";
 import { jobRuns } from "../db/schema/research";
 import { notifications } from "../db/schema/core";
-import { eq } from "drizzle-orm";
+import { researchTasks } from "../db/schema/jobs";
+import { eq, and, inArray } from "drizzle-orm";
+
+const log = getLogger('ResearchSnapshotWorkflow');
 
 type Env = {
   DB: D1Database;
@@ -21,13 +25,8 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
   async run(event: WorkflowEvent<Params>, step: WorkflowStep) {
     const { leadId, jobId, userId } = event.payload;
 
-    (process as any).env = {
-      ...(process as any).env,
-      ...this.env,
-    };
-
-    const db = getDb();
-    const workflowService = new ResearchWorkflowService(db);
+    const db = getDb(this.env);
+    const workflowService = new ResearchWorkflowService(db, this.env.BROWSER);
 
     try {
       // Step 0: Mark job as RUNNING so the UI sees progress immediately
@@ -83,7 +82,10 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
         }
       );
 
-      // Step 2: Check if cancelled before sleeping
+      // Step 2: Sleep to respect rate limits (minimum 10s between calls)
+      await step.sleep("rate-limit-delay", "10 seconds");
+
+      // Step 3: Check if cancelled after sleep
       await step.do(
         "check-cancelled-2",
         {
@@ -102,29 +104,7 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
         }
       );
 
-      // Step 3: Sleep to respect rate limits (minimum 10s between calls)
-      await step.sleep("rate-limit-delay", "10 seconds");
-
-      // Step 4: Check if cancelled after sleep
-      await step.do(
-        "check-cancelled-3",
-        {
-          retries: { limit: 0, delay: 1000 },
-          timeout: "30 seconds",
-        },
-        async () => {
-          const [job] = await db
-            .select({ status: jobRuns.status })
-            .from(jobRuns)
-            .where(eq(jobRuns.id, jobId))
-            .limit(1);
-          if (job?.status === "CANCELLED") {
-            throw new Error("CANCELLED_BY_USER");
-          }
-        }
-      );
-
-      // Step 5: Fetch and scrape website
+      // Step 4: Fetch and scrape website
       const scraped = await step.do(
         "fetch-site",
         {
@@ -137,8 +117,14 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
         },
         async () => {
           try {
-            return await workflowService.scrapeWebsite(lead.website);
+            const result = await workflowService.scrapeWebsite(lead.website);
+            // Strip screenshot before step output is persisted to DO — base64 can be 300KB–2MB
+            if (result && 'screenshot' in result) {
+              delete (result as any).screenshot;
+            }
+            return result;
           } catch (error: unknown) {
+            log.error('Research workflow step failed', error);
             const errMsg = error instanceof Error ? error.message : String(error);
             if (error instanceof Error && (error as any).status === 429) {
               throw error; // Re-throw 429 daily limit error so workflow fails transparently
@@ -153,26 +139,7 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
         }
       );
 
-      // Step 6: Check if cancelled after website fetch
-      await step.do(
-        "check-cancelled-4",
-        {
-          retries: { limit: 0, delay: 1000 },
-          timeout: "30 seconds",
-        },
-        async () => {
-          const [job] = await db
-            .select({ status: jobRuns.status })
-            .from(jobRuns)
-            .where(eq(jobRuns.id, jobId))
-            .limit(1);
-          if (job?.status === "CANCELLED") {
-            throw new Error("CANCELLED_BY_USER");
-          }
-        }
-      );
-
-      // Step 7: Save any contacts extracted from the website scrape
+      // Step 5: Save any contacts extracted from the website scrape
       if (scraped?.extractedContacts) {
         await step.do(
           "save-contacts",
@@ -190,33 +157,14 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
         );
       }
 
-      // Step 8: Check if cancelled before LLM inference
-      await step.do(
-        "check-cancelled-5",
-        {
-          retries: { limit: 0, delay: 1000 },
-          timeout: "30 seconds",
-        },
-        async () => {
-          const [job] = await db
-            .select({ status: jobRuns.status })
-            .from(jobRuns)
-            .where(eq(jobRuns.id, jobId))
-            .limit(1);
-          if (job?.status === "CANCELLED") {
-            throw new Error("CANCELLED_BY_USER");
-          }
-        }
-      );
-
-      // Step 9a: Check cache & call AI (may be network I/O heavy)
+      // Step 7a: Check cache & call AI (may be network I/O heavy)
       const websiteMarkdown = scraped?.content || null;
       const location = [lead.city, lead.region].filter(Boolean).join(', ') || null;
       const { merged, hash } = await step.do(
         "check-cache-and-generate-ai",
         {
           retries: {
-            limit: 3,
+            limit: 1,
             delay: 5000,
             backoff: "exponential",
           },
@@ -229,6 +177,15 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
 
       if (!merged) {
         throw new Error('Failed to generate or load research data');
+      }
+
+      // Truncate evidence summaries to stay under 128KB DO limit
+      const mergedStr = JSON.stringify(merged);
+      if (mergedStr.length > 100000 && merged.evidenceSummaries && Array.isArray(merged.evidenceSummaries)) {
+        log.warn('merged output exceeds 100KB, truncating evidence summaries', { size: mergedStr.length });
+        while (JSON.stringify(merged).length > 100000 && merged.evidenceSummaries.length > 0) {
+          merged.evidenceSummaries = merged.evidenceSummaries.slice(0, -1);
+        }
       }
 
       // Step 9b: Persist snapshot records
@@ -286,14 +243,14 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
             "extract-and-match-signals",
             {
               retries: {
-                limit: 2,
-                delay: 5000,
-                backoff: "exponential",
-              },
-              timeout: "5 minutes",
-            },
-            async () => {
-              return await workflowService.extractAndMatchSignals(lead, websiteMarkdown, icpProfile);
+            limit: 1,
+            delay: 5000,
+            backoff: "exponential",
+          },
+          timeout: "5 minutes",
+        },
+        async () => {
+          return await workflowService.extractAndMatchSignals(lead, websiteMarkdown, icpProfile);
             }
           )
         : { matchedPositive: [], matchedNegative: [], matchedDisqualifiers: [] };
@@ -385,18 +342,27 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
       );
 
     } catch (error: unknown) {
+      log.error('Research workflow failed', error);
       const errMsg = error instanceof Error ? error.message : "Unknown workflow error occurred";
       const isCancelled = errMsg === "CANCELLED_BY_USER";
 
       // Save status inside DB
       try {
-        await db.update(jobRuns)
-          .set({
-            status: isCancelled ? "CANCELLED" : "FAILED",
-            errorSummary: isCancelled ? "Cancelled by user" : errMsg,
-            finishedAt: new Date(),
-          })
-          .where(eq(jobRuns.id, jobId));
+        await db.batch([
+          db.update(jobRuns)
+            .set({
+              status: isCancelled ? "CANCELLED" : "FAILED",
+              errorSummary: isCancelled ? "Cancelled by user" : errMsg,
+              finishedAt: new Date(),
+            })
+            .where(eq(jobRuns.id, jobId)),
+          db.update(researchTasks)
+            .set({ status: 'FAILED', updatedAt: new Date() })
+            .where(and(
+              eq(researchTasks.prospectId, leadId),
+              inArray(researchTasks.status, ['RUNNING', 'PENDING'])
+            )),
+        ]);
 
         if (isCancelled) {
           await new LoggingService(db).log({

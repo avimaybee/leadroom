@@ -139,22 +139,19 @@ export function generateFitReasoning(input: ScoringInput, output: ScoringOutput)
     return `Disqualified: ${dq?.factor.replace('Disqualified: ', '') || 'disqualifier triggered'}`;
   }
 
-  const matchedPositive = input.extractedSignals.filter(s =>
-    input.icpProfile.positiveSignals.some(p => p.name === s.signalName),
-  );
-  const matchedNegative = input.extractedSignals.filter(s =>
-    input.icpProfile.negativeSignals.some(n => n.name === s.signalName),
-  );
+  const positiveNames = new Set(input.icpProfile.positiveSignals.map(p => p.name));
+  const negativeNames = new Set(input.icpProfile.negativeSignals.map(n => n.name));
+  const positiveWeights = new Map(input.icpProfile.positiveSignals.map(p => [p.name, p.weight]));
+
+  const matchedPositive = input.extractedSignals.filter(s => positiveNames.has(s.signalName));
+  const matchedNegative = input.extractedSignals.filter(s => negativeNames.has(s.signalName));
 
   if (matchedPositive.length === 0 && matchedNegative.length === 0) {
     return 'Insufficient data to determine fit';
   }
 
   const topPositive = matchedPositive
-    .map(s => {
-      const def = input.icpProfile.positiveSignals.find(p => p.name === s.signalName);
-      return { ...s, weight: def?.weight || 0 };
-    })
+    .map(s => ({ ...s, weight: positiveWeights.get(s.signalName) || 0 }))
     .sort((a, b) => b.weight - a.weight)[0];
 
   if (output.priorityTier === 'tier1') {

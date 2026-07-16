@@ -8,6 +8,9 @@ import { learningSuggestions } from '@/db/schema/outreach';
 import { workspaces } from '@/db/schema/strategy';
 import { eq, and } from 'drizzle-orm';
 import { withLogging } from '@/lib/actions/with-logging';
+import { getLogger } from '@/lib/logger';
+
+const log = getLogger('LearningActions');
 
 export async function getLearningSuggestionsAction() {
   const db = getDb();
@@ -73,10 +76,11 @@ async function applyLearningSuggestionActionImpl(suggestionId: string) {
       revalidatePath('/settings/insights');
       revalidatePath('/settings/pipeline');
       revalidatePath('/');
-    } catch (e) {}
+    } catch (e) { log.error('revalidatePath failed', e); }
 
     return { success: true };
   } catch (e: unknown) {
+    log.error('Learning action failed', e);
     const msg = e instanceof Error ? e.message : 'Failed to apply suggestion';
     return { error: msg };
   }
@@ -100,10 +104,11 @@ async function dismissLearningSuggestionActionImpl(suggestionId: string) {
       revalidatePath('/settings/insights');
       revalidatePath('/settings/pipeline');
       revalidatePath('/');
-    } catch (e) {}
+    } catch (e) { log.error('revalidatePath failed', e); }
 
     return { success: true };
   } catch (e: unknown) {
+    log.error('Learning action failed', e);
     const msg = e instanceof Error ? e.message : 'Failed to dismiss suggestion';
     return { error: msg };
   }

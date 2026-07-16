@@ -40,13 +40,13 @@ export function ErrorPage({
         <h2 className="text-heading-xl text-card-foreground">{title}</h2>
         <p className="text-copy-14 text-muted-foreground font-semibold leading-relaxed">
           {description}
-          {error.message && (
-            <code className="block mt-2 p-2 bg-muted border border-border rounded text-mono-12 text-foreground font-mono text-left max-h-32 overflow-auto whitespace-pre-wrap break-all">
-              {error.message}
-            </code>
+          {error.digest && (
+            <span className="block mt-1 text-mono-12 text-muted-foreground/60">
+              Error ID: {error.digest}
+            </span>
           )}
           {error.digest && (
-            <span className="block mt-1 text-mono-11 text-muted-foreground/60">
+            <span className="block mt-1 text-mono-12 text-muted-foreground/60">
               Error ID: {error.digest}
             </span>
           )}

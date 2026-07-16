@@ -1,5 +1,5 @@
 import { LoggingService } from './logging';
-import { Db } from '../db';
+import { type Db } from '../db';
 import { eq, desc, lt, and, isNotNull } from 'drizzle-orm';
 import { outreachDrafts, approvals, activities } from '../db/schema';
 import { getLogger } from '../lib/logger';
@@ -37,38 +37,46 @@ export class OutreachService {
 
     const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
     try {
-      const oldDrafts = await this.db
+      const candidateDrafts = await this.db
         .select({ id: outreachDrafts.id, attachments: outreachDrafts.attachments })
         .from(outreachDrafts)
         .where(
           and(
             lt(outreachDrafts.createdAt, fifteenMinutesAgo),
-            isNotNull(outreachDrafts.attachments)
+            isNotNull(outreachDrafts.attachments),
           )
-        );
+        )
+        .limit(20);
 
+      const oldDrafts = candidateDrafts.filter(d => Array.isArray(d.attachments) && d.attachments.some(a => (a as any).base64));
+
+      if (oldDrafts.length >= 20) {
+        log.warn('More than 20 drafts with base64 attachments pending cleanup', { count: oldDrafts.length });
+      }
+
+      const batchUpdates: Promise<any>[] = [];
       for (const draft of oldDrafts) {
         if (!draft.attachments) continue;
-        try {
-          const parsed = JSON.parse(draft.attachments) as Array<{ name: string; type: string; base64?: string }>;
-          let modified = false;
-          const updated = parsed.map(att => {
-            if (att.base64) {
-              modified = true;
-              const { base64, ...rest } = att;
-              return rest;
-            }
-            return att;
-          });
-          if (modified) {
-            await this.db
-              .update(outreachDrafts)
-              .set({ attachments: JSON.stringify(updated) })
-              .where(eq(outreachDrafts.id, draft.id));
+        const parsed = Array.isArray(draft.attachments)
+          ? (draft.attachments as Array<{ name: string; type: string; base64?: string }>)
+          : [];
+        let modified = false;
+        const updated = parsed.map(att => {
+          if (att.base64) {
+            modified = true;
+            const { base64, ...rest } = att;
+            return rest;
           }
-        } catch (e) {
-          log.error(`Error cleaning attachments for draft ${draft.id}`, e);
+          return att;
+        });
+        if (modified) {
+          batchUpdates.push(
+            this.db.update(outreachDrafts).set({ attachments: JSON.stringify(updated) }).where(eq(outreachDrafts.id, draft.id))
+          );
         }
+      }
+      if (batchUpdates.length > 0) {
+        await this.db.batch(batchUpdates as any);
       }
     } catch (e) {
       log.error('Error running cleanOldAttachments', e);
@@ -101,7 +109,8 @@ export class OutreachService {
       .from(outreachDrafts)
       .leftJoin(approvals, eq(outreachDrafts.id, approvals.draftId))
       .where(eq(outreachDrafts.leadId, leadId))
-      .orderBy(desc(outreachDrafts.createdAt));
+      .orderBy(desc(outreachDrafts.createdAt))
+      .limit(50);
   }
 
   /**
@@ -243,7 +252,13 @@ leadId: draft.leadId,
 
     // Log activity if transitioning to SENT
     if (status === 'SENT') {
-      const { prospects: leads } = await import('../db/schema/core');
+      let leads: any;
+      try {
+        ({ prospects: leads } = await import('../db/schema/core'));
+      } catch (e) {
+        log.error('Failed to import core schema', e);
+        return;
+      }
       await this.db.update(leads).set({ lastActivityAt: now, updatedAt: now }).where(eq(leads.id, draft.leadId));
 
       await new LoggingService(this.db).log({

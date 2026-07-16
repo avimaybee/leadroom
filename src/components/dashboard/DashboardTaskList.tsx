@@ -1,6 +1,6 @@
 'use client';
 
-import { useTransition } from 'react';
+import { useTransition, useState, useEffect, memo } from 'react';
 import Link from 'next/link';
 import { formatUTC } from '@/lib/date';
 import { Badge } from '@/components/ui/badge';
@@ -21,8 +21,10 @@ interface DashboardTaskListProps {
   toggleTaskStatusAction: (id: string, currentStatus: string, leadId?: string | null) => Promise<void>;
 }
 
-export default function DashboardTaskList({ tasks, toggleTaskStatusAction }: DashboardTaskListProps) {
+const DashboardTaskList = memo(function DashboardTaskList({ tasks, toggleTaskStatusAction }: DashboardTaskListProps) {
   const [isPending, startTransition] = useTransition();
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const id = setInterval(() => setNow(Date.now()), 60_000); return () => clearInterval(id); }, []);
 
   const handleToggle = (task: DashboardTask) => {
     startTransition(async () => {
@@ -49,9 +51,9 @@ export default function DashboardTaskList({ tasks, toggleTaskStatusAction }: Das
     return (
       <div className="text-center text-copy-14 font-semibold text-muted-foreground py-6">
         No open tasks.
-      </div>
-    );
-  }
+    </div>
+  );
+}
 
   return (
     <div className="space-y-3">
@@ -84,19 +86,22 @@ export default function DashboardTaskList({ tasks, toggleTaskStatusAction }: Das
               <Badge variant={getPriorityVariant(task.priority)} className="">
                 {task.priority}
               </Badge>
-              {task.dueDate && (
-                <span className={`text-label-12 flex items-center gap-1 ${
-                  new Date(task.dueDate) < new Date() ? 'text-destructive' : 'text-muted-foreground'
-                }`}>
-                  <Calendar className={`w-3.5 h-3.5 ${new Date(task.dueDate) < new Date() ? 'text-destructive' : 'text-muted-foreground'}`} />
-                  {formatUTC(task.dueDate)}
-                  {new Date(task.dueDate) < new Date() && ' (Overdue)'}
-                </span>
-              )}
+              {task.dueDate && (() => {
+                const isOverdue = new Date(task.dueDate).getTime() < now;
+                return (
+                  <span className={`text-label-12 flex items-center gap-1 ${isOverdue ? 'text-destructive' : 'text-muted-foreground'}`}>
+                    <Calendar className={`w-3.5 h-3.5 ${isOverdue ? 'text-destructive' : 'text-muted-foreground'}`} />
+                    {formatUTC(task.dueDate)}
+                    {isOverdue && ' (Overdue)'}
+                  </span>
+                );
+              })()}
             </div>
           </div>
         </div>
       ))}
     </div>
   );
-}
+});
+
+export default DashboardTaskList;

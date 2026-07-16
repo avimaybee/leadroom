@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { users, leads, tasks, notes, activities, contacts, jobRuns, researchSnapshots } from '../schema.js';
+import { users, leads, tasks, notes, activities, contacts, jobRuns, researchSnapshots } from '../schema';
 import { getTableConfig } from 'drizzle-orm/sqlite-core';
 
 test('schema definition', async (t) => {

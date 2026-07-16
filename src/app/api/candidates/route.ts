@@ -1,11 +1,17 @@
 import { getLogger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { getDb } from '@/db';
 import { DiscoveryService } from '@/services/discovery';
 import { CreateCandidateLeadSchema } from '@/db/models/discovery';
 import { fetchSiteContent } from '@/lib/scraper';
 
 import { getUserId } from '@/lib/auth';
+
+const CandidatePatchSchema = z.object({
+  id: z.string().min(1),
+  status: z.enum(['NEW', 'REVIEWED', 'PROMOTED', 'DISCARDED']),
+});
 
 const log = getLogger('CandidatesAPI');
 
@@ -67,14 +73,12 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
     }
 
-    const { id, status } = await request.json() as {
-      id: string;
-      status: 'NEW' | 'REVIEWED' | 'PROMOTED' | 'DISCARDED';
-    };
-
-    if (!id || !status) {
+    const body = await request.json();
+    const parsed = CandidatePatchSchema.safeParse(body);
+    if (!parsed.success) {
       return NextResponse.json({ success: false, error: 'id and status parameters are required' }, { status: 400 });
     }
+    const { id, status } = parsed.data;
 
     const db = getDb();
     const service = new DiscoveryService(db);
@@ -87,6 +91,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ success: true, data: candidate });
     }
   } catch (error: unknown) {
+    log.error('Candidate route failed', error);
     const knownErrors = ['not found', 'has already been promoted', 'failed to'];
     const msg = error instanceof Error ? error.message : '';
     const isKnown = knownErrors.some(k => msg.toLowerCase().includes(k.toLowerCase()));

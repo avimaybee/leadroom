@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+// TODO(21.10): Prefer direct imports from this file for tree-shaking (e.g. `import { PainSignalSchema } from './schemas'`)
+// instead of barrel re-exports from a parent index.ts.
+
 export const PainSignalSchema = z.object({
   signal: z.string().min(1),
   evidenceQuote: z.string().min(1),
@@ -35,7 +38,7 @@ export const DisqualifierSchema = z.object({
   reason: z.string().nullable(),
   triggeredRules: z.array(z.string()),
   evidenceQuote: z.string().nullable(),
-  sourceUrl: z.string().nullable(),
+  sourceUrl: z.string().url().nullable(),
   confidence: z.number().int().min(0).max(100),
 });
 
@@ -45,7 +48,7 @@ export const DraftOutputSchema = z.object({
   citedEvidence: z.array(z.object({
     sentence: z.string().min(1),
     evidenceQuote: z.string().min(1),
-    sourceUrl: z.string(),
+    sourceUrl: z.string().url(),
   })).min(1),
   riskFlags: z.array(z.string()),
   confidence: z.number().int().min(0).max(100),

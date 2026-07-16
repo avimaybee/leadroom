@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
@@ -25,20 +25,35 @@ type NotificationContextType = {
 };
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
+const MAX_NOTIFICATIONS = 100;
+const MAX_SEEN_IDS = 500;
+const MAX_RECENT_JOB_UPDATES = 50;
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [recentJobUpdates, setRecentJobUpdates] = useState<Record<string, 'SUCCESS' | 'ERROR' | 'INFO'>>({});
   const router = useRouter();
   const seenIds = useRef<Set<string>>(new Set());
+  const refreshScheduled = useRef(false);
+
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const fetchInitial = useCallback(async () => {
     try {
       const res = await fetch('/api/notifications');
       if (res.ok) {
         const data = await res.json() as Notification[];
-        setNotifications(data);
-        data.forEach(n => seenIds.current.add(n.id));
+        const capped = data.slice(0, MAX_NOTIFICATIONS);
+        setNotifications(capped);
+        capped.forEach(n => seenIds.current.add(n.id));
+        if (seenIds.current.size > MAX_SEEN_IDS) {
+          const arr = Array.from(seenIds.current);
+          seenIds.current = new Set(arr.slice(arr.length - MAX_SEEN_IDS));
+        }
       }
     } catch (e) {
       console.error('Failed to fetch notifications', e);
@@ -50,12 +65,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       const res = await fetch('/api/notifications');
       if (!res.ok) return;
       const data = await res.json() as Notification[];
-      
+
       const newNotifs = data.filter(n => !seenIds.current.has(n.id));
       if (newNotifs.length > 0) {
         newNotifs.forEach(notif => {
           seenIds.current.add(notif.id);
-          
+
           if (notif.status === 'SUCCESS') {
             toast.success(notif.title, { description: notif.message, action: notif.link ? { label: 'View', onClick: () => router.push(notif.link!) } : undefined });
           } else if (notif.status === 'ERROR') {
@@ -69,46 +84,62 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
           }
 
           if (notif.jobRunId) {
-            setRecentJobUpdates(prev => ({ ...prev, [notif.jobRunId!]: notif.status }));
+            setRecentJobUpdates(prev => {
+              if (prev[notif.jobRunId!] === notif.status) return prev;
+              const next = { ...prev, [notif.jobRunId!]: notif.status };
+              const keys = Object.keys(next);
+              if (keys.length > MAX_RECENT_JOB_UPDATES) {
+                const trimmed: Record<string, 'SUCCESS' | 'ERROR' | 'INFO'> = {};
+                const recentKeys = keys.slice(keys.length - MAX_RECENT_JOB_UPDATES);
+                for (const k of recentKeys) trimmed[k] = next[k];
+                return trimmed;
+              }
+              return next;
+            });
           }
         });
 
         setNotifications(prev => {
           const merged = [...newNotifs, ...prev];
           const unique = Array.from(new Map(merged.map(n => [n.id, n])).values());
-          return unique.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          const sorted = unique.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          return sorted.slice(0, MAX_NOTIFICATIONS);
         });
 
-        router.refresh();
+        // Throttle router.refresh — at most once every 10 seconds
+        if (!refreshScheduled.current) {
+          refreshScheduled.current = true;
+          setTimeout(() => {
+            if (!mountedRef.current) return;
+            refreshScheduled.current = false;
+            router.refresh();
+          }, 10_000);
+        }
       }
     } catch (e) {
       console.error('Failed to poll notifications', e);
     }
   }, [router]);
 
+  const pollNotificationsRef = useRef(pollNotifications);
+  useEffect(() => { pollNotificationsRef.current = pollNotifications; });
+
   useEffect(() => {
     fetchInitial();
-    
+
     if (typeof window !== 'undefined' && 'Notification' in window) {
       if (Notification.permission === 'default') {
         Notification.requestPermission();
       }
     }
 
-    // Trigger initial sweep to ensure reminders/stale leads are updated
-    fetch('/api/cron/sweeps').catch(() => {});
-
     // Set up polling intervals
-    const notificationInterval = setInterval(pollNotifications, 10000);
-    const sweepsInterval = setInterval(() => {
-      fetch('/api/cron/sweeps').catch(() => {});
-    }, 30000);
+    const notificationInterval = setInterval(() => pollNotificationsRef.current(), 10000);
 
     return () => {
       clearInterval(notificationInterval);
-      clearInterval(sweepsInterval);
     };
-  }, [fetchInitial, pollNotifications]);
+  }, [fetchInitial]);
 
   const markAsRead = async (id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
@@ -122,8 +153,16 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
+  const contextValue = useMemo(() => ({
+    notifications,
+    unreadCount,
+    markAsRead,
+    markAllAsRead,
+    recentJobUpdates,
+  }), [notifications, unreadCount, markAsRead, markAllAsRead, recentJobUpdates]);
+
   return (
-    <NotificationContext.Provider value={{ notifications, unreadCount, markAsRead, markAllAsRead, recentJobUpdates }}>
+    <NotificationContext.Provider value={contextValue}>
       {children}
     </NotificationContext.Provider>
   );

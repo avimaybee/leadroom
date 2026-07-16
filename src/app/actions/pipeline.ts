@@ -39,7 +39,8 @@ export async function getPipelineProspectsAction() {
       })
       .from(prospects)
       .where(eq(prospects.ownerId, userId))
-      .orderBy(desc(prospects.fitScore));
+      .orderBy(desc(prospects.fitScore))
+      .limit(200);
 
     const normalized = rows.map(p => ({
       ...p,
@@ -82,7 +83,7 @@ export async function updateNbaRulesAction(prevState: ActionState, formData: For
   const userId = await getUserId();
   if (!userId) return { error: 'Unauthorized' };
 
-  const rulesJson = formData.get('nbaRules') as string;
+  const rulesJson = String(formData.get('nbaRules') ?? '');
   if (!rulesJson) return { error: 'Missing NBA rules' };
 
   const db = getDb();

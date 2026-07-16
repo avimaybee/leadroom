@@ -2,6 +2,7 @@ import { getLogger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthService } from '@/services/auth';
 import { getDb } from '@/db';
+import { checkRateLimit } from '@/lib/rate-limit';
 import { z } from 'zod';
 
 const log = getLogger('LoginAPI');
@@ -15,6 +16,15 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+    const rateCheck = await checkRateLimit(`login:${ip}`, 10, 15 * 60 * 1000);
+    if (!rateCheck.allowed) {
+      return NextResponse.json(
+        { error: 'Too many login attempts. Try again later.' },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil((rateCheck.reset - Date.now()) / 1000)) } },
+      );
+    }
+
     const rawBody = await request.json();
     const parsed = loginSchema.safeParse(rawBody);
     if (!parsed.success) {
@@ -34,7 +44,7 @@ export async function POST(request: NextRequest) {
     const isSecure = request.url.startsWith('https://');
     response.headers.append(
       'Set-Cookie',
-      `session=${result.session}; HttpOnly; ${isSecure ? 'Secure; ' : ''}SameSite=Lax; Path=/; Max-Age=86400`
+      `__Secure-session=${result.session}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=86400`
     );
 
     return response;

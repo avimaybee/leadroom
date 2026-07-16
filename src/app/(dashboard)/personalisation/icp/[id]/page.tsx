@@ -25,9 +25,9 @@ export default async function EditIcpPage({ params }: { params: Promise<{ id: st
         initialData={{
           id: profile.id,
           name: profile.name,
-          positiveSignals: profile.positiveSignals,
-          negativeSignals: profile.negativeSignals,
-          disqualifiers: profile.disqualifiers,
+          positiveSignals: profile.positiveSignals as string,
+          negativeSignals: profile.negativeSignals as string,
+          disqualifiers: profile.disqualifiers as string,
         }}
       />
     </div>

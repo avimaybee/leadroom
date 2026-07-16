@@ -6,6 +6,9 @@ import { getDb } from '@/db';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { getUserId } from '@/lib/auth';
+import { getLogger } from '@/lib/logger';
+
+const log = getLogger('ScopesActions');
 
 async function getService() {
   const db = getDb();
@@ -22,7 +25,7 @@ export async function createScopeAction(prevState: ActionState, formData: FormDa
     return { error: 'Unauthorized' };
   }
 
-  let nameInput = (formData.get('name') as string) || '';
+  let nameInput = String(formData.get('name') ?? '');
   if (nameInput) {
     nameInput = nameInput
       .split(' ')
@@ -32,13 +35,13 @@ export async function createScopeAction(prevState: ActionState, formData: FormDa
 
   const rawData = {
     name: nameInput,
-    description: formData.get('description') as string,
-    industryFilter: formData.get('industryFilter') as string,
-    geographyFilter: formData.get('geographyFilter') as string,
-    companySizeFilter: formData.get('companySizeFilter') as string,
-    businessTypeFilter: formData.get('businessTypeFilter') as string,
-    digitalPresenceFilter: formData.get('digitalPresenceFilter') as string,
-    notes: formData.get('notes') as string,
+    description: String(formData.get('description') ?? ''),
+    industryFilter: String(formData.get('industryFilter') ?? ''),
+    geographyFilter: String(formData.get('geographyFilter') ?? ''),
+    companySizeFilter: String(formData.get('companySizeFilter') ?? ''),
+    businessTypeFilter: String(formData.get('businessTypeFilter') ?? ''),
+    digitalPresenceFilter: String(formData.get('digitalPresenceFilter') ?? ''),
+    notes: String(formData.get('notes') ?? ''),
     createdByUserId: userId,
   };
 
@@ -52,6 +55,7 @@ export async function createScopeAction(prevState: ActionState, formData: FormDa
     const id = crypto.randomUUID();
     await service.createScope(id, validated.data);
   } catch (error: unknown) {
+    log.error('Create scope failed', error);
     const msg = error instanceof Error ? error.message : 'Failed to create discovery scope.';
     return { error: msg };
   }

@@ -1,4 +1,5 @@
 import { getLogger } from '../logger';
+import { isPrivateHost } from '../network';
 
 const log = getLogger('Apify');
 
@@ -17,10 +18,13 @@ export interface ApifyRunRef {
   datasetId: string;
 }
 
+let _apifyToken: string | undefined;
+
 /**
  * Resolves the Apify API token from Cloudflare context (production) or process.env (local dev).
  */
 function getApifyToken(env?: any): string {
+  if (_apifyToken) return _apifyToken;
   let token: string | undefined;
   // 1. Use injected env if provided (production path)
   if (env?.APIFY_API_TOKEN) {
@@ -32,7 +36,7 @@ function getApifyToken(env?: any): string {
       const { getCloudflareContext } = require('@opennextjs/cloudflare');
       const cf = getCloudflareContext();
       token = (cf?.env as any)?.APIFY_API_TOKEN;
-    } catch (e) {}
+    } catch (e) { log.warn('Failed to get Cloudflare context', { error: String(e) }); }
   }
   // 3. Fall back to process.env (local dev / tests)
   if (!token) {
@@ -41,6 +45,7 @@ function getApifyToken(env?: any): string {
   if (!token) {
     throw new Error('APIFY_API_TOKEN is not configured in environment variables');
   }
+  _apifyToken = token;
   return token;
 }
 
@@ -87,14 +92,16 @@ export async function startGoogleMapsSearch(
 
   log.info('Starting actor', { niche, location, limit });
 
-  const runRes = await fetch(
-    'https://api.apify.com/v2/acts/nwua9Gu5YrADL7ZDj/runs',
+  const actorUrl = 'https://api.apify.com/v2/acts/nwua9Gu5YrADL7ZDj/runs';
+  if (isPrivateHost(actorUrl)) throw new Error('Blocked request to private IP');
+  const runRes = await fetch(actorUrl,
     {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
+      signal: AbortSignal.timeout(30_000),
       body: JSON.stringify(input),
     },
   );
@@ -125,10 +132,12 @@ export type ApifyRunStatus = 'RUNNING' | 'READY' | 'SUCCEEDED' | 'FAILED' | 'ABO
 export async function checkApifyRunStatus(runId: string): Promise<ApifyRunStatus> {
   const token = getApifyToken();
 
-  const res = await fetch(
-    `https://api.apify.com/v2/acts/nwua9Gu5YrADL7ZDj/runs/${runId}`,
+  const statusUrl = `https://api.apify.com/v2/acts/nwua9Gu5YrADL7ZDj/runs/${runId}`;
+  if (isPrivateHost(statusUrl)) throw new Error('Blocked request to private IP');
+  const res = await fetch(statusUrl,
     {
       headers: { 'Authorization': `Bearer ${token}` },
+      signal: AbortSignal.timeout(30_000),
     },
   );
   if (!res.ok) {
@@ -150,15 +159,11 @@ export async function fetchApifyResults(
   const token = getApifyToken();
 
   log.info('Fetching dataset items', { datasetId });
-  const itemsRes = await fetch(
-    `https://api.apify.com/v2/datasets/${datasetId}/items`,
-    {
-      headers: { 'Authorization': `Bearer ${token}` },
-    },
-  );
-  if (!itemsRes.ok) {
-    throw new Error(`Apify dataset fetch failed (HTTP ${itemsRes.status})`);
-  }
+  const datasetUrl = `https://api.apify.com/v2/datasets/${datasetId}/items`;
+
+  const BATCH_SIZE = 100;
+  const allItems: ApifyItem[] = [];
+  let offset = 0;
 
   interface ApifyItem {
     title?: string;
@@ -172,9 +177,33 @@ export async function fetchApifyResults(
     categoryName?: string;
   }
 
-  const items = (await itemsRes.json()) as ApifyItem[];
+  while (true) {
+    const paginatedUrl = `${datasetUrl}?offset=${offset}&limit=${BATCH_SIZE}`;
+    if (isPrivateHost(paginatedUrl)) throw new Error('Blocked request to private IP');
+    const itemsRes = await fetch(paginatedUrl,
+      {
+        headers: { 'Authorization': `Bearer ${token}` },
+        signal: AbortSignal.timeout(30_000),
+      },
+    );
+    if (!itemsRes.ok) {
+      throw new Error(`Apify dataset fetch failed (HTTP ${itemsRes.status})`);
+    }
 
-  return items.map((item: ApifyItem) => ({
+    const batch = (await itemsRes.json()) as ApifyItem[];
+    if (!Array.isArray(batch) || batch.length === 0) break;
+
+    allItems.push(...batch);
+    offset += batch.length;
+
+    if (batch.length < BATCH_SIZE) break;
+  }
+
+  if (allItems.length > 100) {
+    log.warn('Large dataset fetched from Apify', { datasetId, count: allItems.length });
+  }
+
+  return allItems.map((item: ApifyItem) => ({
     name: item.title || item.name || 'Unknown Business',
     website: item.website || null,
     phone: item.phone || item.phoneUnformatted || null,
@@ -199,6 +228,8 @@ export async function searchGoogleMaps(
   const startTime = Date.now();
   const timeoutMs = 240_000;
 
+  // NOTE: Free-tier Apify accounts may hit rate limits or timeouts during long polls.
+  // The 240s timeout is generous; consider reducing for faster user feedback.
   let status = await checkApifyRunStatus(runId);
   while (status === 'RUNNING' || status === 'READY') {
     if (Date.now() - startTime > timeoutMs) {

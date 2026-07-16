@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
 interface Driver {
@@ -18,26 +18,24 @@ interface ClientScoreDriversProps {
 export function ClientScoreDrivers({ factors, scoreValue, scoreLabel }: ClientScoreDriversProps) {
   const [isOpen, setIsOpen] = useState(false);
 
-  let drivers: Driver[] = [];
-  if (factors) {
-    try {
-      drivers = (JSON.parse(factors) as Driver[]).sort(
-        (a, b) => Math.abs(b.value) - Math.abs(a.value),
-      );
-    } catch (e) {
-      console.warn('[ClientScoreDrivers] Failed to parse score factors JSON:', e);
+  const { drivers, maxAbs, totalPos, totalNeg } = useMemo(() => {
+    let d: Driver[] = [];
+    if (factors) {
+      try {
+        d = (JSON.parse(factors) as Driver[]).sort(
+          (a, b) => Math.abs(b.value) - Math.abs(a.value),
+        );
+      } catch (e) {
+        console.warn('[ClientScoreDrivers] Failed to parse score factors JSON:', e);
+      }
     }
-  }
+    const max = Math.max(...d.map((x) => Math.abs(x.value)), 1);
+    const pos = d.filter((x) => x.value > 0).reduce((s, x) => s + x.value, 0);
+    const neg = d.filter((x) => x.value < 0).reduce((s, x) => s + Math.abs(x.value), 0);
+    return { drivers: d, maxAbs: max, totalPos: pos, totalNeg: neg };
+  }, [factors]);
 
   if (drivers.length === 0) return null;
-
-  const maxAbs = Math.max(...drivers.map((d) => Math.abs(d.value)), 1);
-  const totalPos = drivers
-    .filter((d) => d.value > 0)
-    .reduce((s, d) => s + d.value, 0);
-  const totalNeg = drivers
-    .filter((d) => d.value < 0)
-    .reduce((s, d) => s + Math.abs(d.value), 0);
 
   return (
     <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">

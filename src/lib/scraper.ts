@@ -128,7 +128,8 @@ export function normalizeUrl(url: string): string {
 async function fetchWithSafeRedirects(
   url: string,
   init: RequestInit,
-  maxHops: number = 5
+  maxHops: number = 5,
+  timeoutMs: number = 15000
 ): Promise<Response | null> {
   let currentUrl = url;
   for (let hop = 0; hop <= maxHops; hop++) {
@@ -139,7 +140,8 @@ async function fetchWithSafeRedirects(
       return null;
     }
 
-    const res = await fetch(currentUrl, { ...init, redirect: 'manual' });
+    // TODO(21.7): HTTP connection reuse — wrap fetch in a connection pool or use keepalive
+    const res = await fetch(currentUrl, { ...init, redirect: 'manual', signal: AbortSignal.timeout(timeoutMs) });
     const status = res.status;
 
     if (status >= 300 && status < 400) {
@@ -167,21 +169,29 @@ async function fetchDirectly(url: string, timeoutMs: number, signal?: AbortSigna
 
   // Link external signal (e.g. enrichment timeout) to our controller
   const onAbort = () => { clearTimeout(id); controller.abort(); };
-  signal?.addEventListener('abort', onAbort, { once: true });
 
   try {
+    signal?.addEventListener('abort', onAbort, { once: true });
     const res = await fetchWithSafeRedirects(url, {
       signal: controller.signal,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'User-Agent': process.env.SCRAPER_USER_AGENT || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.5',
       }
-    });
+    }, 5, timeoutMs);
     clearTimeout(id);
     signal?.removeEventListener('abort', onAbort);
     if (!res) return null;
-    if (!res.ok) return null;
+    if (!res.ok) {
+      logger.warn(`Scraper received HTTP ${res.status} for ${url}`);
+      return null;
+    }
+
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('text/html') && !contentType.includes('text/plain') && !contentType.includes('application/xhtml+xml')) {
+      return null;
+    }
 
     // Validate final URL after redirects against private/internal IPs
     try {
@@ -190,15 +200,34 @@ async function fetchDirectly(url: string, timeoutMs: number, signal?: AbortSigna
     } catch {
       return null;
     }
-
-    const contentType = res.headers.get('content-type') || '';
-    if (!contentType.includes('text/html') && !contentType.includes('text/plain')) {
-      return null;
+    // NOTE: Transient memory usage peaks at ~3-5 MB (MAX_BODY_BYTES + chunk overhead).
+    // Monitor in production if scraping large pages concurrently.
+    const MAX_BODY_BYTES = 524_288; // 512 KB
+    const reader = res.body?.getReader();
+    if (!reader) return null;
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    while (total < MAX_BODY_BYTES) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (total + value.length > MAX_BODY_BYTES) {
+        const slice = value.slice(0, MAX_BODY_BYTES - total);
+        chunks.push(slice);
+        total += slice.length;
+        break;
+      }
+      chunks.push(value);
+      total += value.length;
     }
-    return await res.text();
-  } catch {
+    reader.cancel();
+    const combined = new Uint8Array(total);
+    let offset = 0;
+    for (const c of chunks) { combined.set(c, offset); offset += c.length; }
+    return new TextDecoder().decode(combined);
+  } catch (err) {
     clearTimeout(id);
     signal?.removeEventListener('abort', onAbort);
+    logger.warn(`Fetch direct failed for ${url}: ${err instanceof Error ? err.name : 'Unknown error'}`);
     return null;
   }
 }
@@ -216,26 +245,17 @@ function extractDescription(html: string): string {
 
 export function pruneHtml(html: string): string {
   if (!html) return '';
+  // Single-pass: strip comments, scripts, styles, and other block elements
   let text = html;
-  text = text.replace(/<!--[\s\S]*?-->/g, '');
-  text = text.replace(/<script[^>]*>([\s\S]*?)<\/script>/gi, '');
-  text = text.replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, '');
-  text = text.replace(/<svg[^>]*>([\s\S]*?)<\/svg>/gi, '');
-  text = text.replace(/<noscript[^>]*>([\s\S]*?)<\/noscript>/gi, '');
-  text = text.replace(/<head[^>]*>([\s\S]*?)<\/head>/gi, '');
-  text = text.replace(/<nav[^>]*>([\s\S]*?)<\/nav>/gi, '');
-  text = text.replace(/<footer[^>]*>([\s\S]*?)<\/footer>/gi, '');
-  text = text.replace(/<iframe[^>]*>([\s\S]*?)<\/iframe>/gi, '');
+  text = text.replace(/<!--.*?-->/gs, '');
+  text = text.replace(/<(script|style|svg|noscript|head|nav|footer|iframe)[^>]*>.*?<\/\1>/gis, '');
   return text;
 }
 
 function cleanHtml(html: string): string {
   let text = html;
-  text = text.replace(/<script[^>]*>([\s\S]*?)<\/script>/gi, '');
-  text = text.replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, '');
-  text = text.replace(/<svg[^>]*>([\s\S]*?)<\/svg>/gi, '');
-  text = text.replace(/<noscript[^>]*>([\s\S]*?)<\/noscript>/gi, '');
-  text = text.replace(/<\/?[^>]+(>|$)/g, ' ');
+  text = text.replace(/<(script|style|svg|noscript)[^>]*>.*?<\/\1>/gis, '');
+  text = text.replace(/<[^>]*>/g, ' ');
   text = text
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
@@ -281,10 +301,24 @@ export async function scrapeWithBrowserRun(url: string, browserBinding: any, tim
       throw new Error("Browser binding does not support quickAction");
     }
 
-    const snapshot = await browserBinding.quickAction("snapshot", {
-      url: normalized,
-      formats: ["markdown", "screenshot", "content"],
-    }) as { markdown?: string; screenshot?: string; content?: string };
+    const abortController = new AbortController();
+    const snapshot = await Promise.race([
+      (async () => {
+        const result = await browserBinding.quickAction("snapshot", {
+          url: normalized,
+          formats: ["markdown", "screenshot", "content"],
+        });
+        abortController.abort();
+        return result;
+      })(),
+      new Promise<never>((_, reject) => {
+        const timer = setTimeout(() => {
+          abortController.abort();
+          reject(new Error(`Browser Run quickAction timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+        abortController.signal.addEventListener('abort', () => clearTimeout(timer), { once: true });
+      }),
+    ]) as { markdown?: string; screenshot?: string; content?: string };
 
     if (!snapshot) {
       throw new Error("Failed to capture snapshot from Browser Run");
@@ -302,11 +336,13 @@ export async function scrapeWithBrowserRun(url: string, browserBinding: any, tim
       content: truncateContent(content),
       description,
       screenshot,
-      extractedContacts: html ? extractAll(html) : undefined,
+      extractedContacts: html ? extractAll(html, normalized) : undefined,
     };
-  } catch (error: any) {
-    const errMsg = error instanceof Error ? error.message : String(error);
-    logger.error(`Browser Run quickAction failed for ${normalized}`, error);
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    const errMsg = err.message;
+    const errStatus = (error as { status?: number })?.status;
+    logger.error(`Browser Run quickAction failed for ${normalized}`, err);
 
     // Identify 429 / limit exceeded error
     if (
@@ -314,13 +350,13 @@ export async function scrapeWithBrowserRun(url: string, browserBinding: any, tim
       errMsg.toLowerCase().includes("rate limit") ||
       errMsg.toLowerCase().includes("limit exceeded") ||
       errMsg.toLowerCase().includes("time limit exceeded") ||
-      (error.status && error.status === 429)
+      (errStatus && errStatus === 429)
     ) {
       const limitError = new Error(`429: Cloudflare Browser Run limits exceeded: ${errMsg}`);
       (limitError as any).status = 429;
       throw limitError;
     }
-    throw error;
+    throw err;
   }
 }
 
@@ -338,12 +374,13 @@ async function fetchSiteContentViaJina(url: string, timeoutMs: number = 15000): 
     'Accept': 'application/json',
   };
 
-  const jinaKey = (process as any).env?.JINA_API_KEY;
+  const jinaKey = process.env.JINA_API_KEY;
   if (jinaKey && jinaKey !== 'placeholder') {
     headers['Authorization'] = `Bearer ${jinaKey}`;
   }
 
   try {
+    // TODO(21.7): HTTP connection reuse — wrap fetch in a connection pool or use keepalive
     const response = await fetch(targetUrl, {
       method: 'GET',
       headers,
@@ -356,13 +393,29 @@ async function fetchSiteContentViaJina(url: string, timeoutMs: number = 15000): 
       throw new Error('External scraper returned an error response');
     }
 
-    const json = (await response.json()) as {
-      data?: {
-        title?: string;
-        content?: string;
-        description?: string;
-      };
-    };
+    const contentLength = response.headers.get('content-length');
+    if (contentLength && parseInt(contentLength) > 5 * 1024 * 1024) {
+      throw new Error(`Jina response too large: ${contentLength} bytes`);
+    }
+    // Stream response to avoid OOM on large payloads
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response body');
+    const chunks: Uint8Array[] = [];
+    let totalSize = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalSize += value.length;
+      if (totalSize > 5 * 1024 * 1024) {
+        reader.cancel();
+        throw new Error(`Jina response too large: ${totalSize} bytes`);
+      }
+      chunks.push(value);
+    }
+    const decoder = new TextDecoder();
+    const responseText = chunks.reduce((acc, c) => acc + decoder.decode(c, { stream: true }), '');
+    let json: any;
+    try { json = JSON.parse(responseText); } catch { throw new Error('Invalid JSON response from Jina Reader API'); }
     if (json && json.data) {
       const data = json.data;
       const title = data.title || '';
@@ -387,12 +440,32 @@ async function fetchSiteContentViaJina(url: string, timeoutMs: number = 15000): 
   }
 }
 
+/** In-memory rate limiter: tracks last request time per domain */
+const _domainRateLimitMap = new Map<string, number>();
+const MIN_DOMAIN_INTERVAL_MS = 1000;
+
+async function enforceDomainRateLimit(url: string): Promise<void> {
+  try {
+    const hostname = new URL(url).hostname;
+    const lastFetch = _domainRateLimitMap.get(hostname);
+    const now = Date.now();
+    if (lastFetch && now - lastFetch < MIN_DOMAIN_INTERVAL_MS) {
+      const waitMs = MIN_DOMAIN_INTERVAL_MS - (now - lastFetch);
+      await new Promise<void>(resolve => setTimeout(resolve, waitMs));
+    }
+    _domainRateLimitMap.set(hostname, Date.now());
+  } catch {
+    // If URL parsing fails, skip rate limiting
+  }
+}
+
 /**
  * Coordinated scraper that tries a direct HTML fetch first (zero Browser Run limit usage),
  * and if that fails or returns dynamic/SPA indicators, falls back to Browser Run / Jina.
  */
-export async function fetchSiteContent(url: string, timeoutMs: number = 20000): Promise<ScrapedContent> {
+export async function fetchSiteContent(url: string, timeoutMs: number = 20000, browserBinding?: any): Promise<ScrapedContent> {
   const normalized = normalizeUrl(url);
+  await enforceDomainRateLimit(normalized);
 
   const isMockFetch = globalThis.fetch && !globalThis.fetch.toString().includes('[native code]');
   if (process.env.NODE_ENV === 'test' && !isMockFetch) {
@@ -433,7 +506,7 @@ export async function fetchSiteContent(url: string, timeoutMs: number = 20000): 
           url: normalized,
           content: truncateContent(cleaned),
           description,
-          extractedContacts: extractAll(html),
+          extractedContacts: extractAll(html, normalized),
         };
       } else {
         logger.info(`Fetch-First returned sparse content or SPA indicator. Falling back to browser/Jina.`, { url: normalized });
@@ -444,12 +517,12 @@ export async function fetchSiteContent(url: string, timeoutMs: number = 20000): 
   }
 
   // 2. Fallback to Browser Run (if present) or Jina
-  const browserBinding = (process as any).env?.BROWSER;
+  const binding = browserBinding ?? process.env.BROWSER;
   
-  if (browserBinding) {
+  if (binding) {
     logger.info(`Attempting Browser Run edge scraping`, { url: normalized });
     try {
-      return await scrapeWithBrowserRun(normalized, browserBinding, timeoutMs + 10000);
+      return await scrapeWithBrowserRun(normalized, binding, timeoutMs + 10000);
     } catch (error: unknown) {
       if (error instanceof Error && (error as any).status === 429) {
         throw error; // Propagate limits to workflow
@@ -470,6 +543,7 @@ export async function fetchSiteContent(url: string, timeoutMs: number = 20000): 
  */
 export async function fetchSiteContentLight(url: string, timeoutMs: number = 15000, signal?: AbortSignal): Promise<string | null> {
   const normalized = normalizeUrl(url);
+  await enforceDomainRateLimit(normalized);
   try {
     const html = await fetchDirectly(normalized, timeoutMs, signal);
     if (!html) return null;

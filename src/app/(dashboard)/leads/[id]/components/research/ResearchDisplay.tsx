@@ -1,5 +1,7 @@
 'use client';
 
+// TODO: install rehype-sanitize (npm install rehype-sanitize) and add import rehypeSanitize from 'rehype-sanitize',
+// then pass rehypePlugins={[rehypeSanitize]} to ReactMarkdown below
 import ReactMarkdown from 'react-markdown';
 import { AlertTriangle, Loader2, ExternalLink, FileText } from 'lucide-react';
 import { ResearchSnapshot } from './types';
@@ -68,7 +70,7 @@ export function ResearchDisplay({
       <div className="p-5 border-b border-border flex flex-wrap justify-between items-center gap-3 bg-muted/40">
         <div>
           <div className="flex items-center gap-2">
-            <h4 className="heading-xl font-semibold text-foreground">Research Snapshot</h4>
+            <h4 className="text-heading-xl font-semibold text-foreground">Research Snapshot</h4>
             <span className={`px-2 py-0.5 rounded-md text-label-12 font-semibold uppercase ${getConfidenceColor(initialSnapshot.confidenceLevel)}`}>
               {initialSnapshot.confidenceLevel} Confidence
             </span>
@@ -154,7 +156,7 @@ export function ResearchDisplay({
               <span className="text-label-12 font-semibold text-card-foreground block">Potential Pain Points</span>
               <div className="text-copy-13 text-foreground font-medium leading-relaxed bg-muted/50 p-4 rounded-md prose-markdown">
                 {initialSnapshot.painPointsHypotheses ? (
-                  <ReactMarkdown>{initialSnapshot.painPointsHypotheses}</ReactMarkdown>
+                  <ReactMarkdown rehypePlugins={[]}>{initialSnapshot.painPointsHypotheses}</ReactMarkdown>
                 ) : (
                   'No hypotheses compiled.'
                 )}
@@ -164,7 +166,7 @@ export function ResearchDisplay({
               <span className="text-label-12 font-semibold text-card-foreground block">Agency Opportunities</span>
               <div className="text-copy-13 text-foreground font-medium leading-relaxed bg-muted/50 p-4 rounded-md prose-markdown">
                 {initialSnapshot.opportunityHypotheses ? (
-                  <ReactMarkdown>{initialSnapshot.opportunityHypotheses}</ReactMarkdown>
+                  <ReactMarkdown rehypePlugins={[]}>{initialSnapshot.opportunityHypotheses}</ReactMarkdown>
                 ) : (
                   'No hypotheses compiled.'
                 )}

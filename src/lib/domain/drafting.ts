@@ -54,6 +54,7 @@ export function pickBestContact(contacts: Contact[]): Contact | null {
     return { contact: c, score };
   });
   scored.sort((a, b) => b.score - a.score);
+  if (!scored.length) return null;
   return scored[0].contact;
 }
 
@@ -103,9 +104,14 @@ export function generateDraft(input: DraftInput): DraftOutput {
   const greeting = contactName ? `Hi ${contactName.split(' ')[0]},` : `Hi there,`;
   bodyParts.push(greeting);
 
-  const strongSignals = signals.filter((s) => s.matchStrength === 'strong');
-  const partialSignals = signals.filter((s) => s.matchStrength === 'partial');
-  const weakSignals = signals.filter((s) => s.matchStrength === 'weak');
+  const strongSignals: typeof signals = [];
+  const partialSignals: typeof signals = [];
+  const weakSignals: typeof signals = [];
+  for (const s of signals) {
+    if (s.matchStrength === 'strong') strongSignals.push(s);
+    else if (s.matchStrength === 'partial') partialSignals.push(s);
+    else if (s.matchStrength === 'weak') weakSignals.push(s);
+  }
 
   // Opening — reference a strong signal about the company
   if (strongSignals.length > 0) {
@@ -204,9 +210,11 @@ export function generateDraft(input: DraftInput): DraftOutput {
 
 export function checkForbiddenClaims(draft: DraftOutput, forbiddenClaims: string[]): string[] {
   const flags: string[] = [];
+  const bodyLower = draft.body.toLowerCase();
+  const subjectLower = draft.subjectLine.toLowerCase();
   for (const claim of forbiddenClaims) {
-    if (draft.body.toLowerCase().includes(claim.toLowerCase()) ||
-        draft.subjectLine.toLowerCase().includes(claim.toLowerCase())) {
+    const claimLower = claim.toLowerCase();
+    if (bodyLower.includes(claimLower) || subjectLower.includes(claimLower)) {
       flags.push(`Forbidden claim detected: "${claim}"`);
     }
   }

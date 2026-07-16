@@ -11,10 +11,10 @@ export async function createReminderAction(prevState: ActionState, formData: For
   const userId = await getUserId();
   if (!userId) return { error: 'Unauthorized' };
 
-  const leadId = formData.get('leadId') as string;
-  const title = formData.get('title') as string;
-  const message = formData.get('message') as string;
-  const remindAtStr = formData.get('remindAt') as string;
+  const leadId = String(formData.get('leadId') ?? '');
+  const title = String(formData.get('title') ?? '');
+  const message = String(formData.get('message') ?? '');
+  const remindAtStr = String(formData.get('remindAt') ?? '');
 
   if (!title || title.trim() === '') {
     return { error: 'Reminder title is required' };

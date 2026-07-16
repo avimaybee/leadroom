@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { ArrowUpDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -38,7 +38,7 @@ export function ProspectTable({ prospects, onReview }: { prospects: ProspectRow[
     }
   };
 
-  const sorted = [...prospects].sort((a, b) => {
+  const sorted = useMemo(() => [...prospects].sort((a, b) => {
     const aVal = a[sortKey];
     const bVal = b[sortKey];
     if (aVal === null) return 1;
@@ -49,7 +49,7 @@ export function ProspectTable({ prospects, onReview }: { prospects: ProspectRow[
       return sortDir === 'asc' ? aStr.localeCompare(bStr) : bStr.localeCompare(aStr);
     }
     return sortDir === 'asc' ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
-  });
+  }), [prospects, sortKey, sortDir]);
 
   const SortHeader = ({ label, sortKey: sk, align = 'left' }: { label: string; sortKey: SortKey; align?: 'left' | 'right' | 'center' }) => (
     <button

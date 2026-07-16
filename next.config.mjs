@@ -1,6 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: "standalone",
   images: {
     unoptimized: true,
   },
@@ -36,5 +35,5 @@ export default nextConfig;
 
 // Only initialize OpenNext Cloudflare for development mode
 if (process.env.NODE_ENV === "development") {
-  import("@opennextjs/cloudflare").then((m) => m.initOpenNextCloudflareForDev());
+  import("@opennextjs/cloudflare").then((m) => m.initOpenNextCloudflareForDev()).catch((e) => console.error("Failed to init OpenNext for dev", e));
 }

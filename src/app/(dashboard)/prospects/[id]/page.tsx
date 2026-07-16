@@ -83,7 +83,7 @@ export default async function ProspectDetailPage({
       .from(stageThresholds)
       .where(eq(stageThresholds.stage, prospect.stage))
       .limit(1)
-      .then((r) => r[0]),
+      .then((r) => r[0] || null),
     db
       .select()
       .from(pipelineConfig)
@@ -119,11 +119,9 @@ export default async function ProspectDetailPage({
 
   const stageThreshold = stageThresholdRow?.days ?? 5;
 
-  let nbaRules = DEFAULT_NBA_RULES;
+  let nbaRules: typeof DEFAULT_NBA_RULES = DEFAULT_NBA_RULES;
   if (pcRow?.nbaRules) {
-    try {
-      nbaRules = JSON.parse(pcRow.nbaRules);
-    } catch {}
+    nbaRules = pcRow.nbaRules as typeof DEFAULT_NBA_RULES;
   }
   const nbaResults = await service.getNextBestActions(id, nbaRules, {
     tasks: tasksData,

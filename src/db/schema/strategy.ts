@@ -14,22 +14,26 @@ export const offers = sqliteTable('offers', {
   name: text('name').notNull(),
   targetPain: text('target_pain'),
   desiredOutcome: text('desired_outcome'),
-  proofPoints: text('proof_points'),
-  forbiddenClaims: text('forbidden_claims'),
+  proofPoints: text('proof_points', { mode: 'json' }),
+  forbiddenClaims: text('forbidden_claims', { mode: 'json' }),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
-});
+}, (table) => ({
+  workspaceIdIndex: index('offers_workspace_id_idx').on(table.workspaceId),
+}));
 
 export const icpProfiles = sqliteTable('icp_profiles', {
   id: text('id').primaryKey(),
   workspaceId: text('workspace_id').notNull().references(() => workspaces.id),
   name: text('name').notNull(),
-  positiveSignals: text('positive_signals'),
-  negativeSignals: text('negative_signals'),
-  disqualifiers: text('disqualifiers'),
+  positiveSignals: text('positive_signals', { mode: 'json' }),
+  negativeSignals: text('negative_signals', { mode: 'json' }),
+  disqualifiers: text('disqualifiers', { mode: 'json' }),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
-});
+}, (table) => ({
+  workspaceIdIndex: index('icp_profiles_workspace_id_idx').on(table.workspaceId),
+}));
 
 export const markets = sqliteTable('markets', {
   id: text('id').primaryKey(),

@@ -55,14 +55,14 @@ export function PipelineAutomationCard({ stages, initialConfig }: Props) {
               <span className="text-copy-14 font-medium text-foreground">Auto-generate tasks</span>
               <p className="text-label-12 text-muted-foreground mt-0.5">Creates follow-up tasks on stage entry</p>
             </div>
-            <input type="checkbox" checked={autoTasks} onChange={(e) => setAutoTasks(e.target.checked)} className="toggle toggle-primary" />
+            <input type="checkbox" checked={autoTasks} onChange={(e) => setAutoTasks(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary" />
           </label>
           <label className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/20 cursor-pointer hover:bg-muted/40 transition-colors">
             <div>
               <span className="text-copy-14 font-medium text-foreground">Enforce readiness</span>
               <p className="text-label-12 text-muted-foreground mt-0.5">Blocks moves if research/draft missing</p>
             </div>
-            <input type="checkbox" checked={enforceReqs} onChange={(e) => setEnforceReqs(e.target.checked)} className="toggle toggle-primary" />
+            <input type="checkbox" checked={enforceReqs} onChange={(e) => setEnforceReqs(e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary" />
           </label>
           <div className="p-3 rounded-lg border border-border bg-muted/20">
             <span className="text-copy-14 font-medium text-foreground">Stale sensitivity</span>

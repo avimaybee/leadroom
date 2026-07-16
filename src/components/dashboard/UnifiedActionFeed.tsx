@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect, memo } from 'react';
 import Link from 'next/link';
 import { formatUTC } from '@/lib/date';
 import { Badge } from '@/components/ui/badge';
@@ -23,13 +23,15 @@ export interface UnifiedItem {
   leadId?: string;
 }
 
-export default function UnifiedActionFeed({ items }: { items: UnifiedItem[] }) {
+const UnifiedActionFeed = memo(function UnifiedActionFeed({ items }: { items: UnifiedItem[] }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const showRead = searchParams.get('seen') === 'true';
   
   const [pendingItems, setPendingItems] = useState<Record<string, boolean>>({});
   const [isPending, startTransition] = useTransition();
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const id = setInterval(() => setNow(Date.now()), 60_000); return () => clearInterval(id); }, []);
 
   const setShowRead = (val: boolean) => {
     const next = new URLSearchParams(searchParams.toString());
@@ -60,9 +62,9 @@ export default function UnifiedActionFeed({ items }: { items: UnifiedItem[] }) {
     return (
 <div className="text-center text-copy-14 text-muted-foreground py-6">
           No action needed items.
-        </div>
-    );
-  }
+    </div>
+  );
+}
 
   return (
     <div className="space-y-4">
@@ -125,17 +127,18 @@ export default function UnifiedActionFeed({ items }: { items: UnifiedItem[] }) {
                   </p>
                 )}
                 
-                {item.date && (
-                  <div className="flex flex-wrap gap-2 items-center pt-1.5">
-                    <span className={`text-label-12 flex items-center gap-1 ${
-                      item.type === 'task' && new Date(item.date) < new Date() ? 'text-destructive' : 'text-muted-foreground'
-                    }`}>
-                      <Calendar className={`w-3.5 h-3.5 ${item.type === 'task' && new Date(item.date) < new Date() ? 'text-destructive' : 'text-muted-foreground'}`} />
-                      {formatUTC(item.date)}
-                      {item.type === 'task' && new Date(item.date) < new Date() && ' (Overdue)'}
-                    </span>
-                  </div>
-                )}
+                {item.date && (() => {
+                  const isTaskOverdue = item.type === 'task' && new Date(item.date).getTime() < now;
+                  return (
+                    <div className="flex flex-wrap gap-2 items-center pt-1.5">
+                      <span className={`text-label-12 flex items-center gap-1 ${isTaskOverdue ? 'text-destructive' : 'text-muted-foreground'}`}>
+                        <Calendar className={`w-3.5 h-3.5 ${isTaskOverdue ? 'text-destructive' : 'text-muted-foreground'}`} />
+                        {formatUTC(item.date)}
+                        {isTaskOverdue && ' (Overdue)'}
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
 
               <div className="shrink-0 pt-1 sm:pt-0">
@@ -157,4 +160,6 @@ export default function UnifiedActionFeed({ items }: { items: UnifiedItem[] }) {
       )}
     </div>
   );
-}
+});
+
+export default UnifiedActionFeed;

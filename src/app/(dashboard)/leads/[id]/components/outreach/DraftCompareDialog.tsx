@@ -4,6 +4,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+// TODO: install rehype-sanitize (npm install rehype-sanitize) and add import rehypeSanitize from 'rehype-sanitize',
+// then pass rehypePlugins={[rehypeSanitize]} to ReactMarkdown below
 import ReactMarkdown from 'react-markdown';
 import { formatDateTimeUTC } from '@/lib/date';
 import { PenLine, ArrowLeft } from 'lucide-react';
@@ -92,7 +94,7 @@ export function DraftCompareDialog({
               <div className="space-y-0.5">
                 <span className="text-label-12 text-muted-foreground uppercase">Body Content</span>
                 <div className="text-label-12 text-muted-foreground leading-relaxed prose-markdown p-3 bg-muted/20 border border-border/30 rounded-xl overflow-x-hidden font-medium">
-                  <ReactMarkdown>{draft1.body}</ReactMarkdown>
+                  <ReactMarkdown rehypePlugins={[]}>{draft1.body}</ReactMarkdown>
                 </div>
               </div>
             </CardContent>
@@ -134,7 +136,7 @@ export function DraftCompareDialog({
               <div className="space-y-0.5">
                 <span className="text-label-12 text-muted-foreground uppercase">Body Content</span>
                 <div className="text-label-12 text-muted-foreground leading-relaxed prose-markdown p-3 bg-muted/20 border border-border/30 rounded-xl overflow-x-hidden font-medium">
-                  <ReactMarkdown>{draft2.body}</ReactMarkdown>
+                  <ReactMarkdown rehypePlugins={[]}>{draft2.body}</ReactMarkdown>
                 </div>
               </div>
             </CardContent>

@@ -61,7 +61,7 @@ export function ProspectEvidencePanel({
     <div className="space-y-6">
       {summary && (
         <div>
-          <label className="label-12 uppercase text-muted-foreground block mb-2">Company Summary</label>
+          <label className="text-label-12 uppercase text-muted-foreground block mb-2">Company Summary</label>
           <p className="text-copy-14 text-foreground leading-relaxed">{summary}</p>
           {domain && (
             <a
@@ -79,10 +79,10 @@ export function ProspectEvidencePanel({
 
       {painSignals.length > 0 && (
         <div>
-          <label className="label-12 uppercase text-muted-foreground block mb-2">Pain Signals Found</label>
+          <label className="text-label-12 uppercase text-muted-foreground block mb-2">Pain Signals Found</label>
           <div className="space-y-3">
-            {painSignals.map((signal, i) => (
-              <div key={i} className="rounded-lg border border-border p-3">
+            {painSignals.map((signal) => (
+              <div key={signal.signal + signal.evidenceQuote} className="rounded-lg border border-border p-3">
                 <p className="text-copy-14 font-medium text-foreground">{signal.signal}</p>
                 {signal.matchStrength && (
                   <span className={`text-label-12 font-semibold ${
@@ -115,7 +115,7 @@ export function ProspectEvidencePanel({
 
       {contacts.length > 0 && (
         <div>
-          <label className="label-12 uppercase text-muted-foreground block mb-2">Contacts</label>
+          <label className="text-label-12 uppercase text-muted-foreground block mb-2">Contacts</label>
           <div className="space-y-2">
             {contacts.map((c) => (
               <div key={c.id} className="flex items-center gap-2 text-copy-14">
@@ -131,7 +131,7 @@ export function ProspectEvidencePanel({
 
       {researchTasks.length > 0 && (
         <div>
-          <label className="label-12 uppercase text-muted-foreground block mb-2">Research Tasks</label>
+          <label className="text-label-12 uppercase text-muted-foreground block mb-2">Research Tasks</label>
           <div className="flex flex-wrap gap-2">
             {researchTasks.map((t) => (
               <span

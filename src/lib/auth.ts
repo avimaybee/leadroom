@@ -1,5 +1,22 @@
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
+import { cache } from 'react';
+
+let _cfResolved = false;
+let _cfEnv: any = null;
+
+function getCloudflareEnvOnce(): any {
+  if (!_cfResolved) {
+    _cfResolved = true;
+    try {
+      const { getCloudflareContext } = require('@opennextjs/cloudflare');
+      _cfEnv = getCloudflareContext().env;
+    } catch (e) {
+      _cfEnv = null;
+    }
+  }
+  return _cfEnv;
+}
 
 function getSecretKey(env?: any): Uint8Array {
   let secret: string | undefined;
@@ -7,13 +24,12 @@ function getSecretKey(env?: any): Uint8Array {
   if (env?.AUTH_SECRET) {
     secret = env.AUTH_SECRET;
   }
-  // 2. Try Cloudflare context (legacy fallback)
+  // 2. Try Cloudflare context (legacy fallback) — resolved once
   if (!secret) {
-    try {
-      const { getCloudflareContext } = require('@opennextjs/cloudflare');
-      const cf = getCloudflareContext();
-      secret = (cf?.env as any)?.AUTH_SECRET;
-    } catch (e) {}
+    const cfEnv = getCloudflareEnvOnce();
+    if (cfEnv) {
+      secret = cfEnv.AUTH_SECRET;
+    }
   }
   // 3. Fall back to process.env (local dev / tests)
   if (!secret) {
@@ -83,7 +99,7 @@ export async function hashPassword(password: string, saltHex?: string): Promise<
     {
       name: 'PBKDF2',
       salt: saltBytes as any,
-      iterations: 100000,
+      iterations: 600000,
       hash: 'SHA-256'
     },
     baseKey,
@@ -115,7 +131,7 @@ export async function verifyPassword(password: string, hashedPasswordHex: string
  * Returns null if unauthenticated.
  * In test mode, returns a fixed test user ID.
  */
-import { Db } from '@/db';
+import { type Db } from '@/db';
 import { prospects } from '@/db/schema/core';
 import { eq } from 'drizzle-orm';
 
@@ -129,17 +145,17 @@ export async function verifyProspectAccess(db: Db, prospectId: string, userId: s
   return prospect ? prospect.ownerId === userId : false;
 }
 
-export async function getUserId(): Promise<string | null> {
+export const getUserId = cache(async (): Promise<string | null> => {
   if (process.env.NODE_ENV === 'test') {
     return (globalThis as any).mockUserId || 'user_123';
   }
   try {
     const cookieStore = await cookies();
-    const sessionToken = cookieStore.get('session')?.value;
+    const sessionToken = cookieStore.get('__Secure-session')?.value;
     const payload = await decrypt(sessionToken);
     return payload?.userId || null;
   } catch (e) {
     return null;
   }
-}
+});
 

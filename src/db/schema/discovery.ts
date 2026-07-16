@@ -14,10 +14,14 @@ export const discoveryScopes = sqliteTable('discovery_scopes', {
   workspaceId: text('workspace_id').references(() => workspaces.id),
   marketId: text('market_id').references(() => markets.id),
   autoResearchPromotedLeads: integer('auto_research_promoted_leads', { mode: 'boolean' }).default(true).notNull(),
+  // REQUIRED: must be a valid user ID. No FK constraint because the user table
+  // may be in a different shard/region. Inserting code must supply this value.
   createdByUserId: text('created_by_user_id').notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
-});
+}, (table) => ({
+  createdByUserIdCreatedAtIndex: index('discovery_scopes_created_by_user_id_created_at_idx').on(table.createdByUserId, table.createdAt),
+}));
 
 export const candidateLeads = sqliteTable('candidate_leads', {
   id: text('id').primaryKey(),

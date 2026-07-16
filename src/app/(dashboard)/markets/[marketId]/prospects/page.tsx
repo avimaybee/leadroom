@@ -48,18 +48,41 @@ export default async function MarketProspectsPage({ params }: { params: Promise<
     );
   }
 
-  const [offer] = market.offerId
-    ? await db.select({ name: offers.name }).from(offers).where(eq(offers.id, market.offerId)).limit(1)
-    : [null];
-  const [icp] = market.icpProfileId
-    ? await db.select({ name: icpProfiles.name }).from(icpProfiles).where(eq(icpProfiles.id, market.icpProfileId)).limit(1)
-    : [null];
-
-  const prospectRows = await db
-    .select()
-    .from(prospects)
-    .where(and(eq(prospects.marketId, marketId), eq(prospects.workspaceId, market.workspaceId)))
-    .orderBy(sql`COALESCE(${prospects.fitScore}, 0) DESC`);
+  const [offer, icp, prospectRows, candidateRows] = await Promise.all([
+    market.offerId
+      ? db.select({ name: offers.name }).from(offers).where(eq(offers.id, market.offerId)).limit(1).then(r => r[0] ?? null)
+      : Promise.resolve(null),
+    market.icpProfileId
+      ? db.select({ name: icpProfiles.name }).from(icpProfiles).where(eq(icpProfiles.id, market.icpProfileId)).limit(1).then(r => r[0] ?? null)
+      : Promise.resolve(null),
+    db
+      .select()
+      .from(prospects)
+      .where(and(eq(prospects.marketId, marketId), eq(prospects.workspaceId, market.workspaceId)))
+      .orderBy(sql`COALESCE(${prospects.fitScore}, 0) DESC`)
+      .limit(200),
+    db
+      .select({
+        id: candidateLeads.id,
+        rawName: candidateLeads.rawName,
+        rawWebsiteUrl: candidateLeads.rawWebsiteUrl,
+        rawLocation: candidateLeads.rawLocation,
+        rawContactInfo: candidateLeads.rawContactInfo,
+        notes: candidateLeads.notes,
+        status: candidateLeads.status,
+        scopeName: discoveryScopes.name,
+      })
+      .from(candidateLeads)
+      .innerJoin(discoveryScopes, eq(candidateLeads.discoveryScopeId, discoveryScopes.id))
+      .where(
+        and(
+          eq(discoveryScopes.marketId, marketId),
+          eq(candidateLeads.status, 'NEW'),
+          eq(discoveryScopes.workspaceId, userId)
+        )
+      )
+      .orderBy(candidateLeads.createdAt),
+  ]);
 
   const prospectIds = prospectRows.map(p => p.id);
   const taskRows = prospectIds.length > 0
@@ -78,29 +101,6 @@ export default async function MarketProspectsPage({ params }: { params: Promise<
 
   const totalCount = prospectRows.length;
   const researchedCount = prospectRows.filter(p => p.fitScore !== null && p.fitScore !== undefined).length;
-
-  // Query pending candidates linked to this market's discovery scopes
-  const candidateRows = await db
-    .select({
-      id: candidateLeads.id,
-      rawName: candidateLeads.rawName,
-      rawWebsiteUrl: candidateLeads.rawWebsiteUrl,
-      rawLocation: candidateLeads.rawLocation,
-      rawContactInfo: candidateLeads.rawContactInfo,
-      notes: candidateLeads.notes,
-      status: candidateLeads.status,
-      scopeName: discoveryScopes.name,
-    })
-    .from(candidateLeads)
-    .innerJoin(discoveryScopes, eq(candidateLeads.discoveryScopeId, discoveryScopes.id))
-    .where(
-      and(
-        eq(discoveryScopes.marketId, marketId),
-        eq(candidateLeads.status, 'NEW'),
-        eq(discoveryScopes.workspaceId, userId)
-      )
-    )
-    .orderBy(candidateLeads.createdAt);
 
   return (
     <div className="max-w-5xl">

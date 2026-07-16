@@ -226,7 +226,7 @@ function DiscoveryJobBanner({ jobId, marketId, onDone }: { jobId: string; market
       }
     };
     poll();
-    intervalRef.current = setInterval(poll, 3000);
+    intervalRef.current = setInterval(poll, 10000);
     return () => {
       active = false;
       if (intervalRef.current) clearInterval(intervalRef.current);

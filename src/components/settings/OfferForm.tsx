@@ -1,5 +1,8 @@
 'use client';
 
+// TODO(22.8): Migrate generic error banner to per-field error display
+// TODO(22.9): Preserve form field values on validation error (use defaultValue or keep state)
+// TODO(22.15): Add optimistic UI update on save for instant feedback
 import { useState } from 'react';
 import { useActionState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -82,7 +85,7 @@ export function OfferForm({ initialData }: OfferFormProps) {
       )}
 
       <div>
-        <label className="label-12 uppercase text-muted-foreground block mb-1.5">Name</label>
+        <label className="text-label-12 uppercase text-muted-foreground block mb-1.5">Name</label>
         <input
           type="text"
           value={name}
@@ -94,7 +97,7 @@ export function OfferForm({ initialData }: OfferFormProps) {
       </div>
 
       <div>
-        <label className="label-12 uppercase text-muted-foreground block mb-1.5">Target Pain</label>
+        <label className="text-label-12 uppercase text-muted-foreground block mb-1.5">Target Pain</label>
         <textarea
           value={targetPain}
           onChange={(e) => setTargetPain(e.target.value)}
@@ -105,7 +108,7 @@ export function OfferForm({ initialData }: OfferFormProps) {
       </div>
 
       <div>
-        <label className="label-12 uppercase text-muted-foreground block mb-1.5">Desired Outcome</label>
+        <label className="text-label-12 uppercase text-muted-foreground block mb-1.5">Desired Outcome</label>
         <textarea
           value={desiredOutcome}
           onChange={(e) => setDesiredOutcome(e.target.value)}
@@ -116,15 +119,15 @@ export function OfferForm({ initialData }: OfferFormProps) {
       </div>
 
       <div>
-        <label className="label-12 uppercase text-muted-foreground block mb-1.5">Proof Points</label>
+        <label className="text-label-12 uppercase text-muted-foreground block mb-1.5">Proof Points</label>
         <p className="text-copy-14 text-muted-foreground mb-2">Specific results or case studies that build credibility.</p>
         <div className="space-y-2">
-          {proofPoints.map((p, i) => (
-            <div key={i} className="flex items-center gap-2">
+          {proofPoints.map((p) => (
+            <div key={p} className="flex items-center gap-2">
               <span className="flex-1 text-copy-14 bg-muted/30 rounded-md px-3 py-2">{p}</span>
               <button
                 type="button"
-                onClick={() => setProofPoints(proofPoints.filter((_, j) => j !== i))}
+                onClick={() => setProofPoints(proofPoints.filter(item => item !== p))}
                 className="p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10"
               >
                 <X className="w-4 h-4" />
@@ -153,17 +156,17 @@ export function OfferForm({ initialData }: OfferFormProps) {
       </div>
 
       <div>
-        <label className="label-12 uppercase text-muted-foreground block mb-1.5">Forbidden Claims</label>
+        <label className="text-label-12 uppercase text-muted-foreground block mb-1.5">Forbidden Claims</label>
         <p className="text-copy-14 text-muted-foreground mb-2">
           These claims trigger risk flags in generated outreach.
         </p>
         <div className="space-y-2">
-          {forbiddenClaims.map((c, i) => (
-            <div key={i} className="flex items-center gap-2">
+          {forbiddenClaims.map((c) => (
+            <div key={c} className="flex items-center gap-2">
               <span className="flex-1 text-copy-14 bg-muted/30 rounded-md px-3 py-2">{c}</span>
               <button
                 type="button"
-                onClick={() => setForbiddenClaims(forbiddenClaims.filter((_, j) => j !== i))}
+                onClick={() => setForbiddenClaims(forbiddenClaims.filter(item => item !== c))}
                 className="p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10"
               >
                 <X className="w-4 h-4" />

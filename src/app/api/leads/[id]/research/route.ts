@@ -1,10 +1,8 @@
-export const dynamic = 'force-dynamic';
-
 /**
  * POST /api/leads/[id]/research
  *
  * Starts an AI research job for a lead. Returns immediately with a jobId.
- * The frontend polls GET /api/jobs/[jobId] every ~5 seconds until status
+ * The frontend polls GET /api/jobs/[jobId] until status
  * becomes COMPLETED or FAILED.
  *
  * IDEMPOTENCY GUARD: If a QUEUED or RUNNING job already exists for this lead,
@@ -12,22 +10,32 @@ export const dynamic = 'force-dynamic';
  */
 
 import { getLogger } from '@/lib/logger';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { jobRuns } from '@/db/schema/research';
-import { cookies } from 'next/headers';
-import { decrypt, getUserId } from '@/lib/auth';
+import { getUserId } from '@/lib/auth';
 import { triggerResearchWorkflow } from '@/lib/workflow-client';
+import { checkRateLimit } from '@/lib/rate-limit';
 import { and, eq, or } from 'drizzle-orm';
 
 const log = getLogger('ResearchStartAPI');
 
 export async function POST(
-  _request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: leadId } = await params;
   const userId = await getUserId();
+
+  if (userId) {
+    const rateCheck = await checkRateLimit(`research:${userId}`, 5, 60_000);
+    if (!rateCheck.allowed) {
+      return NextResponse.json(
+        { error: 'Too many research requests. Try again later.' },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil((rateCheck.reset - Date.now()) / 1000)) } },
+      );
+    }
+  }
 
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -82,9 +90,16 @@ export async function POST(
       log.info('getCloudflareContext unavailable — falling back to process.env for workflow binding');
     }
     if (!workflowBinding) {
-      workflowBinding = (process.env as any)?.RESEARCH_SNAPSHOT_WORKFLOW;
+      workflowBinding = process.env.RESEARCH_SNAPSHOT_WORKFLOW;
     }
-    await triggerResearchWorkflow(db, workflowBinding, leadId, jobId, userId);
+    try {
+      await Promise.race([
+        triggerResearchWorkflow(db, workflowBinding, leadId, jobId, userId),
+        new Promise<void>((_, reject) => setTimeout(() => reject(new Error('Workflow timed out after 10m')), 600_000)),
+      ]);
+    } catch (wfErr) {
+      log.warn('Workflow trigger did not complete in time, returning 202 anyway', { leadId, jobId, error: String(wfErr) });
+    }
 
     return NextResponse.json({ jobId }, { status: 202 });
   } catch (error: unknown) {

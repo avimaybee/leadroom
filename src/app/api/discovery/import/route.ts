@@ -3,15 +3,34 @@ import { LoggingService } from '@/services/logging';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 
 import { getDb } from '@/db';
 import { prospects as leads, activities } from '@/db/schema/core';
 import { discoveryScopes, candidateLeads } from '@/db/schema/discovery';
 import { eq, and } from 'drizzle-orm';
-import { cookies } from 'next/headers';
 import { decrypt, getUserId } from '@/lib/auth';
 
 const log = getLogger('DiscoveryImportAPI');
+
+const ImportItemSchema = z.object({
+  name: z.string().min(1),
+  website: z.string().nullable().optional(),
+  phone: z.string().nullable().optional(),
+  city: z.string().nullable().optional(),
+  region: z.string().nullable().optional(),
+  industry: z.string().nullable().optional(),
+  sourceUrl: z.string().nullable().optional(),
+  workspaceId: z.string().nullable().optional(),
+  marketId: z.string().nullable().optional(),
+});
+
+const ImportRequestSchema = z.object({
+  items: z.array(ImportItemSchema).min(1),
+  filename: z.string().optional(),
+});
+
+const MAX_IMPORT_ITEMS = 500;
 
 export async function POST(request: Request) {
   const userId = await getUserId();
@@ -20,23 +39,15 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { items, filename } = (await request.json()) as {
-      items?: Array<{
-        name: string;
-        website?: string | null;
-        phone?: string | null;
-        city?: string | null;
-        region?: string | null;
-        industry?: string | null;
-        sourceUrl?: string | null;
-        workspaceId?: string | null;
-        marketId?: string | null;
-      }>;
-      filename?: string;
-    };
+    const body = await request.json();
+    const parsed = ImportRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid request body', details: parsed.error.flatten() }, { status: 400 });
+    }
+    const { items, filename } = parsed.data;
 
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      return NextResponse.json({ error: 'No items provided for import' }, { status: 400 });
+    if (items.length > MAX_IMPORT_ITEMS) {
+      return NextResponse.json({ error: `Maximum ${MAX_IMPORT_ITEMS} items per import` }, { status: 400 });
     }
 
     const db = getDb();
@@ -61,11 +72,15 @@ export async function POST(request: Request) {
       [scope] = await db.select().from(discoveryScopes).where(eq(discoveryScopes.id, scopeId)).limit(1);
     }
 
-    // 2. Bulk Insert Leads
+    // 2. Bulk Insert Leads (batched)
+    const BATCH_SIZE = 50;
+    const leadValues: Array<typeof leads.$inferInsert> = [];
+    const candidateValues: Array<typeof candidateLeads.$inferInsert> = [];
+    const activityLogs: Array<{ leadId: string; type: string; summary: string; metadata: Record<string, string> }> = [];
+
     for (const item of items) {
       const leadId = crypto.randomUUID();
-      
-      await db.insert(leads).values({
+      leadValues.push({
         id: leadId,
         name: item.name,
         website: item.website || null,
@@ -81,9 +96,7 @@ export async function POST(request: Request) {
         createdAt: now,
         updatedAt: now,
       });
-
-      // Link via candidateLead to Discovery Scope
-      await db.insert(candidateLeads).values({
+      candidateValues.push({
         id: crypto.randomUUID(),
         discoveryScopeId: scope.id,
         rawName: item.name,
@@ -95,16 +108,20 @@ export async function POST(request: Request) {
         createdAt: now,
         updatedAt: now,
       });
-
-      // Log import activity
-      await new LoggingService(db).log({
-        leadId,
-        type: 'Lead imported',
-        summary: `Imported via CSV/Bulk Import. Source: ${importSourceName}`,
-        metadata: { source: importSourceName }
-      });
-
+      activityLogs.push({ leadId, type: 'Lead imported', summary: `Imported via CSV/Bulk Import. Source: ${importSourceName}`, metadata: { source: importSourceName } });
       importedLeadIds.push(leadId);
+    }
+
+    for (let i = 0; i < leadValues.length; i += BATCH_SIZE) {
+      const batch = leadValues.slice(i, i + BATCH_SIZE);
+      await db.insert(leads).values(batch);
+    }
+    for (let i = 0; i < candidateValues.length; i += BATCH_SIZE) {
+      const batch = candidateValues.slice(i, i + BATCH_SIZE);
+      await db.insert(candidateLeads).values(batch);
+    }
+    for (const logEntry of activityLogs) {
+      await new LoggingService(db).log(logEntry);
     }
 
     return NextResponse.json({ 

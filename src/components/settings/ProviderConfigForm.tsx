@@ -1,5 +1,8 @@
 'use client';
 
+// TODO(22.8): Migrate generic error banner to per-field error display
+// TODO(22.9): Preserve form field values on validation error (use defaultValue or keep state)
+// TODO(22.15): Add optimistic UI update on save for instant feedback
 import { useState, useEffect } from 'react';
 import { ChevronDown, ChevronUp, KeyRound, AlertTriangle } from 'lucide-react';
 import { saveIntegrationConfigAction, deleteIntegrationConfigAction, testIntegrationConnectionAction } from '@/app/(dashboard)/settings/integrations/actions';

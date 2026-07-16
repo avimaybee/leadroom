@@ -1,5 +1,8 @@
 'use client';
 
+// TODO(22.8): Migrate generic error banner to per-field error display
+// TODO(22.9): Preserve form field values on validation error (use defaultValue or keep state)
+// TODO(22.15): Add optimistic UI update on save for instant feedback
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, ShieldAlert, TriangleAlert } from 'lucide-react';
@@ -72,7 +75,7 @@ export function MarketForm({ initialData }: MarketFormProps) {
       )}
 
       <div>
-        <label className="label-12 uppercase text-muted-foreground block mb-1.5">Market Name</label>
+        <label className="text-label-12 uppercase text-muted-foreground block mb-1.5">Market Name</label>
         <input
           type="text"
           value={name}
@@ -84,7 +87,7 @@ export function MarketForm({ initialData }: MarketFormProps) {
       </div>
 
       <div>
-        <label className="label-12 uppercase text-muted-foreground block mb-1.5">Linked Offer</label>
+        <label className="text-label-12 uppercase text-muted-foreground block mb-1.5">Linked Offer</label>
         {loading ? (
           <div className="h-10 rounded-md bg-muted animate-pulse" />
         ) : offers.length === 0 ? (
@@ -112,7 +115,7 @@ export function MarketForm({ initialData }: MarketFormProps) {
       </div>
 
       <div>
-        <label className="label-12 uppercase text-muted-foreground block mb-1.5">Linked Ideal Client</label>
+        <label className="text-label-12 uppercase text-muted-foreground block mb-1.5">Linked Ideal Client</label>
         {loading ? (
           <div className="h-10 rounded-md bg-muted animate-pulse" />
         ) : profiles.length === 0 ? (
@@ -140,7 +143,7 @@ export function MarketForm({ initialData }: MarketFormProps) {
       </div>
 
       <div>
-        <label className="label-12 uppercase text-muted-foreground block mb-1.5">Status</label>
+        <label className="text-label-12 uppercase text-muted-foreground block mb-1.5">Status</label>
         <div className="flex gap-3">
           <button
             type="button"

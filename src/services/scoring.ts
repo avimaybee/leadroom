@@ -1,9 +1,33 @@
 import { LoggingService } from './logging';
-import { Db } from '../db';
+import { type Db } from '../db';
 import { eq, and, desc } from 'drizzle-orm';
 import { leads, leadScores, audits, researchSnapshots, researchTasks } from '../db/schema';
 import { markets, icpProfiles } from '../db/schema/strategy';
 import { calculateScore } from '../lib/domain/scoring';
+import { getLogger } from '../lib/logger';
+
+const log = getLogger('ScoringService');
+
+const _parsedSignalCache = new Map<string, readonly any[]>();
+const PARSED_SIGNAL_CACHE_MAX = 500;
+
+function parseSignalsCached(raw: string | null, taskId: string): any[] {
+  if (!raw) return [];
+  const cached = _parsedSignalCache.get(taskId);
+  if (cached) return cached as any[];
+  try {
+    const parsed = JSON.parse(raw);
+    const result = Array.isArray(parsed) ? parsed : [];
+    if (_parsedSignalCache.size >= PARSED_SIGNAL_CACHE_MAX) {
+      const oldest = _parsedSignalCache.keys().next().value;
+      if (oldest) _parsedSignalCache.delete(oldest);
+    }
+    _parsedSignalCache.set(taskId, result);
+    return result;
+  } catch {
+    return [];
+  }
+}
 
 export interface ScoringFactor {
   name: string;
@@ -34,29 +58,38 @@ export class ScoringService {
 
     // Check for Market and ICP Profile
     if (lead.marketId) {
-      const [marketRow] = await this.db.select().from(markets).where(eq(markets.id, lead.marketId)).limit(1);
-      if (marketRow?.icpProfileId) {
-        const [icpRow] = await this.db.select().from(icpProfiles).where(eq(icpProfiles.id, marketRow.icpProfileId)).limit(1);
+      const icpRows = await this.db
+        .select({
+          positiveSignals: icpProfiles.positiveSignals,
+          negativeSignals: icpProfiles.negativeSignals,
+          disqualifiers: icpProfiles.disqualifiers,
+        })
+        .from(markets)
+        .innerJoin(icpProfiles, eq(markets.icpProfileId, icpProfiles.id))
+        .where(eq(markets.id, lead.marketId))
+        .limit(1);
+      if (!icpRows.length) {
+        // No ICP profile configured — fall through to completeness scoring
+      } else {
+        const icpRow = icpRows[0];
         if (icpRow) {
-          const positiveSignals = icpRow.positiveSignals ? JSON.parse(icpRow.positiveSignals) : [];
-          const negativeSignals = icpRow.negativeSignals ? JSON.parse(icpRow.negativeSignals) : [];
-          const disqualifiers = icpRow.disqualifiers ? JSON.parse(icpRow.disqualifiers) : [];
+
+          const positiveSignals = safeParseJsonArray(icpRow.positiveSignals);
+          const negativeSignals = safeParseJsonArray(icpRow.negativeSignals);
+          const disqualifiers = safeParseJsonArray(icpRow.disqualifiers);
 
           // Load completed tasks
           const taskRows = await this.db
             .select()
             .from(researchTasks)
-            .where(eq(researchTasks.prospectId, leadId));
+            .where(eq(researchTasks.prospectId, leadId))
+            .limit(200);
           
           const extractedSignals: any[] = [];
           for (const task of taskRows) {
-            if (task.status === 'COMPLETED' && task.extractedSignals) {
-              try {
-                const signals = JSON.parse(task.extractedSignals);
-                if (Array.isArray(signals)) {
-                  extractedSignals.push(...signals);
-                }
-              } catch {}
+            if (task.status === 'COMPLETED') {
+              const signals = parseSignalsCached(task.extractedSignals as unknown as string | null, task.id);
+              extractedSignals.push(...signals);
             }
           }
 
@@ -97,14 +130,17 @@ export class ScoringService {
               ? (icpResult.breakdown.find(b => b.factor.startsWith('Disqualified'))?.factor.replace('Disqualified: ', '') || 'Matches disqualifier')
               : null,
           }).where(eq(leads.id, leadId));
-        }
-      }
+      } }
     }
 
     if (!isIcpScored) {
       // Fetch the latest research snapshot for this lead
       const [latestResearch] = await this.db
-        .select()
+        .select({
+          id: researchSnapshots.id,
+          confidenceLevel: researchSnapshots.confidenceLevel,
+          painPointsHypotheses: researchSnapshots.painPointsHypotheses,
+        })
         .from(researchSnapshots)
         .where(eq(researchSnapshots.leadId, leadId))
         .orderBy(desc(researchSnapshots.createdAt))
@@ -112,7 +148,11 @@ export class ScoringService {
 
       // Fetch the latest audit for this lead
       const [latestAudit] = await this.db
-        .select()
+        .select({
+          id: audits.id,
+          keyWeaknesses: audits.keyWeaknesses,
+          recommendedImprovements: audits.recommendedImprovements,
+        })
         .from(audits)
         .where(eq(audits.leadId, leadId))
         .orderBy(desc(audits.createdAt))
@@ -151,13 +191,6 @@ export class ScoringService {
     const scoreId = crypto.randomUUID();
     const now = new Date();
 
-    // De-activate old current score
-    await this.db
-      .update(leadScores)
-      .set({ isCurrent: 0, updatedAt: now })
-      .where(and(eq(leadScores.leadId, leadId), eq(leadScores.isCurrent, 1)));
-
-    // Insert new current score
     const newScore = {
       id: scoreId,
       leadId,
@@ -173,10 +206,13 @@ export class ScoringService {
       updatedAt: now,
     };
 
-    await this.db.insert(leadScores).values(newScore);
-
-    // Clear score dirty flag and update fit reasoning
-    await this.db.update(leads).set({ scoreDirty: false, fitReasoning }).where(eq(leads.id, leadId));
+    await this.db.transaction(async (tx) => {
+      await tx.update(leadScores)
+        .set({ isCurrent: 0, updatedAt: now })
+        .where(and(eq(leadScores.leadId, leadId), eq(leadScores.isCurrent, 1)));
+      await tx.insert(leadScores).values(newScore);
+      await tx.update(leads).set({ scoreDirty: false, fitReasoning }).where(eq(leads.id, leadId));
+    });
 
     // Insert activity log
     await new LoggingService(this.db).log({
@@ -364,4 +400,18 @@ leadId,
       .limit(1);
     return score || null;
   }
+}
+
+function safeParseJsonArray(value: unknown): any[] {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
 }

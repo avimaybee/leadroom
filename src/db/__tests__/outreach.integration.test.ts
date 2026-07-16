@@ -98,7 +98,8 @@ test('Outreach Service Integration', async (t) => {
 
   await t.test('updateDraftStatus should update the status directly and log activity on SENT', async () => {
     const updated = await outreachService.updateDraftStatus(draftId, 'SENT');
-    assert.strictEqual(updated.status, 'SENT');
+    assert.ok(updated);
+    assert.strictEqual(updated!.status, 'SENT');
 
     // Verify activity logs
     const activitiesList = await db.select().from(activities).where(eq(activities.leadId, lead.id));

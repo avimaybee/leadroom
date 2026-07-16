@@ -14,6 +14,46 @@ import { jobRuns } from '@/db/schema/research';
 
 const log = getLogger('BulkActions');
 
+const CONCURRENCY_LIMIT = 5;
+
+let _cfEnvResolved = false;
+let _cfEnv: any = null;
+
+function getCloudflareEnvOnce(): any {
+  if (!_cfEnvResolved) {
+    _cfEnvResolved = true;
+    try {
+      const { getCloudflareContext } = require('@opennextjs/cloudflare');
+      _cfEnv = getCloudflareContext().env;
+    } catch (e) {
+      _cfEnv = null;
+    }
+  }
+  return _cfEnv;
+}
+
+async function* batch<T>(items: T[], batchSize: number): AsyncGenerator<T[]> {
+  for (let i = 0; i < items.length; i += batchSize) {
+    yield items.slice(i, i + batchSize);
+  }
+}
+
+async function runWithConcurrency<T>(
+  items: T[],
+  fn: (item: T) => Promise<void>,
+  concurrency: number = CONCURRENCY_LIMIT
+): Promise<void> {
+  const executing = new Set<Promise<void>>();
+  for (const item of items) {
+    const p = fn(item).finally(() => executing.delete(p));
+    executing.add(p);
+    if (executing.size >= concurrency) {
+      await Promise.race(executing);
+    }
+  }
+  await Promise.allSettled(executing);
+}
+
 export async function bulkAdvanceStageAction(leadIds: string[]) {
   const userId = await getUserId();
   if (!userId) throw new Error('Unauthorized');
@@ -26,29 +66,30 @@ export async function bulkAdvanceStageAction(leadIds: string[]) {
   );
   const results: { advanced: number; skipped: { id: string; reason: string }[]; errors: { id: string; reason: string }[] } = { advanced: 0, skipped: [], errors: [] };
 
-  for (const id of leadIds) {
-    try {
-      if (!leadMap.has(id)) { results.errors.push({ id, reason: 'Lead not found' }); continue; }
-      if (leadMap.get(id) && leadMap.get(id) !== userId) { results.skipped.push({ id, reason: 'Not authorized' }); continue; }
-      const lead = await service.getLead(id);
-      if (!lead) { results.errors.push({ id, reason: 'Lead not found' }); continue; }
-      const currentIdx = PIPELINE_STAGES.indexOf(lead.stage as PipelineStage);
-      if (currentIdx < 0 || currentIdx >= PIPELINE_STAGES.length - 1) {
-        results.skipped.push({ id, reason: `Already at terminal stage "${lead.stage}"` });
-        continue;
-      }
-      const nextStage = PIPELINE_STAGES[currentIdx + 1];
-      const reqError = await service.verifyStageRequirements(id, nextStage);
-      if (reqError) {
-        results.skipped.push({ id, reason: reqError });
-        continue;
-      }
-      await service.updateStage(id, nextStage);
-      results.advanced++;
-    } catch (err) {
-      results.errors.push({ id, reason: err instanceof Error ? err.message : 'Unknown error' });
+  await runWithConcurrency(leadIds, async (id) => {
+    if (!leadMap.has(id)) { results.errors.push({ id, reason: 'Lead not found' }); return; }
+    if (leadMap.get(id) && leadMap.get(id) !== userId) { results.skipped.push({ id, reason: 'Not authorized' }); return; }
+    const lead = await service.getLead(id);
+    if (!lead) { results.errors.push({ id, reason: 'Lead not found' }); return; }
+    const stage = lead.stage;
+    if (!PIPELINE_STAGES.includes(stage as PipelineStage)) {
+      results.skipped.push({ id, reason: `Invalid stage "${stage}"` });
+      return;
     }
-  }
+    const currentIdx = PIPELINE_STAGES.indexOf(stage as PipelineStage);
+    if (currentIdx < 0 || currentIdx >= PIPELINE_STAGES.length - 1) {
+      results.skipped.push({ id, reason: `Already at terminal stage "${lead.stage}"` });
+      return;
+    }
+    const nextStage = PIPELINE_STAGES[currentIdx + 1];
+    const reqError = await service.verifyStageRequirements(id, nextStage);
+    if (reqError) {
+      results.skipped.push({ id, reason: reqError });
+      return;
+    }
+    await service.updateStage(id, nextStage);
+    results.advanced++;
+  });
 
   revalidatePath('/leads');
   revalidatePath('/');
@@ -58,7 +99,8 @@ export async function bulkAdvanceStageAction(leadIds: string[]) {
 export async function bulkAdvanceStageToAction(leadIds: string[], targetStage: string) {
   const userId = await getUserId();
   if (!userId) throw new Error('Unauthorized');
-  if (!PIPELINE_STAGES.includes(targetStage as PipelineStage)) {
+  const validTarget = PIPELINE_STAGES.find(s => s === targetStage);
+  if (!validTarget) {
     throw new Error(`Invalid target stage: ${targetStage}`);
   }
 
@@ -70,22 +112,18 @@ export async function bulkAdvanceStageToAction(leadIds: string[], targetStage: s
   );
   const results: { advanced: number; skipped: { id: string; reason: string }[]; errors: { id: string; reason: string }[] } = { advanced: 0, skipped: [], errors: [] };
 
-  for (const id of leadIds) {
-    try {
-      if (!leadMap.has(id)) { results.errors.push({ id, reason: 'Lead not found' }); continue; }
-      if (leadMap.get(id) && leadMap.get(id) !== userId) { results.skipped.push({ id, reason: 'Not authorized' }); continue; }
-      const lead = await service.getLead(id);
-      if (!lead) { results.errors.push({ id, reason: 'Lead not found' }); continue; }
-      if (lead.status !== 'Active') { results.skipped.push({ id, reason: `Lead is ${lead.status}` }); continue; }
-      if (lead.stage === targetStage) { results.skipped.push({ id, reason: `Already in "${targetStage}"` }); continue; }
-      const reqError = await service.verifyStageRequirements(id, targetStage);
-      if (reqError) { results.skipped.push({ id, reason: reqError }); continue; }
-      await service.updateStage(id, targetStage);
-      results.advanced++;
-    } catch (err) {
-      results.errors.push({ id, reason: err instanceof Error ? err.message : 'Unknown error' });
-    }
-  }
+  await runWithConcurrency(leadIds, async (id) => {
+    if (!leadMap.has(id)) { results.errors.push({ id, reason: 'Lead not found' }); return; }
+    if (leadMap.get(id) && leadMap.get(id) !== userId) { results.skipped.push({ id, reason: 'Not authorized' }); return; }
+    const lead = await service.getLead(id);
+    if (!lead) { results.errors.push({ id, reason: 'Lead not found' }); return; }
+    if (lead.status !== 'Active') { results.skipped.push({ id, reason: `Lead is ${lead.status}` }); return; }
+    if (lead.stage === targetStage) { results.skipped.push({ id, reason: `Already in "${targetStage}"` }); return; }
+    const reqError = await service.verifyStageRequirements(id, targetStage);
+    if (reqError) { results.skipped.push({ id, reason: reqError }); return; }
+    await service.updateStage(id, targetStage);
+    results.advanced++;
+  });
 
   revalidatePath('/leads');
   revalidatePath('/');
@@ -103,58 +141,52 @@ export async function bulkResearchTriggerAction(leadIds: string[]) {
   );
   const results: { triggered: number; skipped: { id: string; reason: string }[]; errors: { id: string; reason: string }[] } = { triggered: 0, skipped: [], errors: [] };
 
-  for (const id of leadIds) {
-    try {
-      if (!leadMap.has(id)) { results.errors.push({ id, reason: 'Lead not found' }); continue; }
-      if (leadMap.get(id) && leadMap.get(id) !== userId) { results.skipped.push({ id, reason: 'Not authorized' }); continue; }
-      const [existingJob] = await db
-        .select({ id: jobRuns.id, status: jobRuns.status })
-        .from(jobRuns)
-        .where(
-          and(
-            eq(jobRuns.targetLeadId, id),
-            eq(jobRuns.jobType, 'RESEARCH_GENERATION'),
-            eq(jobRuns.status, 'QUEUED'),
-          )
+  await runWithConcurrency(leadIds, async (id) => {
+    if (!leadMap.has(id)) { results.errors.push({ id, reason: 'Lead not found' }); return; }
+    if (leadMap.get(id) && leadMap.get(id) !== userId) { results.skipped.push({ id, reason: 'Not authorized' }); return; }
+    const [existingJob] = await db
+      .select({ id: jobRuns.id, status: jobRuns.status })
+      .from(jobRuns)
+      .where(
+        and(
+          eq(jobRuns.targetLeadId, id),
+          eq(jobRuns.jobType, 'RESEARCH_GENERATION'),
+          eq(jobRuns.status, 'QUEUED'),
         )
-        .limit(1);
+      )
+      .limit(1);
 
-      if (existingJob) {
-        results.skipped.push({ id, reason: 'Research already queued' });
-        continue;
-      }
-
-      const jobId = crypto.randomUUID();
-      const now = new Date();
-
-      await db.insert(jobRuns).values({
-        id: jobId,
-        jobType: 'RESEARCH_GENERATION',
-        status: 'QUEUED',
-        targetLeadId: id,
-        triggeredByUserId: userId,
-        externalRunId: 'BULK',
-        startedAt: null,
-        finishedAt: null,
-        createdAt: now,
-      });
-
-      let workflowBinding: any = undefined;
-      try {
-        const { getCloudflareContext } = await import('@opennextjs/cloudflare');
-        workflowBinding = getCloudflareContext().env?.RESEARCH_SNAPSHOT_WORKFLOW;
-      } catch (e) {
-        log.info('getCloudflareContext unavailable — falling back to process.env for workflow binding');
-      }
-      if (!workflowBinding) {
-        workflowBinding = (process.env as any)?.RESEARCH_SNAPSHOT_WORKFLOW;
-      }
-      await triggerResearchWorkflow(db, workflowBinding, id, jobId, userId);
-      results.triggered++;
-    } catch (err) {
-      results.errors.push({ id, reason: err instanceof Error ? err.message : 'Unknown error' });
+    if (existingJob) {
+      results.skipped.push({ id, reason: 'Research already queued' });
+      return;
     }
-  }
+
+    const jobId = crypto.randomUUID();
+    const now = new Date();
+
+    await db.insert(jobRuns).values({
+      id: jobId,
+      jobType: 'RESEARCH_GENERATION',
+      status: 'QUEUED',
+      targetLeadId: id,
+      triggeredByUserId: userId,
+      externalRunId: 'BULK',
+      startedAt: null,
+      finishedAt: null,
+      createdAt: now,
+    });
+
+    let workflowBinding: any = undefined;
+    const cfEnv = getCloudflareEnvOnce();
+    if (cfEnv) {
+      workflowBinding = cfEnv.RESEARCH_SNAPSHOT_WORKFLOW;
+    }
+    if (!workflowBinding) {
+      workflowBinding = process.env.RESEARCH_SNAPSHOT_WORKFLOW;
+    }
+    await triggerResearchWorkflow(db, workflowBinding, id, jobId, userId);
+    results.triggered++;
+  });
 
   revalidatePath('/leads');
   revalidatePath('/');
@@ -173,20 +205,16 @@ export async function bulkArchiveAction(leadIds: string[]) {
   );
   const results: { archived: number; skipped: { id: string; reason: string }[]; errors: { id: string; reason: string }[] } = { archived: 0, skipped: [], errors: [] };
 
-  for (const id of leadIds) {
-    try {
-      if (!leadMap.has(id)) { results.errors.push({ id, reason: 'Lead not found' }); continue; }
-      if (leadMap.get(id) && leadMap.get(id) !== userId) { results.skipped.push({ id, reason: 'Not authorized' }); continue; }
-      const lead = await service.getLead(id);
-      if (!lead) { results.errors.push({ id, reason: 'Lead not found' }); continue; }
-      if (lead.status === 'Archived') { results.skipped.push({ id, reason: 'Already archived' }); continue; }
-      await service.archiveLead(id);
-      await new LoggingService(db).log({ leadId: id, type: 'SYSTEM', summary: 'Lead archived (bulk operation)' });
-      results.archived++;
-    } catch (err) {
-      results.errors.push({ id, reason: err instanceof Error ? err.message : 'Unknown error' });
-    }
-  }
+  await runWithConcurrency(leadIds, async (id) => {
+    if (!leadMap.has(id)) { results.errors.push({ id, reason: 'Lead not found' }); return; }
+    if (leadMap.get(id) && leadMap.get(id) !== userId) { results.skipped.push({ id, reason: 'Not authorized' }); return; }
+    const lead = await service.getLead(id);
+    if (!lead) { results.errors.push({ id, reason: 'Lead not found' }); return; }
+    if (lead.status === 'Archived') { results.skipped.push({ id, reason: 'Already archived' }); return; }
+    await service.archiveLead(id);
+    await new LoggingService(db).log({ leadId: id, type: 'SYSTEM', summary: 'Lead archived (bulk operation)' });
+    results.archived++;
+  });
 
   revalidatePath('/leads');
   revalidatePath('/');
@@ -208,21 +236,17 @@ export async function bulkReassignAction(leadIds: string[], targetOwnerId: strin
 
   const results: { reassigned: number; skipped: { id: string; reason: string }[]; errors: { id: string; reason: string }[] } = { reassigned: 0, skipped: [], errors: [] };
 
-  for (const id of leadIds) {
-    try {
-      if (!leadMap.has(id)) { results.errors.push({ id, reason: 'Lead not found' }); continue; }
-      if (leadMap.get(id) && leadMap.get(id) !== userId) { results.skipped.push({ id, reason: 'Not authorized' }); continue; }
-      const [lead] = await db.select({ id: leads.id, status: leads.status, ownerId: leads.ownerId }).from(leads).where(eq(leads.id, id)).limit(1);
-      if (!lead) { results.errors.push({ id, reason: 'Lead not found' }); continue; }
-      if (lead.status !== 'Active') { results.skipped.push({ id, reason: `Lead is ${lead.status}` }); continue; }
-      if (lead.ownerId === targetOwnerId) { results.skipped.push({ id, reason: 'Already assigned to this owner' }); continue; }
-      await db.update(leads).set({ ownerId: targetOwnerId, updatedAt: new Date() }).where(eq(leads.id, id));
-      await new LoggingService(db).log({ leadId: id, type: 'SYSTEM', summary: `Lead reassigned to ${owner.name} (bulk operation)` });
-      results.reassigned++;
-    } catch (err) {
-      results.errors.push({ id, reason: err instanceof Error ? err.message : 'Unknown error' });
-    }
-  }
+  await runWithConcurrency(leadIds, async (id) => {
+    if (!leadMap.has(id)) { results.errors.push({ id, reason: 'Lead not found' }); return; }
+    if (leadMap.get(id) && leadMap.get(id) !== userId) { results.skipped.push({ id, reason: 'Not authorized' }); return; }
+    const [lead] = await db.select({ id: leads.id, status: leads.status, ownerId: leads.ownerId }).from(leads).where(eq(leads.id, id)).limit(1);
+    if (!lead) { results.errors.push({ id, reason: 'Lead not found' }); return; }
+    if (lead.status !== 'Active') { results.skipped.push({ id, reason: `Lead is ${lead.status}` }); return; }
+    if (lead.ownerId === targetOwnerId) { results.skipped.push({ id, reason: 'Already assigned to this owner' }); return; }
+    await db.update(leads).set({ ownerId: targetOwnerId, updatedAt: new Date() }).where(eq(leads.id, id));
+    await new LoggingService(db).log({ leadId: id, type: 'SYSTEM', summary: `Lead reassigned to ${owner.name} (bulk operation)` });
+    results.reassigned++;
+  });
 
   revalidatePath('/leads');
   revalidatePath('/');
@@ -295,16 +319,12 @@ export async function bulkAddTaskAction(leadIds: string[], title: string, dueDat
   );
   const results = { created: 0, errors: 0 };
 
-  for (const id of leadIds) {
-    try {
-      if (!leadMap.has(id)) { results.errors++; continue; }
-      if (leadMap.get(id) && leadMap.get(id) !== userId) { results.errors++; continue; }
-      await service.addTask(id, title, null, dueDate ? new Date(dueDate) : null, priority);
-      results.created++;
-    } catch {
-      results.errors++;
-    }
-  }
+  await runWithConcurrency(leadIds, async (id) => {
+    if (!leadMap.has(id)) { results.errors++; return; }
+    if (leadMap.get(id) && leadMap.get(id) !== userId) { results.errors++; return; }
+    await service.addTask(id, title, null, dueDate ? new Date(dueDate) : null, priority);
+    results.created++;
+  });
 
   revalidatePath('/leads');
   revalidatePath('/');
@@ -323,16 +343,12 @@ export async function bulkSetReminderAction(leadIds: string[], title: string, re
   );
   const results = { created: 0, errors: 0 };
 
-  for (const id of leadIds) {
-    try {
-      if (!leadMap.has(id)) { results.errors++; continue; }
-      if (leadMap.get(id) && leadMap.get(id) !== userId) { results.errors++; continue; }
-      await reminderService.createReminder(id, userId, title, null, new Date(remindAt));
-      results.created++;
-    } catch {
-      results.errors++;
-    }
-  }
+  await runWithConcurrency(leadIds, async (id) => {
+    if (!leadMap.has(id)) { results.errors++; return; }
+    if (leadMap.get(id) && leadMap.get(id) !== userId) { results.errors++; return; }
+    await reminderService.createReminder(id, userId, title, null, new Date(remindAt));
+    results.created++;
+  });
 
   revalidatePath('/leads');
   revalidatePath('/');

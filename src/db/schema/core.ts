@@ -43,6 +43,7 @@ export const prospects = sqliteTable('prospects', {
   ownerIdIndex: index('prospects_owner_id_idx').on(table.ownerId),
   ownerIdFitScoreIndex: index('prospects_owner_id_fit_score_idx').on(table.ownerId, table.fitScore),
   statusScoreDirtyIndex: index('prospects_status_score_dirty_idx').on(table.status, table.scoreDirty),
+  ownerIdStatusUpdatedAtIndex: index('prospects_owner_id_status_updated_at_idx').on(table.ownerId, table.status, table.updatedAt),
 }));
 
 // leads backward-compat alias is in src/db/schema.ts
@@ -77,6 +78,7 @@ export const tasks = sqliteTable('tasks', {
   statusDueDateIndex: index('tasks_status_due_date_idx').on(table.status, table.dueDate),
   leadIdIndex: index('tasks_lead_id_idx').on(table.leadId),
   assigneeStatusIndex: index('tasks_assignee_status_idx').on(table.assigneeId, table.status),
+  assigneeStatusDueDateIndex: index('tasks_assignee_status_due_date_idx').on(table.assigneeId, table.status, table.dueDate),
 }));
 
 export const notes = sqliteTable('notes', {
@@ -118,7 +120,7 @@ export const leadStageHistory = sqliteTable('lead_stage_history', {
 export const activityMetadata = sqliteTable('activity_metadata', {
   id: text('id').primaryKey(),
   activityId: text('activity_id').notNull().references(() => activities.id),
-  metadata: text('metadata').notNull(),
+  metadata: text('metadata', { mode: 'json' }).notNull(),
 }, (table) => ({
   activityIdIdx: index('activity_metadata_activity_id_idx').on(table.activityId),
 }));
@@ -141,7 +143,7 @@ export const providerConfigs = sqliteTable('provider_configs', {
 export const pipelineConfig = sqliteTable('pipeline_config', {
   id: text('id').primaryKey().default('global'),
   enforceStageOrder: integer('enforce_stage_order', { mode: 'boolean' }).notNull().default(false),
-  nbaRules: text('nba_rules'),
+  nbaRules: text('nba_rules', { mode: 'json' }),
   stageRequirements: text('stage_requirements', { mode: 'json' }).$type<Record<string, string[]>>().default({}),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
 });
@@ -172,6 +174,7 @@ export const reminders = sqliteTable('reminders', {
   link: text('link'),
 }, (table) => ({
   remindAtFiredIndex: index('reminders_remind_at_fired_idx').on(table.remindAt, table.isFired),
+  userIdRemindAtFiredIndex: index('reminders_user_id_remind_at_fired_idx').on(table.userId, table.remindAt, table.isFired),
 }));
 
 export const nbaActionLogs = sqliteTable('nba_action_logs', {
@@ -207,6 +210,19 @@ export const playbookTasks = sqliteTable('playbook_tasks', {
   jobType: text('job_type'),
 });
 
+export const sweepLocks = sqliteTable('sweep_locks', {
+  id: text('id').primaryKey(),
+  expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
+});
+
+export const rateLimits = sqliteTable('rate_limits', {
+  key: text('key').primaryKey(),
+  count: integer('count').notNull().default(1),
+  windowStart: integer('window_start', { mode: 'timestamp' }).notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
+});
+
 export const notifications = sqliteTable('notifications', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id),
@@ -219,4 +235,6 @@ export const notifications = sqliteTable('notifications', {
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
 }, (table) => ({
   userIdCreatedAtIndex: index('notifications_user_id_created_at_idx').on(table.userId, table.createdAt),
+  jobRunIdCreatedAtIndex: index('notifications_job_run_id_created_at_idx').on(table.jobRunId, table.createdAt),
+  createdAtIsReadIndex: index('notifications_created_at_is_read_idx').on(table.createdAt, table.isRead),
 }));

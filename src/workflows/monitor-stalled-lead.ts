@@ -17,15 +17,20 @@ export class MonitorStalledLeadWorkflow extends WorkflowEntrypoint<Env, MonitorP
   async run(event: WorkflowEvent<MonitorParams>, step: WorkflowStep) {
     const { leadId, stageUpdatedAt } = event.payload;
 
-    (process as any).env = {
-      ...(process as any).env,
-      ...this.env,
-    };
-
-    const db = getDb();
+    const db = getDb(this.env);
 
     // Sleep for 72 hours
     await step.sleep('wait-72-hours', '72 hours');
+
+    // Check if lead stage changed while sleeping (cancel check)
+    const stageChanged = await step.do('check-stage-changed', { timeout: '10 seconds' }, async () => {
+      const leadService = new LeadService(db);
+      const lead = await leadService.getLead(leadId);
+      if (!lead) return true;
+      const currentStageUpdatedAt = lead.stageUpdatedAt ? new Date(lead.stageUpdatedAt).getTime() : 0;
+      return Math.abs(currentStageUpdatedAt - stageUpdatedAt) >= 5000;
+    });
+    if (stageChanged) return;
 
     await step.do('check-and-create-task', { retries: { limit: 3, delay: 5000 } }, async () => {
       const leadService = new LeadService(db);

@@ -5,8 +5,8 @@ import { MockD1Database } from '@/db/local-mock';
 import { setupTestDb as initTestDb } from './test-helpers';
 
 // Setup environment variable so getDb works
-process.env.AUTH_SECRET = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
-process.env.GEMINI_API_KEY = 'mock_key';
+(process.env as any).AUTH_SECRET = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+(process.env as any).GEMINI_API_KEY = 'mock_key';
 (process.env as any).NODE_ENV = 'test';
 (globalThis as any).mockUserId = 'user-admin';
 

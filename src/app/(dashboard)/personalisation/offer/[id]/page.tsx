@@ -27,8 +27,8 @@ export default async function EditOfferPage({ params }: { params: Promise<{ id: 
           name: offer.name,
           targetPain: offer.targetPain,
           desiredOutcome: offer.desiredOutcome,
-          proofPoints: offer.proofPoints,
-          forbiddenClaims: offer.forbiddenClaims,
+          proofPoints: offer.proofPoints as string,
+          forbiddenClaims: offer.forbiddenClaims as string,
         }}
       />
     </div>

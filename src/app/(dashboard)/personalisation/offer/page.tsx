@@ -71,7 +71,7 @@ export default async function OfferListPage() {
                   </td>
                   <td className="px-4 py-3">
                     {offer.proofPoints ? (
-                      <Badge variant="secondary">{JSON.parse(offer.proofPoints).length}</Badge>
+                      <Badge variant="secondary">{(offer.proofPoints as any[])?.length ?? 0}</Badge>
                     ) : (
                       <span className="text-copy-13 text-muted-foreground">0</span>
                     )}

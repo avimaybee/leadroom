@@ -16,32 +16,64 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   const activeFilter = resolvedParams.filter || 'all';
   const stageFilter = resolvedParams.stage;
 
-  const [activeLeadsData, scores, campaigns, allTasks, thresholds, activeJobs] = await Promise.all([
-    db.select().from(leads).where(and(eq(leads.status, 'Active'), eq(leads.ownerId, userId))).orderBy(desc(leads.updatedAt)),
+  const [activeLeadsData, scores, campaigns, allTasks, thresholds, activeJobs, allScopes] = await Promise.all([
+    db.select({
+      id: leads.id,
+      name: leads.name,
+      company: leads.company,
+      email: leads.email,
+      phone: leads.phone,
+      website: leads.website,
+      city: leads.city,
+      region: leads.region,
+      industry: leads.industry,
+      stage: leads.stage,
+      isRead: leads.isRead,
+      status: leads.status,
+      workspaceId: leads.workspaceId,
+      marketId: leads.marketId,
+      fitScore: leads.fitScore,
+      confidenceScore: leads.confidenceScore,
+      priorityTier: leads.priorityTier,
+      disqualifiedReason: leads.disqualifiedReason,
+      ownerId: leads.ownerId,
+      createdAt: leads.createdAt,
+      updatedAt: leads.updatedAt,
+      stageUpdatedAt: leads.stageUpdatedAt,
+      lastActivityAt: leads.lastActivityAt,
+    }).from(leads).where(and(eq(leads.status, 'Active'), eq(leads.ownerId, userId))).orderBy(desc(leads.updatedAt)).limit(200),
     db.select({
       leadId: leadScores.leadId,
       scoreValue: leadScores.scoreValue,
       scoreLabel: leadScores.scoreLabel,
       rationaleSummary: leadScores.rationaleSummary,
-    }).from(leadScores).where(eq(leadScores.isCurrent, 1)),
+    }).from(leadScores).where(eq(leadScores.isCurrent, 1)).limit(200),
     db.select({
       campaignId: discoveryScopes.id,
       campaignName: discoveryScopes.name,
       leadId: candidateLeads.promotedLeadId,
     }).from(discoveryScopes)
       .leftJoin(candidateLeads, eq(discoveryScopes.id, candidateLeads.discoveryScopeId))
-      .where(eq(discoveryScopes.createdByUserId, userId)),
-    db.select().from(tasks).where(and(eq(tasks.status, 'Open'), eq(tasks.assigneeId, userId))),
+      .where(eq(discoveryScopes.createdByUserId, userId)).limit(200),
+    db.select({
+      id: tasks.id,
+      title: tasks.title,
+      leadId: tasks.leadId,
+      dueDate: tasks.dueDate,
+      status: tasks.status,
+      priority: tasks.priority,
+      assigneeId: tasks.assigneeId,
+      category: tasks.category,
+    }).from(tasks).where(and(eq(tasks.status, 'Open'), eq(tasks.assigneeId, userId))).limit(200),
     db.select().from(stageThresholds),
     db.select({
       id: jobRuns.id,
       targetLeadId: jobRuns.targetLeadId,
       status: jobRuns.status,
       jobType: jobRuns.jobType,
-    }).from(jobRuns).where(inArray(jobRuns.status, ['QUEUED', 'RUNNING'])),
+    }).from(jobRuns).where(inArray(jobRuns.status, ['QUEUED', 'RUNNING'])).limit(200),
+    db.select({ id: discoveryScopes.id, name: discoveryScopes.name }).from(discoveryScopes).where(eq(discoveryScopes.createdByUserId, userId)).orderBy(desc(discoveryScopes.createdAt)).limit(200),
   ]);
-
-  const allScopes = await db.select({ id: discoveryScopes.id, name: discoveryScopes.name }).from(discoveryScopes).where(eq(discoveryScopes.createdByUserId, userId)).orderBy(desc(discoveryScopes.createdAt));
 
   const scoreMap = new Map(scores.map(s => [s.leadId, { scoreValue: s.scoreValue, scoreLabel: s.scoreLabel, rationaleSummary: s.rationaleSummary }]));
   const campaignMap = new Map(campaigns.filter(c => c.leadId).map(c => [c.leadId!, { campaignId: c.campaignId, campaignName: c.campaignName }]));
@@ -52,17 +84,33 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
     }
   });
 
+  const tasksByLeadId = new Map<string, typeof allTasks>();
+  for (const task of allTasks) {
+    if (!task.leadId) continue;
+    let arr = tasksByLeadId.get(task.leadId);
+    if (!arr) { arr = []; tasksByLeadId.set(task.leadId, arr); }
+    arr.push(task);
+  }
+
+  const now = Date.now();
   const enrichedLeads = activeLeadsData.map(lead => {
-    const leadTasks = allTasks.filter(t => t.leadId === lead.id);
-    const isFollowUpDue = leadTasks.some(t => t.dueDate && new Date(t.dueDate) < new Date());
-    const overdueTasks = leadTasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date());
-    const openTasks = leadTasks.filter(t => t.status === 'Open');
+    const leadTasks = tasksByLeadId.get(lead.id) || [];
+    let isFollowUpDue = false;
+    let overdueTasks: typeof leadTasks = [];
+    let openTasks: typeof leadTasks = [];
+    for (const t of leadTasks) {
+      const taskDue = t.dueDate ? new Date(t.dueDate).getTime() : NaN;
+      if (!isNaN(taskDue) && taskDue < now) {
+        isFollowUpDue = true;
+        overdueTasks.push(t);
+      }
+      if ((t as any).status === 'Open') openTasks.push(t);
+    }
     const stageThreshold = thresholds.find(t => t.stage === lead.stage)?.days ?? 5;
     const stageAgeDays = lead.stageUpdatedAt 
-      ? (new Date().getTime() - new Date(lead.stageUpdatedAt).getTime()) / (1000 * 60 * 60 * 24) : 0;
+      ? (now - new Date(lead.stageUpdatedAt).getTime()) / (1000 * 60 * 60 * 24) : 0;
     const isStale = stageAgeDays > stageThreshold;
     const activeJob = activeJobsMap.get(lead.id);
-
     return {
       ...lead,
       isFollowUpDue,

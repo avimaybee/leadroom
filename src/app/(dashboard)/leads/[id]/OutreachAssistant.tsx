@@ -98,7 +98,7 @@ export default function OutreachAssistant({
                   <span>{formatChannelLabel(state.selectedChannel)}</span>
                 </div>
                 <div className="space-y-2">
-                  <h2 className="heading-2xl text-foreground sm:heading-xl">
+                  <h2 className="text-heading-2xl text-foreground sm:text-heading-xl">
                     One draft, one decision path.
                   </h2>
                   <p className="max-w-3xl text-copy-14 leading-6 text-muted-foreground">

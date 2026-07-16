@@ -1,4 +1,4 @@
-import { ExtractedSignal, IcpProfile } from './scoring';
+import type { ExtractedSignal, IcpProfile } from './scoring';
 
 export interface OutcomeEvent {
   prospectId: string;
@@ -41,22 +41,26 @@ export function generateLearningSuggestions(
 
   const totalPositive = positiveOutcomes.length;
   const totalNegative = negativeOutcomes.length;
+  const positiveSet = new Set(positiveOutcomes);
+  const negativeSet = new Set(negativeOutcomes);
 
   const signalPositiveCount = new Map<string, number>();
   const signalNegativeCount = new Map<string, number>();
   const signalProspectIds = new Map<string, string[]>();
 
   for (const outcome of outcomes) {
+    const isPositive = positiveSet.has(outcome);
+    const isNegative = negativeSet.has(outcome);
     const seen = new Set<string>();
     for (const signal of outcome.signals) {
       const key = signal.matchedIcpRule;
       if (seen.has(key)) continue;
       seen.add(key);
 
-      if (positiveOutcomes.includes(outcome)) {
+      if (isPositive) {
         signalPositiveCount.set(key, (signalPositiveCount.get(key) || 0) + 1);
       }
-      if (negativeOutcomes.includes(outcome)) {
+      if (isNegative) {
         signalNegativeCount.set(key, (signalNegativeCount.get(key) || 0) + 1);
       }
 

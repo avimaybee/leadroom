@@ -4,6 +4,29 @@ import * as schema from './schema';
 
 const log = getLogger('DB');
 
+let _cfResolved = false;
+let _cfEnv: any = null;
+let _localMockResolved = false;
+
+function getCloudflareEnvOnce(): any {
+  if (!_cfResolved) {
+    _cfResolved = true;
+    if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') {
+      try {
+        const { getCloudflareContext } = require('@opennextjs/cloudflare');
+        _cfEnv = getCloudflareContext().env;
+      } catch (e) {
+        _cfEnv = null;
+      }
+    } else {
+      _cfEnv = null;
+    }
+  }
+  return _cfEnv;
+}
+
+const _drizzleInstances = new WeakMap<object, DrizzleD1Database<typeof schema>>();
+
 export function getDb(env?: any): DrizzleD1Database<typeof schema> {
   let DB: any = undefined;
 
@@ -12,33 +35,29 @@ export function getDb(env?: any): DrizzleD1Database<typeof schema> {
     DB = env.DB;
   }
 
-  // 2. Try to get D1 from Cloudflare Context (legacy fallback)
+  // 2. Try to get D1 from Cloudflare Context (legacy fallback) — resolved once
   if (!DB) {
-    try {
-      const { getCloudflareContext } = require('@opennextjs/cloudflare');
-      const cf = getCloudflareContext();
-      if (cf && cf.env && cf.env.DB) {
-        DB = cf.env.DB;
-      }
-    } catch (e) {
-      // getCloudflareContext might not be available or throw in Node/tests environment
+    const cfEnv = getCloudflareEnvOnce();
+    if (cfEnv && cfEnv.DB) {
+      DB = cfEnv.DB;
     }
   }
 
   // 3. Fall back to process.env.DB (for standard next dev or node tests)
   if (!DB && typeof process !== 'undefined' && process.env) {
-    DB = (process.env as any).DB;
+    DB = process.env.DB;
   }
 
-  // 3. Fall back to local mock database (for local dev without wrangler)
-  if (!DB) {
+  // 3. Fall back to local mock database (for local dev without wrangler) — resolved once
+  if (!DB && !_localMockResolved && typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') {
+    _localMockResolved = true;
     const req = typeof require !== 'undefined' ? require : undefined;
     if (req) {
       try {
         const { setupLocalDatabaseMock } = req('./local-mock');
         setupLocalDatabaseMock();
         if (typeof process !== 'undefined' && process.env) {
-          DB = (process.env as any).DB;
+          DB = process.env.DB;
         }
       } catch (e) {
         log.error('Failed to load local database mock', e);
@@ -60,7 +79,13 @@ export function getDb(env?: any): DrizzleD1Database<typeof schema> {
     return new Proxy({} as any, proxyHandler);
   }
 
-  return drizzle(DB, { schema });
+  // Singleton: reuse drizzle instance per D1 binding object
+  let instance = _drizzleInstances.get(DB);
+  if (!instance) {
+    instance = drizzle(DB, { schema });
+    _drizzleInstances.set(DB, instance);
+  }
+  return instance;
 }
 
 export type Db = DrizzleD1Database<typeof schema>;

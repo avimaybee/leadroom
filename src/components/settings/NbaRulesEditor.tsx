@@ -42,13 +42,15 @@ export function NbaRulesEditor({ initialRules }: Props) {
   // Debounced preview refresh every time rules change
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(async () => {
-      setSimulating(true);
-      const result = await simulateNBARulesAction(JSON.stringify(rules));
-      if ('results' in result) {
-        setPreview(result.results);
-      }
-      setSimulating(false);
+    debounceRef.current = setTimeout(() => {
+      (async () => {
+        setSimulating(true);
+        const result = await simulateNBARulesAction(JSON.stringify(rules));
+        if ('results' in result) {
+          setPreview(result.results);
+        }
+        setSimulating(false);
+      })().catch(err => { setSimulating(false); console.error('NBA simulation failed', err); });
     }, 600);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);

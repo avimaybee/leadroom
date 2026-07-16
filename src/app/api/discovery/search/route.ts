@@ -2,12 +2,20 @@ export const dynamic = 'force-dynamic';
 
 import { getLogger } from '@/lib/logger';
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { getDb } from '@/db';
 import { getUserId } from '@/lib/auth';
 import { runSearchForScope } from '@/lib/discovery/run-search';
 import { discoverySearchLimiter } from '@/lib/rate-limit';
 
 const log = getLogger('DiscoverySearchAPI');
+
+const SearchRequestSchema = z.object({
+  niche: z.string().min(1).max(500),
+  location: z.string().min(1).max(500),
+  limit: z.number().int().min(1).max(200).optional(),
+  scopeId: z.string().min(1),
+});
 
 export async function POST(request: Request) {
   const userId = await getUserId();
@@ -20,26 +28,13 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { niche, location, limit, scopeId } = (await request.json()) as {
-      niche?: string;
-      location?: string;
-      limit?: number;
-      scopeId?: string;
-    };
-
-    if (!niche || !location) {
-      return NextResponse.json({ error: 'Niche and location are required' }, { status: 400 });
+    const body = await request.json();
+    const parsed = SearchRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid request body', details: parsed.error.flatten() }, { status: 400 });
     }
-    if (typeof niche !== 'string' || niche.length > 500) {
-      return NextResponse.json({ error: 'Niche must be at most 500 characters' }, { status: 400 });
-    }
-    if (typeof location !== 'string' || location.length > 500) {
-      return NextResponse.json({ error: 'Location must be at most 500 characters' }, { status: 400 });
-    }
-    if (!scopeId || typeof scopeId !== 'string') {
-      return NextResponse.json({ error: 'scopeId is required' }, { status: 400 });
-    }
-    const leadLimit = Math.min(Math.max(limit || 20, 1), 200);
+    const { niche, location, scopeId, limit } = parsed.data;
+    const leadLimit = limit ?? 20;
 
     const db = getDb();
     const result = await runSearchForScope(db, {

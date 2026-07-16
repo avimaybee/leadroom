@@ -3,6 +3,9 @@
 import { getDb } from '@/db';
 import { revalidatePath } from 'next/cache';
 import { getUserId } from '@/lib/auth';
+import { getLogger } from '@/lib/logger';
+
+const log = getLogger('DiscoveryMarketActions');
 import { markets } from '@/db/schema/strategy';
 import { eq, and } from 'drizzle-orm';
 import { DiscoveryService } from '@/services/discovery';
@@ -17,10 +20,10 @@ async function triggerDiscoveryForMarketActionImpl(
   const userId = await getUserId();
   if (!userId) return { error: 'Unauthorized' };
 
-  const marketId = formData.get('marketId') as string;
-  const niche = formData.get('niche') as string;
-  const location = formData.get('location') as string;
-  const rawLimit = formData.get('limit') as string;
+  const marketId = String(formData.get('marketId') ?? '');
+  const niche = String(formData.get('niche') ?? '');
+  const location = String(formData.get('location') ?? '');
+  const rawLimit = String(formData.get('limit') ?? '');
 
   if (!marketId || !niche || !location) {
     return { error: 'Market, niche, and location are required' };
@@ -79,6 +82,7 @@ async function triggerDiscoveryForMarketActionImpl(
     revalidatePath(`/markets/${marketId}/prospects`);
     return { success: true, scopeId, jobId: result.jobId };
   } catch (error: unknown) {
+    log.error('Discovery market failed', error);
     const msg = error instanceof Error ? error.message : 'Failed to start discovery search';
     return { error: msg };
   }

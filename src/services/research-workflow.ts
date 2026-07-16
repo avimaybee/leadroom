@@ -1,5 +1,5 @@
 import { LoggingService } from './logging';
-import { Db } from '../db';
+import { type Db } from '../db';
 import { fetchSiteContent, ScrapedContent, contentHash } from '../lib/scraper';
 import { generateResearchAndAudit, extractICPSignals, generateSDRWebsiteAnalysis, generateSDRICPFit } from '../lib/ai';
 import { saveExtractedContacts, logContactDiscoveryActivity, saveAIExtractedContacts } from '../lib/contacts';
@@ -12,6 +12,13 @@ import { LeadService } from './lead';
 
 const logger = getLogger('ResearchWorkflowService');
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)),
+  ]);
+}
+
 export interface WorkflowLead {
   id: string;
   name: string;
@@ -23,11 +30,19 @@ export interface WorkflowLead {
 }
 
 export class ResearchWorkflowService {
-  constructor(private db: Db) {}
+  constructor(private db: Db, private browserBinding?: any) {}
 
   async fetchLead(leadId: string): Promise<WorkflowLead> {
     logger.info('Fetching lead info', { leadId });
-    const [row] = await this.db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
+    const [row] = await this.db.select({
+      id: leads.id,
+      name: leads.name,
+      company: leads.company,
+      website: leads.website,
+      industry: leads.industry,
+      city: leads.city,
+      region: leads.region,
+    }).from(leads).where(eq(leads.id, leadId)).limit(1);
     if (!row) {
       throw new Error(`Lead not found: ${leadId}`);
     }
@@ -48,7 +63,7 @@ export class ResearchWorkflowService {
       return null;
     }
     logger.info('Scraping website content', { websiteUrl });
-    return await fetchSiteContent(websiteUrl);
+    return await fetchSiteContent(websiteUrl, 20000, this.browserBinding);
   }
 
   async saveContacts(leadId: string, scraped: ScrapedContent | null, userId?: string | null): Promise<void> {
@@ -95,14 +110,19 @@ export class ResearchWorkflowService {
       await this.saveContactsFromAI(lead.id, merged, userId);
 
       // Run SDR parallel analyses alongside legacy flow
+      const SDR_TIMEOUT_MS = 8000;
       const [icpProfile, sdrWebsiteResult] = await Promise.all([
         this.fetchICPProfile(lead.id),
-        generateSDRWebsiteAnalysis(
-          this.db,
-          lead.company || lead.name,
-          lead.website,
-          websiteMarkdown,
-          userId,
+        withTimeout(
+          generateSDRWebsiteAnalysis(
+            this.db,
+            lead.company || lead.name,
+            lead.website,
+            websiteMarkdown,
+            userId,
+          ),
+          SDR_TIMEOUT_MS,
+          'SDR website analysis'
         ).catch((err) => {
           logger.error('SDR website analysis failed, continuing with legacy flow', err);
           return null;
@@ -116,13 +136,17 @@ export class ResearchWorkflowService {
 
       if (icpProfile) {
         // Run comprehensive SDR ICP fit assessment in parallel
-        sdrIcpFitResult = await generateSDRICPFit(
-          this.db,
-          lead.company || lead.name,
-          lead.website,
-          websiteMarkdown,
-          icpProfile,
-          userId,
+        sdrIcpFitResult = await withTimeout(
+          generateSDRICPFit(
+            this.db,
+            lead.company || lead.name,
+            lead.website,
+            websiteMarkdown,
+            icpProfile,
+            userId,
+          ),
+          SDR_TIMEOUT_MS,
+          'SDR ICP fit assessment'
         ).catch((err) => {
           logger.error('SDR ICP fit assessment failed, falling back to legacy signal extraction', err);
           return null;
@@ -145,11 +169,16 @@ export class ResearchWorkflowService {
       await this.recalculateAndAdvance(lead.id, jobId, userId);
 
     } catch (error: unknown) {
+      logger.error('Research workflow service failed', error);
       const errMsg = error instanceof Error ? error.message : String(error);
-      await this.db
-        .update(researchTasks)
-        .set({ status: 'FAILED', errorMessage: errMsg, updatedAt: new Date() })
-        .where(eq(researchTasks.prospectId, lead.id));
+      try {
+        await this.db
+          .update(researchTasks)
+          .set({ status: 'FAILED', errorMessage: errMsg, updatedAt: new Date() })
+          .where(eq(researchTasks.prospectId, lead.id));
+      } catch (dbError: unknown) {
+        logger.error('Failed to mark research tasks as FAILED after error', dbError, { leadId: lead.id });
+      }
       throw error;
     }
   }
@@ -283,19 +312,26 @@ export class ResearchWorkflowService {
   }
 
   async fetchICPProfile(leadId: string): Promise<any> {
-    const [prospectRow] = await this.db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
-    if (!prospectRow?.marketId) return null;
+    const rows = await this.db
+      .select({
+        positiveSignals: icpProfiles.positiveSignals,
+        negativeSignals: icpProfiles.negativeSignals,
+        disqualifiers: icpProfiles.disqualifiers,
+      })
+      .from(leads)
+      .innerJoin(markets, eq(leads.marketId, markets.id))
+      .innerJoin(icpProfiles, eq(markets.icpProfileId, icpProfiles.id))
+      .where(eq(leads.id, leadId))
+      .limit(1);
 
-    const [marketRow] = await this.db.select().from(markets).where(eq(markets.id, prospectRow.marketId)).limit(1);
-    if (!marketRow?.icpProfileId) return null;
-
-    const [icpRow] = await this.db.select().from(icpProfiles).where(eq(icpProfiles.id, marketRow.icpProfileId)).limit(1);
+    if (!rows.length) return null;
+    const icpRow = rows[0];
     if (!icpRow) return null;
 
     return {
-      positiveSignals: icpRow.positiveSignals ? JSON.parse(icpRow.positiveSignals) : [],
-      negativeSignals: icpRow.negativeSignals ? JSON.parse(icpRow.negativeSignals) : [],
-      disqualifiers: icpRow.disqualifiers ? JSON.parse(icpRow.disqualifiers) : [],
+      positiveSignals: safeParseJsonArray(icpRow.positiveSignals),
+      negativeSignals: safeParseJsonArray(icpRow.negativeSignals),
+      disqualifiers: safeParseJsonArray(icpRow.disqualifiers),
     };
   }
 
@@ -336,91 +372,48 @@ export class ResearchWorkflowService {
     sdrWebsiteResult?: { companyName: string; websiteSummary: string; productsServices: string[]; targetAudience: string; painSignalsFound: Array<{ signal: string; evidenceQuote: string; sourceUrl: string }>; confidence: number } | null,
     sdrIcpFitResult?: { matchedPositiveSignals: any[]; matchedNegativeSignals: any[]; disqualifiersTriggered: string[]; overallAssessment: string; confidence: number } | null,
   ): Promise<void> {
-    // ── WEBSITE_ANALYST: prefer structured SDR data, fall back to legacy ──
-    if (sdrWebsiteResult) {
-      await this.db.update(researchTasks).set({
-        status: 'COMPLETED',
-        confidence: sdrWebsiteResult.confidence,
-        rawArtifacts: JSON.stringify({
-          companyName: sdrWebsiteResult.companyName,
-          websiteSummary: sdrWebsiteResult.websiteSummary,
-          productsServices: sdrWebsiteResult.productsServices,
-          targetAudience: sdrWebsiteResult.targetAudience,
-        }),
-        extractedSignals: JSON.stringify(sdrWebsiteResult.painSignalsFound),
-        completedAt: now,
-        updatedAt: now,
-      }).where(and(eq(researchTasks.prospectId, leadId), eq(researchTasks.taskType, 'WEBSITE_ANALYST')));
-    } else {
-      await this.db.update(researchTasks).set({
-        status: 'COMPLETED',
-        confidence: merged.confidenceLevel === 'HIGH' ? 90 : merged.confidenceLevel === 'MEDIUM' ? 60 : 30,
-        rawArtifacts: JSON.stringify({ summary: merged.companySummary, websiteNotes: merged.websiteNotes, digitalPresenceNotes: merged.digitalPresenceNotes, brandingNotes: merged.brandingNotes }),
-        extractedSignals: JSON.stringify([]),
-        completedAt: now,
-        updatedAt: now,
-      }).where(and(eq(researchTasks.prospectId, leadId), eq(researchTasks.taskType, 'WEBSITE_ANALYST')));
-    }
+    const webJson = sdrWebsiteResult ? JSON.stringify({
+      companyName: sdrWebsiteResult.companyName,
+      websiteSummary: sdrWebsiteResult.websiteSummary,
+      productsServices: sdrWebsiteResult.productsServices,
+      targetAudience: sdrWebsiteResult.targetAudience
+    }) : JSON.stringify({
+      summary: merged.companySummary,
+      websiteNotes: merged.websiteNotes,
+      digitalPresenceNotes: merged.digitalPresenceNotes,
+      brandingNotes: merged.brandingNotes
+    });
+    const webSignalsStr = JSON.stringify(sdrWebsiteResult ? sdrWebsiteResult.painSignalsFound : []);
+    const painSignalsStr = JSON.stringify(matchedPositive);
+    const negSignalsStr = JSON.stringify(matchedNegative);
+    const disqSignalsStr = JSON.stringify(matchedDisqualifiers);
+    const icpArtifactsStr = sdrIcpFitResult ? JSON.stringify({
+      overallAssessment: sdrIcpFitResult.overallAssessment,
+      matchedPositiveSignals: sdrIcpFitResult.matchedPositiveSignals,
+      matchedNegativeSignals: sdrIcpFitResult.matchedNegativeSignals,
+      disqualifiersTriggered: sdrIcpFitResult.disqualifiersTriggered
+    }) : JSON.stringify({ keyStrengths: merged.keyStrengths });
 
-    // ── PAIN_EXTRACTOR: from SDR website analysis pain signals or legacy ──
-    if (sdrWebsiteResult && sdrWebsiteResult.painSignalsFound.length > 0) {
-      await this.db.update(researchTasks).set({
-        status: 'COMPLETED',
-        confidence: sdrWebsiteResult.confidence,
-        rawArtifacts: JSON.stringify({ painSignals: sdrWebsiteResult.painSignalsFound }),
-        extractedSignals: JSON.stringify(matchedPositive),
-        completedAt: now,
-        updatedAt: now,
-      }).where(and(eq(researchTasks.prospectId, leadId), eq(researchTasks.taskType, 'PAIN_EXTRACTOR')));
-    } else {
-      await this.db.update(researchTasks).set({
-        status: 'COMPLETED',
-        confidence: 90,
-        rawArtifacts: JSON.stringify({ painPoints: merged.painPointsHypotheses, opportunity: merged.opportunityHypotheses }),
-        extractedSignals: JSON.stringify(matchedPositive),
-        completedAt: now,
-        updatedAt: now,
-      }).where(and(eq(researchTasks.prospectId, leadId), eq(researchTasks.taskType, 'PAIN_EXTRACTOR')));
-    }
+    const websiteUpdate = sdrWebsiteResult
+      ? { status: 'COMPLETED' as const, confidence: sdrWebsiteResult.confidence, rawArtifacts: webJson, extractedSignals: webSignalsStr, completedAt: now, updatedAt: now }
+      : { status: 'COMPLETED' as const, confidence: merged.confidenceLevel === 'HIGH' ? 90 : merged.confidenceLevel === 'MEDIUM' ? 60 : 30, rawArtifacts: webJson, extractedSignals: webSignalsStr, completedAt: now, updatedAt: now };
 
-    // ── ICP_FIT: prefer structured SDR fit assessment, fall back to legacy ──
-    if (sdrIcpFitResult) {
-      await this.db.update(researchTasks).set({
-        status: 'COMPLETED',
-        confidence: sdrIcpFitResult.confidence,
-        rawArtifacts: JSON.stringify({
-          overallAssessment: sdrIcpFitResult.overallAssessment,
-          matchedPositiveSignals: sdrIcpFitResult.matchedPositiveSignals,
-          matchedNegativeSignals: sdrIcpFitResult.matchedNegativeSignals,
-          disqualifiersTriggered: sdrIcpFitResult.disqualifiersTriggered,
-        }),
-        extractedSignals: JSON.stringify(matchedNegative),
-        completedAt: now,
-        updatedAt: now,
-      }).where(and(eq(researchTasks.prospectId, leadId), eq(researchTasks.taskType, 'ICP_FIT')));
-    } else {
-      await this.db.update(researchTasks).set({
-        status: 'COMPLETED',
-        confidence: 90,
-        rawArtifacts: JSON.stringify({ keyStrengths: merged.keyStrengths }),
-        extractedSignals: JSON.stringify(matchedNegative),
-        completedAt: now,
-        updatedAt: now,
-      }).where(and(eq(researchTasks.prospectId, leadId), eq(researchTasks.taskType, 'ICP_FIT')));
-    }
+    const painUpdate = sdrWebsiteResult && sdrWebsiteResult.painSignalsFound.length > 0
+      ? { status: 'COMPLETED' as const, confidence: sdrWebsiteResult.confidence, rawArtifacts: JSON.stringify({ painSignals: sdrWebsiteResult.painSignalsFound }), extractedSignals: painSignalsStr, completedAt: now, updatedAt: now }
+      : { status: 'COMPLETED' as const, confidence: 90, rawArtifacts: JSON.stringify({ painPoints: merged.painPointsHypotheses, opportunity: merged.opportunityHypotheses }), extractedSignals: painSignalsStr, completedAt: now, updatedAt: now };
 
-    // ── DISQUALIFIER_CHECK: remains derived from matchedDisqualifiers ──
-    await this.db.update(researchTasks).set({
-      status: 'COMPLETED',
-      confidence: 90,
-      rawArtifacts: JSON.stringify({
-        keyWeaknesses: merged.keyWeaknesses,
-        ...(sdrIcpFitResult ? { overallAssessment: sdrIcpFitResult.overallAssessment } : {}),
-      }),
-      extractedSignals: JSON.stringify(matchedDisqualifiers),
-      completedAt: now,
-      updatedAt: now,
-    }).where(and(eq(researchTasks.prospectId, leadId), eq(researchTasks.taskType, 'DISQUALIFIER_CHECK')));
+    const icpUpdate = sdrIcpFitResult
+      ? { status: 'COMPLETED' as const, confidence: sdrIcpFitResult.confidence, rawArtifacts: icpArtifactsStr, extractedSignals: negSignalsStr, completedAt: now, updatedAt: now }
+      : { status: 'COMPLETED' as const, confidence: 90, rawArtifacts: icpArtifactsStr, extractedSignals: negSignalsStr, completedAt: now, updatedAt: now };
+
+    const disqUpdate = { status: 'COMPLETED' as const, confidence: 90, rawArtifacts: JSON.stringify({ keyWeaknesses: merged.keyWeaknesses, ...(sdrIcpFitResult ? { overallAssessment: sdrIcpFitResult.overallAssessment } : {}) }), extractedSignals: disqSignalsStr, completedAt: now, updatedAt: now };
+
+    await this.db.batch([
+      this.db.update(researchTasks).set(websiteUpdate).where(and(eq(researchTasks.prospectId, leadId), eq(researchTasks.taskType, 'WEBSITE_ANALYST'))),
+      this.db.update(researchTasks).set(painUpdate).where(and(eq(researchTasks.prospectId, leadId), eq(researchTasks.taskType, 'PAIN_EXTRACTOR'))),
+      this.db.update(researchTasks).set(icpUpdate).where(and(eq(researchTasks.prospectId, leadId), eq(researchTasks.taskType, 'ICP_FIT'))),
+      this.db.update(researchTasks).set(disqUpdate).where(and(eq(researchTasks.prospectId, leadId), eq(researchTasks.taskType, 'DISQUALIFIER_CHECK'))),
+    ]);
   }
 
   async recalculateAndAdvance(leadId: string, jobId: string, userId: string | null): Promise<void> {
@@ -436,4 +429,18 @@ export class ResearchWorkflowService {
     const leadService = new LeadService(this.db);
     await leadService.advanceStageIfEarlier(leadId, 'In Research');
   }
+}
+
+function safeParseJsonArray(value: unknown): any[] {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
 }

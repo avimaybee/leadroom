@@ -47,7 +47,7 @@ function ManualEntry({ marketId, onSuccess }: { marketId: string; onSuccess: () 
       )}
 
       <div>
-        <label className="label-12 uppercase text-muted-foreground block mb-1.5">Contact Name</label>
+        <label className="text-label-12 uppercase text-muted-foreground block mb-1.5">Contact Name</label>
         <input
           type="text"
           value={name}
@@ -57,7 +57,7 @@ function ManualEntry({ marketId, onSuccess }: { marketId: string; onSuccess: () 
         />
       </div>
       <div>
-        <label className="label-12 uppercase text-muted-foreground block mb-1.5">Company Name *</label>
+        <label className="text-label-12 uppercase text-muted-foreground block mb-1.5">Company Name *</label>
         <input
           type="text"
           value={company}
@@ -68,7 +68,7 @@ function ManualEntry({ marketId, onSuccess }: { marketId: string; onSuccess: () 
         />
       </div>
       <div>
-        <label className="label-12 uppercase text-muted-foreground block mb-1.5">Domain *</label>
+        <label className="text-label-12 uppercase text-muted-foreground block mb-1.5">Domain *</label>
         <input
           type="text"
           value={domain}
@@ -80,7 +80,7 @@ function ManualEntry({ marketId, onSuccess }: { marketId: string; onSuccess: () 
         <p className="text-label-12 text-muted-foreground mt-1">Website domain for research. Protocol is added automatically.</p>
       </div>
       <div>
-        <label className="label-12 uppercase text-muted-foreground block mb-1.5">Notes (optional)</label>
+        <label className="text-label-12 uppercase text-muted-foreground block mb-1.5">Notes (optional)</label>
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}

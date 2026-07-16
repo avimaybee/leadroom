@@ -1,3 +1,4 @@
+-- Requires SQLite >= 3.35.0 (DROP COLUMN added in SQLite 3.35.0, released 2021-03-12)
 ALTER TABLE `leads` DROP COLUMN `triage_priority`;--> statement-breakpoint
 ALTER TABLE `leads` DROP COLUMN `triage_reason`;--> statement-breakpoint
 ALTER TABLE `candidate_leads` DROP COLUMN `triage_priority`;--> statement-breakpoint

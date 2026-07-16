@@ -12,6 +12,7 @@ import { eq } from 'drizzle-orm';
 import { withLogging } from '@/lib/actions/with-logging';
 
 const log = getLogger('OutcomesActions');
+const _learningLoopInFlight = new Set<string>();
 
 async function approveDraftActionImpl(draftId: string) {
   const db = getDb();
@@ -34,16 +35,27 @@ async function approveDraftActionImpl(draftId: string) {
 
     await outreachService.recordApproval(draftId, userId, 'APPROVED');
 
-    // Trigger learning loop
+    // Trigger learning loop (gated — at most one per workspace at a time)
     const [prospect] = await db
       .select({ workspaceId: prospects.workspaceId })
       .from(prospects)
       .where(eq(prospects.id, draft.leadId))
       .limit(1);
 
-    if (prospect?.workspaceId) {
+    if (prospect?.workspaceId && !_learningLoopInFlight.has(prospect.workspaceId)) {
+      const wsId = prospect.workspaceId!;
+      _learningLoopInFlight.add(wsId);
       const learningService = new LearningService(db);
-      learningService.triggerLearningLoop(prospect.workspaceId).catch((err) => {
+      const LOOP_TIMEOUT_MS = 60_000;
+      const timeoutPromise = new Promise<void>((_, reject) =>
+        setTimeout(() => reject(new Error('Learning loop timed out')), LOOP_TIMEOUT_MS)
+      );
+      await Promise.race([
+        learningService.triggerLearningLoop(wsId),
+        timeoutPromise,
+      ]).finally(() => {
+        _learningLoopInFlight.delete(wsId);
+      }).catch((err) => {
         log.error('Learning loop failed', err);
       });
     }
@@ -53,8 +65,8 @@ async function approveDraftActionImpl(draftId: string) {
       revalidatePath('/');
       revalidatePath('/approvals');
       revalidatePath(`/prospects/${draft.leadId}`);
-    } catch (e: any) {
-      log.error('revalidatePath failed', e?.message || e);
+    } catch (e: unknown) {
+      log.error('revalidatePath failed', e instanceof Error ? e : new Error(String(e)));
     }
 
     const refreshedDrafts = await outreachService.getDraftsForLead(draft.leadId);
@@ -63,9 +75,9 @@ async function approveDraftActionImpl(draftId: string) {
       subject: d.subject ?? null,
       body: d.body,
       status: d.status,
-      citedEvidence: (d as any).citedEvidence ?? null,
-      riskFlags: (d as any).riskFlags ?? null,
-      rejectionReason: (d as any).rejectionReason ?? null,
+      citedEvidence: (d as { citedEvidence?: unknown }).citedEvidence ?? null,
+      riskFlags: (d as { riskFlags?: unknown }).riskFlags ?? null,
+      rejectionReason: (d as { rejectionReason?: unknown }).rejectionReason ?? null,
     }));
 
     return { success: true, drafts: mapped };
@@ -98,16 +110,27 @@ async function rejectDraftActionImpl(draftId: string, reason: string) {
 
     await outreachService.recordApproval(draftId, userId, 'REJECTED', reason);
 
-    // Trigger learning loop
+    // Trigger learning loop (gated — at most one per workspace at a time)
     const [prospect] = await db
       .select({ workspaceId: prospects.workspaceId })
       .from(prospects)
       .where(eq(prospects.id, draft.leadId))
       .limit(1);
 
-    if (prospect?.workspaceId) {
+    if (prospect?.workspaceId && !_learningLoopInFlight.has(prospect.workspaceId)) {
+      const wsId = prospect.workspaceId!;
+      _learningLoopInFlight.add(wsId);
       const learningService = new LearningService(db);
-      learningService.triggerLearningLoop(prospect.workspaceId).catch((err) => {
+      const LOOP_TIMEOUT_MS = 60_000;
+      const timeoutPromise = new Promise<void>((_, reject) =>
+        setTimeout(() => reject(new Error('Learning loop timed out')), LOOP_TIMEOUT_MS)
+      );
+      await Promise.race([
+        learningService.triggerLearningLoop(wsId),
+        timeoutPromise,
+      ]).finally(() => {
+        _learningLoopInFlight.delete(wsId);
+      }).catch((err) => {
         log.error('Learning loop failed', err);
       });
     }
@@ -117,8 +140,8 @@ async function rejectDraftActionImpl(draftId: string, reason: string) {
       revalidatePath('/');
       revalidatePath('/approvals');
       revalidatePath(`/prospects/${draft.leadId}`);
-    } catch (e: any) {
-      log.error('revalidatePath failed', e?.message || e);
+    } catch (e: unknown) {
+      log.error('revalidatePath failed', e instanceof Error ? e.message : String(e));
     }
 
     const refreshedDrafts = await outreachService.getDraftsForLead(draft.leadId);
@@ -127,9 +150,9 @@ async function rejectDraftActionImpl(draftId: string, reason: string) {
       subject: d.subject ?? null,
       body: d.body,
       status: d.status,
-      citedEvidence: (d as any).citedEvidence ?? null,
-      riskFlags: (d as any).riskFlags ?? null,
-      rejectionReason: (d as any).rejectionReason ?? null,
+      citedEvidence: (d as { citedEvidence?: unknown }).citedEvidence ?? null,
+      riskFlags: (d as { riskFlags?: unknown }).riskFlags ?? null,
+      rejectionReason: (d as { rejectionReason?: unknown }).rejectionReason ?? null,
     }));
 
     return { success: true, drafts: mapped };
@@ -176,9 +199,20 @@ async function logOutcomeActionImpl(data: {
       .where(eq(prospects.id, data.prospectId))
       .limit(1);
 
-    if (prospect?.workspaceId) {
+    if (prospect?.workspaceId && !_learningLoopInFlight.has(prospect.workspaceId)) {
+      const wsId = prospect.workspaceId!;
+      _learningLoopInFlight.add(wsId);
       const learningService = new LearningService(db);
-      learningService.triggerLearningLoop(prospect.workspaceId).catch((err) => {
+      const LOOP_TIMEOUT_MS = 60_000;
+      const timeoutPromise = new Promise<void>((_, reject) =>
+        setTimeout(() => reject(new Error('Learning loop timed out')), LOOP_TIMEOUT_MS)
+      );
+      await Promise.race([
+        learningService.triggerLearningLoop(wsId),
+        timeoutPromise,
+      ]).finally(() => {
+        _learningLoopInFlight.delete(wsId);
+      }).catch((err) => {
         log.error('Learning loop failed', err);
       });
     }
@@ -186,8 +220,8 @@ async function logOutcomeActionImpl(data: {
     try {
       revalidatePath(`/leads/${data.prospectId}`);
       revalidatePath('/');
-    } catch (e: any) {
-      log.error('revalidatePath failed', e?.message || e);
+    } catch (e: unknown) {
+      log.error('revalidatePath failed', e instanceof Error ? e.message : String(e));
     }
 
     return { success: true };

@@ -2,7 +2,6 @@
 
 import { getDb } from '@/db';
 import { revalidatePath } from 'next/cache';
-import { cookies } from 'next/headers';
 import { decrypt, getUserId, verifyProspectAccess } from '@/lib/auth';
 import { jobRuns } from '@/db/schema/research';
 import { triggerResearchWorkflow, CloudflareWorkflow } from '@/lib/workflow-client';
@@ -77,7 +76,7 @@ export async function triggerAuditAction(leadId: string) {
       log.info('getCloudflareContext unavailable — falling back to process.env for workflow binding');
     }
     if (!workflowBinding) {
-      workflowBinding = (process.env as any)?.RESEARCH_SNAPSHOT_WORKFLOW;
+      workflowBinding = process.env.RESEARCH_SNAPSHOT_WORKFLOW;
     }
 
     await triggerResearchWorkflow(db, workflowBinding, leadId, jobId, userId);
@@ -104,9 +103,9 @@ export async function manualOverrideScoreAction(prevState: ActionState, formData
     return { error: 'Unauthorized' };
   }
 
-  const leadId = formData.get('leadId') as string;
-  const scoreValueStr = formData.get('scoreValue') as string;
-  const rationale = formData.get('rationale') as string;
+  const leadId = String(formData.get('leadId') ?? '');
+  const scoreValueStr = String(formData.get('scoreValue') ?? '');
+  const rationale = String(formData.get('rationale') ?? '');
 
   if (!leadId) {
     return { error: 'Lead ID is required' };

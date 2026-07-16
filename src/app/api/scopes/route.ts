@@ -1,11 +1,17 @@
 import { getLogger } from '@/lib/logger';
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { getDb } from '@/db';
 import { eq, and } from 'drizzle-orm';
 import { DiscoveryService } from '@/services/discovery';
 import { discoveryScopes } from '@/db/schema/discovery';
 import { CreateDiscoveryScopeSchema } from '@/db/models/discovery';
 import { getUserId } from '@/lib/auth';
+
+const ScopePatchSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+});
 
 const log = getLogger('ScopesAPI');
 
@@ -48,12 +54,12 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
     }
 
-    const body = (await request.json()) as { id?: string; name?: string };
-    const { id, name } = body;
-
-    if (!id || !name || typeof name !== 'string' || name.trim().length === 0) {
+    const body = await request.json();
+    const parsed = ScopePatchSchema.safeParse(body);
+    if (!parsed.success) {
       return NextResponse.json({ success: false, error: 'Scope id and name are required' }, { status: 400 });
     }
+    const { id, name } = parsed.data;
 
     const db = getDb();
     const service = new DiscoveryService(db);

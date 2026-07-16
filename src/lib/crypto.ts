@@ -1,14 +1,24 @@
 const ENCRYPTION_KEY_VAR = 'DB_ENCRYPTION_KEY';
 
+const _keyCache = new Map<string, CryptoKey>();
+
 async function getKey(secret: string): Promise<CryptoKey> {
+  const cached = _keyCache.get(secret);
+  if (cached) return cached;
   const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(secret));
-  return crypto.subtle.importKey(
+  const key = await crypto.subtle.importKey(
     'raw',
     hash,
     { name: 'AES-GCM' },
     false,
     ['encrypt', 'decrypt']
   );
+  if (_keyCache.size > 10) {
+    const firstKey = _keyCache.keys().next().value;
+    if (firstKey) _keyCache.delete(firstKey);
+  }
+  _keyCache.set(secret, key);
+  return key;
 }
 
 export async function encrypt(text: string, secret: string): Promise<string> {

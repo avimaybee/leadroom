@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Plus, Trash2, Loader2, Save, Play, Square } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -62,7 +62,7 @@ export function PlaybooksEditor({ initialPlaybooks }: Props) {
   const [drafts, setDrafts] = useState<Record<string, { name: string; tasks: PlaybookTaskInput[] }>>({});
   const [saving, setSaving] = useState(false);
 
-  const existingStages = new Set(Object.keys(playbooks));
+  const existingStages = useMemo(() => new Set(Object.keys(playbooks)), [playbooks]);
 
   const getDraft = useCallback((stage: string) => {
     if (drafts[stage]) return drafts[stage];

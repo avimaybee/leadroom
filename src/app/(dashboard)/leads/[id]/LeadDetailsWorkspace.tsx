@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState, useActionState } from 'react';
+import { useCallback, useEffect, useState, useActionState, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -137,14 +137,17 @@ export default function LeadDetailsWorkspace({
   const searchParams = useSearchParams();
   const [activeView, setActiveView] = useState<WorkspaceView>(initialView);
   const [pollingJobId, setPollingJobId] = useState<string | null>(activeResearchJob?.id ?? null);
+  const memoizedDrafts = useMemo(() => outreachDrafts.map((draft: any) => ({ ...draft, createdAt: draft.createdAt ? new Date(draft.createdAt) : null, updatedAt: draft.updatedAt ? new Date(draft.updatedAt) : null })), [outreachDrafts]);
   const [jobStatus, setJobStatus] = useState<string | null>(activeResearchJob ? activeResearchJob.status : null);
   const [isEnriching, setIsEnriching] = useState(Boolean(activeResearchJob));
   const [jobError, setJobError] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
   const [executingAction, setExecutingAction] = useState<string | null>(null);
 
+  const recentActivities = useMemo(() => activities.slice(0, 3), [activities]);
   const nbaTop = nbaResults && nbaResults.length > 0 ? nbaResults[0] : null;
 
+  const intervalRef = useRef<ReturnType<typeof setInterval>>(undefined);
   const [calendarStatus, setCalendarStatus] = useState<{ connected: boolean; isConfigured: boolean } | null>(null);
 
   useEffect(() => {
@@ -195,12 +198,11 @@ export default function LeadDetailsWorkspace({
     // Run immediately
     checkJob();
 
-    // Poll every 3 seconds
-    const interval = setInterval(checkJob, 3000);
+    intervalRef.current = setInterval(checkJob, 10000);
 
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, [pollingJobId, router]);
 
@@ -256,24 +258,27 @@ export default function LeadDetailsWorkspace({
     }
   };
 
-  const openTasks = [...tasks]
-    .filter((task) => task.status !== 'Completed' && task.status !== 'COMPLETED')
-    .sort((a, b) => {
-      if (!a.dueDate) return 1;
-      if (!b.dueDate) return -1;
-      return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
-    });
+  const { openTasks, nextTask } = useMemo(() => {
+    const sorted = [...tasks]
+      .filter((task) => task.status !== 'Completed' && task.status !== 'COMPLETED')
+      .sort((a, b) => {
+        if (!a.dueDate) return 1;
+        if (!b.dueDate) return -1;
+        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+      });
+    return { openTasks: sorted, nextTask: sorted[0] };
+  }, [tasks]);
 
-  const nextTask = openTasks[0];
   const displayedTasks = showAllTasks ? openTasks : openTasks.slice(0, 5);
 
-  const sortedContacts = [...contactsList].sort((a, b) => {
-    const aPri = a.isPrimary === 1 || a.isPrimary === true ? 1 : 0;
-    const bPri = b.isPrimary === 1 || b.isPrimary === true ? 1 : 0;
-    return bPri - aPri;
-  });
-
-  const primaryContact = sortedContacts.find((c) => c.isPrimary || c.isPrimary === 1);
+  const { sortedContacts, primaryContact } = useMemo(() => {
+    const sorted = [...contactsList].sort((a, b) => {
+      const aPri = a.isPrimary === 1 || a.isPrimary === true ? 1 : 0;
+      const bPri = b.isPrimary === 1 || b.isPrimary === true ? 1 : 0;
+      return bPri - aPri;
+    });
+    return { sortedContacts: sorted, primaryContact: sorted.find((c) => c.isPrimary || c.isPrimary === 1) };
+  }, [contactsList]);
   
   const opportunityFindings = (() => {
     const findings: Array<{ title: string; detail: string; source: string }> = [];
@@ -382,7 +387,7 @@ export default function LeadDetailsWorkspace({
 
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 flex-1">
-            <h1 className="break-words heading-3xl text-foreground sm:heading-2xl">{lead.name}</h1>
+            <h1 className="break-words text-heading-3xl text-foreground sm:text-heading-2xl">{lead.name}</h1>
             <p className="mt-1 text-copy-14 text-muted-foreground">
               Verify research context, execute digital audits, draft outreach, and review interactions.
             </p>
@@ -516,7 +521,7 @@ export default function LeadDetailsWorkspace({
                     disabled={!!executingAction}
                     onClick={async () => {
                       if (nbaTop) {
-                        logNbaActionAction(lead.id, nbaTop.action, nbaTop.priority).catch(() => {});
+                        logNbaActionAction(lead.id, nbaTop.action, nbaTop.priority).catch((err) => console.error('Failed to log NBA action', err));
                         if (nbaTop.type === 'research') {
                           setExecutingAction('research');
                           try {
@@ -652,7 +657,7 @@ export default function LeadDetailsWorkspace({
                 icon={ClipboardList}
                 action={<Button variant="ghost" size="sm" onClick={() => navigateTo('activity')}>View activity</Button>}
               >
-                <ClientActivityList activities={activities.slice(0, 3)} />
+                <ClientActivityList activities={recentActivities} />
               </Section>
             </div>
 
@@ -776,7 +781,7 @@ export default function LeadDetailsWorkspace({
           ) : (
             <OutreachAssistant
               leadId={lead.id}
-              initialDrafts={outreachDrafts.map((draft: any) => ({ ...draft, createdAt: draft.createdAt ? new Date(draft.createdAt) : null, updatedAt: draft.updatedAt ? new Date(draft.updatedAt) : null }))}
+              initialDrafts={memoizedDrafts}
               researchSnapshot={latestSnapshot}
               auditSnapshot={latestAudit}
               contacts={contactsList}

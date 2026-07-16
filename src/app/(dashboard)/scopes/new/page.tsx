@@ -49,6 +49,10 @@ export default function NewScopePage() {
             setMetrics(data.data);
           }
         })
+        .catch((err) => {
+          console.error('Failed to fetch market metrics', err);
+          setError('Failed to load market metrics. Please try again.');
+        })
         .finally(() => setLoadingMetrics(false));
     } else {
       setMetrics(null);
@@ -135,6 +139,7 @@ export default function NewScopePage() {
 
       if (!searchRes.ok) {
         console.error('Failed to trigger crawler search immediately.');
+        setError('Search started but may be delayed. You can check results shortly.');
       }
 
       router.push(`/scopes/${campaignId}`);

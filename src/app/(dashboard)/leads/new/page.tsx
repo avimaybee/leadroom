@@ -88,8 +88,8 @@ export default function NewLeadPage() {
       <div className="flex items-center gap-3 p-4 rounded-xl bg-chart-5/10 text-chart-5 border border-chart-5/20">
         <TriangleAlert className="w-5 h-5 shrink-0" />
         <div>
-          <p className="label-14">Use Markets for new prospects</p>
-          <p className="copy-14">
+          <p className="text-label-14">Use Markets for new prospects</p>
+          <p className="text-copy-14">
             Prospects should be added through a Market for automatic scoring and research queuing.{' '}
             <a href="/markets" className="underline decoration-border underline-offset-4">
               Go to Markets

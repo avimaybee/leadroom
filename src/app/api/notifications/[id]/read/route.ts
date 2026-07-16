@@ -10,22 +10,26 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
-  const userId = await getUserId();
+  try {
+    const { id } = await params;
+    const userId = await getUserId();
 
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const db = getDb();
+    await db.update(notifications)
+      .set({ isRead: true })
+      .where(
+        and(
+          eq(notifications.id, id),
+          eq(notifications.userId, userId)
+        )
+      );
+
+    return NextResponse.json({ success: true });
+  } catch {
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-
-  const db = getDb();
-  await db.update(notifications)
-    .set({ isRead: true })
-    .where(
-      and(
-        eq(notifications.id, id),
-        eq(notifications.userId, userId)
-      )
-    );
-
-  return NextResponse.json({ success: true });
 }

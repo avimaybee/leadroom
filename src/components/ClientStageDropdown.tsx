@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, useRef, useEffect } from 'react';
+import { useState, useTransition, useRef, useEffect, useMemo } from 'react';
 import { Loader2, AlertTriangle, ChevronDown, Check } from 'lucide-react';
 import { PIPELINE_STAGES, type PipelineStage } from '@/services/lead';
 import {
@@ -30,13 +30,16 @@ export function ClientStageDropdown({ currentStage, leadName, leadId, unmetRequi
   const [hoveredStage, setHoveredStage] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const currentIdx = PIPELINE_STAGES.indexOf(currentStage as PipelineStage);
+  const currentIdx = Math.max(0, PIPELINE_STAGES.indexOf(
+    PIPELINE_STAGES.includes(currentStage as PipelineStage) ? currentStage as PipelineStage : 'New'
+  ));
   const isBackward = (target: string) => {
+    if (!PIPELINE_STAGES.includes(target as PipelineStage)) return false;
     const targetIdx = PIPELINE_STAGES.indexOf(target as PipelineStage);
     return targetIdx >= 0 && targetIdx < currentIdx;
   };
 
-  const blockedStages = new Map(Object.entries(unmetRequirements || {}));
+  const blockedStages = useMemo(() => new Map(Object.entries(unmetRequirements || {})), [unmetRequirements]);
 
   // Close dropdown on click outside
   useEffect(() => {

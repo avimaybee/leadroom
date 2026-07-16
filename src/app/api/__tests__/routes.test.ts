@@ -7,7 +7,7 @@ import { eq } from 'drizzle-orm';
 // Ensure test environment
 (process.env as any).NODE_ENV = 'test';
 if (!process.env.DB_ENCRYPTION_KEY) {
-  process.env.DB_ENCRYPTION_KEY = 'test-encryption-key-for-local-dev-32chars!';
+  (process.env as any).DB_ENCRYPTION_KEY = 'test-encryption-key-for-local-dev-32chars!';
 }
 
 
@@ -380,7 +380,7 @@ test('API Route Handlers & Integration Pipeline', async (t) => {
       method: 'POST',
     });
 
-    const response = await triggerResearch(request, {
+    const response = await triggerResearch(request as any, {
       params: Promise.resolve({ id: 'lead_123' }),
     });
 
@@ -406,7 +406,7 @@ test('API Route Handlers & Integration Pipeline', async (t) => {
     });
 
     const request = new Request('http://localhost/api/jobs/job_456');
-    const response = await getJobStatus(request, {
+    const response = await getJobStatus(request as any, {
       params: Promise.resolve({ id: 'job_456' }),
     });
 
@@ -429,7 +429,7 @@ test('API Route Handlers & Integration Pipeline', async (t) => {
     const request = new Request('http://localhost/api/leads/lead_123/research', {
       method: 'POST',
     });
-    const response = await triggerResearch(request, {
+    const response = await triggerResearch(request as any, {
       params: Promise.resolve({ id: 'lead_123' }),
     });
 
@@ -520,7 +520,7 @@ test('API Route Handlers & Integration Pipeline', async (t) => {
         method: 'POST',
       });
 
-      const response = await triggerResearch(request, {
+    const response = await triggerResearch(request as any, {
         params: Promise.resolve({ id: 'lead_sim' }),
       });
 

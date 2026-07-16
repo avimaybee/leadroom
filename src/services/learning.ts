@@ -1,12 +1,15 @@
-import { Db } from '@/db';
+import { type Db } from '@/db';
 import { eq, and, sql, inArray } from 'drizzle-orm';
 import { outcomes, learningSuggestions } from '@/db/schema/outreach';
 import { prospects, users } from '@/db/schema/core';
 import { icpProfiles, workspaces } from '@/db/schema/strategy';
 import { generateLearningSuggestions } from '@/lib/domain/outcomes';
 import { researchTasks } from '@/db/schema/jobs';
-import { ExtractedSignal } from '@/lib/domain/scoring';
+import type { ExtractedSignal } from '@/lib/domain/scoring';
 import { createNotification } from '@/lib/notifications';
+import { getLogger } from '@/lib/logger';
+
+const log = getLogger('LearningService');
 
 export class LearningService {
   constructor(private db: Db) {}
@@ -20,7 +23,8 @@ export class LearningService {
       })
       .from(outcomes)
       .innerJoin(prospects, eq(outcomes.prospectId, prospects.id))
-      .where(eq(prospects.workspaceId, workspaceId));
+      .where(eq(prospects.workspaceId, workspaceId))
+      .limit(500);
 
     if (outcomeRows.length < 3) return;
 
@@ -45,18 +49,25 @@ export class LearningService {
         extractedSignals: researchTasks.extractedSignals,
       })
       .from(researchTasks)
-      .where(inArray(researchTasks.prospectId, prospectIds));
+      .where(inArray(researchTasks.prospectId, prospectIds))
+      .limit(500);
 
-    const outcomeEvents = outcomeRows.map((o) => {
-      const task = signalRows.find((s) => s.prospectId === o.prospectId);
-      return {
-        prospectId: o.prospectId,
-        outcomeType: o.outcomeType,
-        signals: task?.extractedSignals
-          ? (JSON.parse(task.extractedSignals) as ExtractedSignal[])
-          : [],
-      };
-    });
+    const signalsByProspect = new Map<string, any[]>();
+    for (const sr of signalRows) {
+      if (sr.extractedSignals) {
+        try {
+          signalsByProspect.set(sr.prospectId, sr.extractedSignals as ExtractedSignal[]);
+        } catch {
+          log.warn('Failed to parse extractedSignals for prospect', { prospectId: sr.prospectId });
+        }
+      }
+    }
+
+    const outcomeEvents = outcomeRows.map((o) => ({
+      prospectId: o.prospectId,
+      outcomeType: o.outcomeType,
+      signals: (signalsByProspect.get(o.prospectId) || []) as ExtractedSignal[],
+    }));
 
     const suggestions = generateLearningSuggestions(
       workspaceId,
@@ -76,40 +87,60 @@ export class LearningService {
       },
     );
 
-    for (const s of suggestions) {
-      const existing = await this.db
-        .select({ id: learningSuggestions.id })
-        .from(learningSuggestions)
-        .where(
-          and(
+    if (suggestions.length === 0) return;
+
+    // Batch-check existing PENDING suggestions matching target + type
+    const existingPairs = new Set<string>();
+    if (suggestions.length <= 100) {
+      try {
+        const existingRows = await this.db
+          .select({
+            target: sql`json_extract(${learningSuggestions.suggestedChange}, '$.target')`,
+            type: sql`json_extract(${learningSuggestions.suggestedChange}, '$.type')`,
+          })
+          .from(learningSuggestions)
+          .where(and(
             eq(learningSuggestions.workspaceId, workspaceId),
             eq(learningSuggestions.status, 'PENDING'),
-            sql`json_extract(${learningSuggestions.suggestedChange}, '$.target') = ${s.suggestion.suggestedChange.target}`,
-            sql`json_extract(${learningSuggestions.suggestedChange}, '$.type') = ${s.suggestion.suggestedChange.type}`,
-          ),
-        )
-        .limit(1);
-
-      if (existing.length === 0) {
-        await this.db.insert(learningSuggestions).values({
-          id: crypto.randomUUID(),
-          workspaceId,
-          suggestedChange: JSON.stringify(s.suggestion.suggestedChange),
-          supportingEvidence: JSON.stringify(s.suggestion.supportingEvidence),
-          status: 'PENDING',
-          createdAt: new Date(),
-        });
-        
-        await createNotification(
-          this.db,
-          workspaceId,
-          null,
-          'New ICP Insight Suggestion',
-          `The system has identified pattern variations and suggested: ${s.suggestion.suggestedChange.type.replace(/_/g, ' ')} "${s.suggestion.suggestedChange.target}"`,
-          'INFO',
-          '/settings/insights'
-        );
+          ))
+          .limit(500);
+        for (const row of existingRows) {
+          existingPairs.add(`${row.target}:${row.type}`);
+        }
+      } catch {
+        log.warn('Failed to fetch existing pending suggestions for dedup');
       }
+    }
+
+    const newRows: Array<typeof learningSuggestions.$inferInsert> = [];
+    const notificationsToCreate: Array<{ userId: string; title: string; message: string }> = [];
+
+    for (const s of suggestions) {
+      const pairKey = `${s.suggestion.suggestedChange.target}:${s.suggestion.suggestedChange.type}`;
+      if (existingPairs.has(pairKey)) continue;
+
+      newRows.push({
+        id: crypto.randomUUID(),
+        workspaceId,
+        suggestedChange: JSON.stringify(s.suggestion.suggestedChange),
+        supportingEvidence: JSON.stringify(s.suggestion.supportingEvidence),
+        status: 'PENDING',
+        createdAt: new Date(),
+      } as any);
+
+      notificationsToCreate.push({
+        userId: workspaceId,
+        title: 'New ICP Insight Suggestion',
+        message: `The system has identified pattern variations and suggested: ${s.suggestion.suggestedChange.type.replace(/_/g, ' ')} "${s.suggestion.suggestedChange.target}"`,
+      });
+    }
+
+    if (newRows.length > 0) {
+      await this.db.insert(learningSuggestions).values(newRows);
+    }
+
+    for (const n of notificationsToCreate) {
+      await createNotification(this.db, n.userId, null, n.title, n.message, 'INFO', '/settings/insights');
     }
   }
 
@@ -124,7 +155,7 @@ export class LearningService {
     if (!suggestion) throw new Error('Suggestion not found');
     if (suggestion.status !== 'PENDING') throw new Error('Suggestion is not pending');
 
-    const change = JSON.parse(suggestion.suggestedChange || '{}');
+    let change: any = suggestion.suggestedChange ?? {};
     const workspaceId = suggestion.workspaceId;
 
     const [icpRow] = await this.db
@@ -214,12 +245,16 @@ export class LearningService {
   }
 }
 
-function safeParseJsonArray(value: string | null | undefined): any[] {
+function safeParseJsonArray(value: unknown): any[] {
   if (!value) return [];
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
   }
+  return [];
 }

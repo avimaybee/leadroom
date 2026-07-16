@@ -20,6 +20,9 @@ export default async function IntegrationsPage() {
   const userId = await getUserId();
 
   // Check if encryption key is configured - required for storing API keys
+  // NOTE: In Cloudflare Workers, secrets are accessed via process.env only if configured as vars
+  // (not secrets). Use the env helper from @/lib/env for a consistent interface across
+  // local dev, Pages, and Workers runtimes.
   const encryptionAvailable = !!process.env.DB_ENCRYPTION_KEY;
   if (!encryptionAvailable) {
     return (

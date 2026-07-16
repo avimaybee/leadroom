@@ -2,7 +2,6 @@
 
 import { getDb } from '@/db';
 import { revalidatePath } from 'next/cache';
-import { cookies } from 'next/headers';
 import { decrypt, getUserId, verifyProspectAccess } from '@/lib/auth';
 import { OutreachService } from '@/services/outreach';
 import { LeadService } from '@/services/lead';
@@ -14,6 +13,9 @@ import { markets } from '@/db/schema/strategy';
 import { outreachDrafts } from '@/db/schema/outreach';
 import { eq, sql, and } from 'drizzle-orm';
 import { withLogging } from '@/lib/actions/with-logging';
+import { getLogger } from '@/lib/logger';
+
+const log = getLogger('OutreachActions');
 
 // Module-level cache for model info (5-min TTL)
 let cachedModelInfo: { provider: string; modelName: string; hasVision: boolean } | null = null;
@@ -32,8 +34,8 @@ export async function getModelInfoAction() {
     cachedModelInfo = info;
     cachedModelInfoTime = now;
     return { success: true, info };
-  } catch (e: any) {
-    return { error: e.message || 'Failed to fetch model info' };
+  } catch (e: unknown) {
+    return { error: e instanceof Error ? e.message : 'Failed to fetch model info' };
   }
 }
 
@@ -112,14 +114,17 @@ async function generateOutreachDraftActionImpl(
     try {
       revalidatePath(`/leads/${lead.id}`);
       revalidatePath('/');
-    } catch (e) {}
+    } catch (e) { log.error('revalidatePath failed', e); }
 
     const result: any = { success: true, drafts: newDrafts };
     if (failoverHistory.length > 0) {
-      result.failoverWarning = `Model "${failoverHistory[0].provider}" failed. Automatically switched to next configured model. Error: ${failoverHistory[0].error}`;
+      const first = failoverHistory[0];
+      log.warn('Model failover occurred', { provider: first.provider, error: first.error });
+      result.failoverWarning = 'A provider error occurred. Automatically switched to the next available model.';
     }
     return result;
   } catch (e: unknown) {
+    log.error('Outreach action failed', e);
     const msg = e instanceof Error ? e.message : 'Failed to generate outreach draft';
     return { error: msg };
   }
@@ -152,17 +157,18 @@ async function duplicateDraftActionImpl(draftId: string) {
       subject: oldDraft.subject,
       body: oldDraft.body,
       createdByUserId: userId,
-      attachments: oldDraft.attachments,
+      attachments: oldDraft.attachments as string | null | undefined,
       origin: 'MANUAL',
     });
 
     try {
       revalidatePath(`/leads/${oldDraft.leadId}`);
       revalidatePath('/');
-    } catch (e) {}
+    } catch (e) { log.error('revalidatePath failed', e); }
 
     return { success: true, draft: duplicatedDraft };
   } catch (e: unknown) {
+    log.error('Outreach action failed', e);
     const msg = e instanceof Error ? e.message : 'Failed to duplicate draft';
     return { error: msg };
   }
@@ -193,10 +199,10 @@ async function updateDraftActionImpl(draftId: string, subject: string | null, bo
     try {
       revalidatePath(`/leads/${draft.leadId}`);
       revalidatePath('/');
-      revalidatePath('/');
-    } catch (e) {}
+    } catch (e) { log.error('revalidatePath failed', e); }
     return { success: true };
   } catch (e: unknown) {
+    log.error('Outreach action failed', e);
     const msg = e instanceof Error ? e.message : 'Failed to update draft';
     return { error: msg };
   }
@@ -233,9 +239,10 @@ async function recordApprovalActionImpl(draftId: string, decision: 'APPROVED' | 
     try {
       revalidatePath(`/leads/${draft.leadId}`);
       revalidatePath('/');
-    } catch (e) {}
+    } catch (e) { log.error('revalidatePath failed', e); }
     return { success: true };
   } catch (e: unknown) {
+    log.error('Outreach action failed', e);
     const msg = e instanceof Error ? e.message : 'Failed to record approval';
     return { error: msg };
   }
@@ -270,10 +277,11 @@ async function deleteDraftActionImpl(draftId: string) {
     try {
       revalidatePath('/leads');
       revalidatePath('/');
-    } catch (e) {}
+    } catch (e) { log.error('revalidatePath failed', e); }
 
     return { success: true };
   } catch (e: unknown) {
+    log.error('Outreach action failed', e);
     const msg = e instanceof Error ? e.message : 'Failed to delete draft';
     return { error: msg };
   }
@@ -323,6 +331,7 @@ export async function getPendingApprovalsAction() {
       })),
     };
   } catch (e: unknown) {
+    log.error('Outreach action failed', e);
     const msg = e instanceof Error ? e.message : 'Failed to fetch approvals';
     return { error: msg };
   }
@@ -367,9 +376,10 @@ async function markAsSentActionImpl(draftId: string) {
       revalidatePath('/');
       revalidatePath('/approvals');
       revalidatePath(`/prospects/${draft.leadId}`);
-    } catch (e) {}
+    } catch (e) { log.error('revalidatePath failed', e); }
     return { success: true };
   } catch (e: unknown) {
+    log.error('Outreach action failed', e);
     const msg = e instanceof Error ? e.message : 'Failed to mark as sent';
     return { error: msg };
   }

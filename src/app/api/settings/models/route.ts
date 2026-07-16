@@ -1,10 +1,17 @@
 import { getLogger } from '@/lib/logger';
 import { NextResponse } from 'next/server';
 import { getUserId } from '@/lib/auth';
+import { isPrivateHost } from '@/lib/network';
+import { z } from 'zod';
 
 const log = getLogger('SettingsModelsAPI');
 
-export const dynamic = 'force-dynamic';
+const FetchModelsSchema = z.object({
+  provider: z.string().min(1).nullable().optional(),
+  apiKey: z.string().nullable().optional(),
+});
+
+const FETCH_TIMEOUT_MS = 15000;
 
 export async function GET(request: Request) {
   const userId = await getUserId();
@@ -26,13 +33,22 @@ export async function POST(request: Request) {
   }
 
   try {
-    const body = await request.json() as { provider?: string | null; apiKey?: string | null };
-    const { provider = null, apiKey = null } = body;
+    const body = await request.json();
+    const parsed = FetchModelsSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid request body', details: parsed.error.flatten() }, { status: 400 });
+    }
+    const { provider = null, apiKey = null } = parsed.data;
     return fetchModelsForProvider(provider ?? null, apiKey ?? null);
   } catch (error: unknown) {
     log.error('Settings models POST error', error);
     return NextResponse.json({ error: 'Invalid JSON request body' }, { status: 400 });
   }
+}
+
+async function fetchWithValidation(url: string, init?: RequestInit): Promise<Response> {
+  if (isPrivateHost(url)) throw new Error(`Blocked request to private IP: ${url}`);
+  return fetch(url, init);
 }
 
 async function fetchModelsForProvider(provider: string | null, apiKey: string | null) {
@@ -48,9 +64,11 @@ async function fetchModelsForProvider(provider: string | null, apiKey: string | 
       if (apiKey && apiKey !== 'placeholder' && apiKey.trim() !== '') {
         headers['Authorization'] = `Bearer ${apiKey}`;
       }
-      const res = await fetch('https://openrouter.ai/api/v1/models', { 
+      const res = await fetchWithValidation('https://openrouter.ai/api/v1/models', { 
         headers,
-        cache: 'no-store'
+        cache: 'no-store',
+        // AbortSignal.timeout() requires compatibility_date >= 2023-10-01 (Workers) / Node 16+
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
       if (!res.ok) throw new Error(`OpenRouter returned status ${res.status}`);
       const data = (await res.json()) as { data?: Array<{ id: string; name?: string }> };
@@ -64,9 +82,10 @@ async function fetchModelsForProvider(provider: string | null, apiKey: string | 
       if (!apiKey || apiKey === 'placeholder' || apiKey.trim() === '') {
         return NextResponse.json({ models: [] });
       }
-      const res = await fetch('https://integrate.api.nvidia.com/v1/models', {
+      const res = await fetchWithValidation('https://integrate.api.nvidia.com/v1/models', {
         headers: { 'Authorization': `Bearer ${apiKey}` },
-        cache: 'no-store'
+        cache: 'no-store',
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
       if (!res.ok) throw new Error(`NVIDIA returned status ${res.status}`);
       const data = (await res.json()) as { data?: Array<{ id: string }> };
@@ -80,9 +99,10 @@ async function fetchModelsForProvider(provider: string | null, apiKey: string | 
       if (!apiKey || apiKey === 'placeholder' || apiKey.trim() === '') {
         return NextResponse.json({ models: [] });
       }
-      const res = await fetch('https://api.groq.com/openai/v1/models', {
+      const res = await fetchWithValidation('https://api.groq.com/openai/v1/models', {
         headers: { 'Authorization': `Bearer ${apiKey}` },
-        cache: 'no-store'
+        cache: 'no-store',
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
       if (!res.ok) throw new Error(`Groq returned status ${res.status}`);
       const data = (await res.json()) as { data?: Array<{ id: string }> };
@@ -96,8 +116,10 @@ async function fetchModelsForProvider(provider: string | null, apiKey: string | 
       if (!apiKey || apiKey === 'placeholder' || apiKey.trim() === '') {
         return NextResponse.json({ models: [] });
       }
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`, {
-        cache: 'no-store'
+      const res = await fetchWithValidation(`https://generativelanguage.googleapis.com/v1beta/models`, {
+        headers: { 'x-goog-api-key': apiKey },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
       if (!res.ok) throw new Error(`Gemini returned status ${res.status}`);
       const data = (await res.json()) as {
@@ -119,9 +141,10 @@ async function fetchModelsForProvider(provider: string | null, apiKey: string | 
       if (!apiKey || apiKey === 'placeholder' || apiKey.trim() === '') {
         return NextResponse.json({ models: [] });
       }
-      const res = await fetch('https://api.aimlapi.com/v1/models', {
+      const res = await fetchWithValidation('https://api.aimlapi.com/v1/models', {
         headers: { 'Authorization': `Bearer ${apiKey}` },
-        cache: 'no-store'
+        cache: 'no-store',
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
       if (!res.ok) throw new Error(`AIML API returned status ${res.status}`);
       const data = (await res.json()) as { data?: Array<{ id: string }> };
@@ -135,9 +158,10 @@ async function fetchModelsForProvider(provider: string | null, apiKey: string | 
       if (!apiKey || apiKey === 'placeholder' || apiKey.trim() === '') {
         return NextResponse.json({ models: [] });
       }
-      const res = await fetch('https://api.openai.com/v1/models', {
+      const res = await fetchWithValidation('https://api.openai.com/v1/models', {
         headers: { 'Authorization': `Bearer ${apiKey}` },
-        cache: 'no-store'
+        cache: 'no-store',
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
       if (!res.ok) throw new Error(`OpenAI returned status ${res.status}`);
       const data = (await res.json()) as { data?: Array<{ id: string }> };
@@ -151,12 +175,13 @@ async function fetchModelsForProvider(provider: string | null, apiKey: string | 
       if (!apiKey || apiKey === 'placeholder' || apiKey.trim() === '') {
         return NextResponse.json({ models: [] });
       }
-      const res = await fetch('https://api.anthropic.com/v1/models', {
+      const res = await fetchWithValidation('https://api.anthropic.com/v1/models', {
         headers: {
           'x-api-key': apiKey,
           'anthropic-version': '2023-06-01'
         },
-        cache: 'no-store'
+        cache: 'no-store',
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
       if (!res.ok) throw new Error(`Anthropic returned status ${res.status}`);
       const data = (await res.json()) as { data?: Array<{ id: string; display_name?: string }> };

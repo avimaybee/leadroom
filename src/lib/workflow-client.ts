@@ -9,6 +9,77 @@ import { getLogger } from '@/lib/logger';
 import { createNotification } from '@/lib/notifications';
 
 const logger = getLogger('WorkflowClient');
+const MAX_CONCURRENT_SIMULATIONS = 5;
+const inflightSimulations = new Set<Promise<unknown>>();
+const simulationQueue: Array<() => void> = [];
+const SIMULATION_QUEUE_MAX = 50;
+
+function chunkArray<T>(arr: T[], size: number): T[][] {
+  const result: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) result.push(arr.slice(i, i + size));
+  return result;
+}
+
+let _cfModule: unknown = null;
+
+function getCloudflareContextOnce(): { ctx: { waitUntil: (p: Promise<any>) => void }; env: any } | null {
+  if (_cfModule === null) {
+    try {
+      _cfModule = require('@opennextjs/cloudflare');
+    } catch (e) {
+      _cfModule = false;
+    }
+  }
+  if (!_cfModule) return null;
+  try {
+    const { getCloudflareContext } = _cfModule as { getCloudflareContext: () => any };
+    return getCloudflareContext();
+  } catch {
+    return null;
+  }
+}
+
+function waitUntilWithLimit(ctx: { waitUntil: (p: Promise<any>) => void }, promise: Promise<unknown>): void {
+  const run = () => {
+    inflightSimulations.add(promise);
+    promise.finally(() => {
+      inflightSimulations.delete(promise);
+      // Dequeue next if any
+      const next = simulationQueue.shift();
+      if (next) next();
+    }).catch(() => {});
+    ctx.waitUntil(promise);
+  };
+  if (inflightSimulations.size >= MAX_CONCURRENT_SIMULATIONS) {
+    if (simulationQueue.length < SIMULATION_QUEUE_MAX) {
+      simulationQueue.push(run);
+    } else {
+      const dropped = simulationQueue.shift();
+      if (dropped) logger.warn('Simulation queue full, dropped oldest entry');
+      simulationQueue.push(run);
+    }
+  } else {
+    run();
+  }
+}
+
+function timeoutPromise<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  const onAbort = new AbortController();
+  const timeout = promise.then(
+    (v) => { onAbort.abort(); return v; },
+    (e) => { onAbort.abort(); throw e; }
+  );
+  return Promise.race([
+    timeout,
+    new Promise<T>((_, reject) => {
+      const timer = setTimeout(() => {
+        onAbort.abort();
+        reject(new Error(message));
+      }, ms);
+      onAbort.signal.addEventListener('abort', () => clearTimeout(timer), { once: true });
+    }),
+  ]);
+}
 
 export async function checkResearchCancelled(db: Db, jobId: string): Promise<void> {
   const [job] = await db
@@ -123,6 +194,7 @@ export async function triggerResearchWorkflow(
       }
 
     } catch (error: unknown) {
+      logger.error('Simulation failed', error);
       const errMsg = error instanceof Error ? error.message : 'Unknown error occurred during simulation';
       const isCancelled = errMsg === 'CANCELLED_BY_USER';
       logger.info('Research simulation cancelled', { leadId, jobId });
@@ -174,16 +246,15 @@ export async function triggerResearchWorkflow(
     }
   };
 
-  let ctx: any = undefined;
-  try {
-    const { getCloudflareContext } = await import('@opennextjs/cloudflare');
-    ctx = getCloudflareContext().ctx;
-  } catch (e) {
-    logger.info('getCloudflareContext unavailable — research simulation will run in background');
-  }
+  const cfCtx = getCloudflareContextOnce();
+  const ctx = cfCtx?.ctx;
 
   if (ctx && typeof ctx.waitUntil === 'function') {
-    ctx.waitUntil(runSimulation());
+    waitUntilWithLimit(ctx, timeoutPromise(runSimulation(), 25 * 1000, 'Research simulation timed out after 25s')
+      .catch((err) => logger.error('Research simulation failed', err)));
+  } else if (!cfCtx) {
+    logger.info('getCloudflareContext unavailable — research simulation will run in background');
+    runSimulation().catch((err) => logger.error('Unhandled research simulation error', err));
   } else {
     runSimulation().catch((err) => logger.error('Unhandled research simulation error', err));
   }
@@ -248,20 +319,26 @@ export async function triggerDiscoverySearchWorkflow(
       // 1. Wait/poll Apify (max ~10 min for simulation, matching user's ≤10 min target)
       let status = await checkApifyRunStatus(runId);
       let apifyRetries = 0;
-      const apifyMaxRetries = 120; // 120 * 5s = 600s = 10 min
+      const apifyMaxRetries = 30; // 30 * 20s = 600s = 10 min
+      const apifyStartTime = Date.now();
+      const apifyTimeoutMs = 10 * 60 * 1000;
 
       await db.update(jobRuns)
         .set({ currentStage: `Waiting for Apify crawler (status: ${status})...` })
         .where(eq(jobRuns.id, jobId));
 
       while (status === 'RUNNING' || status === 'READY') {
+        const elapsed = Date.now() - apifyStartTime;
+        if (elapsed > apifyTimeoutMs) {
+          throw new Error(`Apify actor did not finish within ${apifyTimeoutMs / 60000} minutes (elapsed: ${Math.round(elapsed / 1000)}s)`);
+        }
         if (apifyRetries >= apifyMaxRetries) {
           throw new Error(`Apify actor did not finish within ${(apifyMaxRetries * 5) / 60} minutes`);
         }
-        await new Promise((resolve) => setTimeout(resolve, 5000));
+        await new Promise((resolve) => setTimeout(resolve, 20000));
 
         const [j] = await db.select().from(jobRuns).where(eq(jobRuns.id, jobId)).limit(1);
-        if (j && (j.status === 'FAILED' || j.errorSummary === 'Cancelled by user')) {
+        if (j && (j.status === 'FAILED' || j.status === 'CANCELLED')) {
           throw new Error('Cancelled by user');
         }
 
@@ -297,7 +374,9 @@ export async function triggerDiscoverySearchWorkflow(
           };
         });
 
-        await db.insert(candidateLeads).values(candidates);
+        for (const batch of chunkArray(candidates, 10)) {
+          await db.insert(candidateLeads).values(batch);
+        }
       }
 
       await db.update(jobRuns)
@@ -355,17 +434,14 @@ export async function triggerDiscoverySearchWorkflow(
     }
   };
 
-  let ctx: any = undefined;
-  try {
-    const { getCloudflareContext } = await import('@opennextjs/cloudflare');
-    ctx = getCloudflareContext().ctx;
-  } catch (e) {
-    logger.info('getCloudflareContext unavailable — discovery simulation will run in background');
-  }
+  const cfCtx = getCloudflareContextOnce();
+  const ctx = cfCtx?.ctx;
 
   if (ctx && typeof ctx.waitUntil === 'function') {
-    ctx.waitUntil(runSimulation());
+    waitUntilWithLimit(ctx, timeoutPromise(runSimulation(), 25 * 1000, 'Discovery simulation timed out after 25s')
+      .catch((err) => logger.error('Discovery simulation failed', err)));
   } else {
+    if (!cfCtx) logger.info('getCloudflareContext unavailable — discovery simulation will run in background');
     runSimulation().catch((err) => logger.error('Unhandled discovery search simulation error', err));
   }
 }
@@ -386,7 +462,7 @@ export async function triggerMonitorStalledLeadWorkflow(
     logger.info('Triggering Cloudflare Monitor Stalled Lead Workflow', { leadId });
     try {
       await workflowBinding.create({
-        id: `monitor-stalled-${leadId}-${Date.now()}`,
+        id: `monitor-stalled-${leadId}`,
         params: { leadId, stageUpdatedAt }
       });
       return;
@@ -424,17 +500,14 @@ export async function triggerMonitorStalledLeadWorkflow(
     }
   };
 
-  let ctx: any = undefined;
-  try {
-    const { getCloudflareContext } = await import('@opennextjs/cloudflare');
-    ctx = getCloudflareContext().ctx;
-  } catch (e) {
-    logger.info('getCloudflareContext unavailable — stalled lead monitor will run in background');
-  }
+  const cfCtx = getCloudflareContextOnce();
+  const ctx = cfCtx?.ctx;
 
   if (ctx && typeof ctx.waitUntil === 'function') {
-    ctx.waitUntil(runSimulation());
+    waitUntilWithLimit(ctx, timeoutPromise(runSimulation(), 25 * 1000, 'Monitor stalled lead simulation timed out after 25s')
+      .catch((err) => logger.error('Monitor stalled lead simulation failed', err)));
   } else {
+    if (!cfCtx) logger.info('getCloudflareContext unavailable — stalled lead monitor will run in background');
     runSimulation().catch((err) => logger.error('Unhandled monitor stalled lead simulation error', err));
   }
 }

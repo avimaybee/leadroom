@@ -30,7 +30,12 @@ export async function dismissNbaActionAction(leadId: string, signal: string) {
   if (!userId) return;
   const db = getDb();
   
-  const { nbaActionLogs } = await import('@/db/schema/core');
+  let nbaActionLogs: any;
+  try {
+    ({ nbaActionLogs } = await import('@/db/schema/core'));
+  } catch (e) {
+    return;
+  }
   
   await db.insert(nbaActionLogs).values({
     id: crypto.randomUUID(),

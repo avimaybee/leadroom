@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { AlertTriangle, ExternalLink, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,11 +39,8 @@ export function DraftReview({ drafts, onGenerate, onApprove, onReject, generatin
   const [rejectReason, setRejectReason] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  const activeDraft = drafts.find((d) => d.status === 'DRAFT');
-  const approvedDraft = drafts.find((d) => d.status === 'APPROVED');
-  const rejectedDrafts = drafts.filter((d) => d.status === 'REJECTED');
-
-  const displayDraft = activeDraft || approvedDraft;
+  const displayDraft = useMemo(() => drafts.find((d) => d.status === 'DRAFT') || drafts.find((d) => d.status === 'APPROVED'), [drafts]);
+  const rejectedDrafts = useMemo(() => drafts.filter((d) => d.status === 'REJECTED'), [drafts]);
 
   const parseEvidence = (raw: string | null): CitedEvidence[] => {
     if (!raw) return [];
@@ -163,8 +160,8 @@ export function DraftReview({ drafts, onGenerate, onApprove, onReject, generatin
 
       {riskFlags.length > 0 && (
         <div className="space-y-1">
-          {riskFlags.map((flag, i) => (
-            <div key={i} className="flex items-center gap-2 rounded-lg bg-chart-5/10 border border-chart-5/30 px-3 py-2 text-copy-14 text-chart-5">
+          {riskFlags.map((flag) => (
+            <div key={flag} className="flex items-center gap-2 rounded-lg bg-chart-5/10 border border-chart-5/30 px-3 py-2 text-copy-14 text-chart-5">
               <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
               {flag}
             </div>
@@ -193,8 +190,8 @@ export function DraftReview({ drafts, onGenerate, onApprove, onReject, generatin
           {evidence.length === 0 ? (
             <p className="text-copy-14 text-muted-foreground italic">No evidence citations.</p>
           ) : (
-            evidence.map((c, i) => (
-              <div key={i} className="border-l-2 border-primary/40 pl-3 space-y-1">
+            evidence.map((c) => (
+              <div key={c.evidenceQuote + c.sourceUrl} className="border-l-2 border-primary/40 pl-3 space-y-1">
                 <p className="text-copy-14 text-foreground">&ldquo;{c.evidenceQuote}&rdquo;</p>
                 <p className="text-label-12 text-muted-foreground">
                   Used in: <span className="italic">{c.sentence.length > 80 ? c.sentence.slice(0, 80) + '...' : c.sentence}</span>

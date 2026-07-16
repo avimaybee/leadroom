@@ -1,5 +1,8 @@
 'use client';
 
+// TODO(22.8): Migrate generic error banner to per-field error display
+// TODO(22.9): Preserve form field values on validation error (use defaultValue or keep state)
+// TODO(22.15): Add optimistic UI update on save for instant feedback
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Plus, ShieldAlert, X } from 'lucide-react';
@@ -99,7 +102,7 @@ export function IcpForm({ initialData }: IcpFormProps) {
       )}
 
       <div>
-        <label className="label-12 uppercase text-muted-foreground block mb-1.5">Profile Name</label>
+        <label className="text-label-12 uppercase text-muted-foreground block mb-1.5">Profile Name</label>
         <input
           type="text"
           value={name}
@@ -111,14 +114,14 @@ export function IcpForm({ initialData }: IcpFormProps) {
       </div>
 
       <div className="border-b border-border pb-6 mb-6">
-        <label className="label-12 uppercase text-muted-foreground block mb-1">Positive Signals</label>
+        <label className="text-label-12 uppercase text-muted-foreground block mb-1">Positive Signals</label>
         <p className="text-copy-14 text-muted-foreground mb-3">
           Signals that increase fit score when found.
         </p>
         <div className="space-y-3">
           {positiveSignals.map((signal, i) => (
             <SignalRow
-              key={i}
+              key={signal.name || `pos-${i}`}
               {...signal}
               type="positive"
               onChange={(field, value) => updateSignal(positiveSignals, setPositiveSignals, i, field, value)}
@@ -137,14 +140,14 @@ export function IcpForm({ initialData }: IcpFormProps) {
       </div>
 
       <div className="border-b border-border pb-6 mb-6">
-        <label className="label-12 uppercase text-muted-foreground block mb-1">Negative Signals</label>
+        <label className="text-label-12 uppercase text-muted-foreground block mb-1">Negative Signals</label>
         <p className="text-copy-14 text-muted-foreground mb-3">
           Signals that subtract from fit score when found.
         </p>
         <div className="space-y-3">
           {negativeSignals.map((signal, i) => (
             <SignalRow
-              key={i}
+              key={signal.name || `neg-${i}`}
               {...signal}
               type="negative"
               onChange={(field, value) => updateSignal(negativeSignals, setNegativeSignals, i, field, value)}
@@ -163,13 +166,13 @@ export function IcpForm({ initialData }: IcpFormProps) {
       </div>
 
       <div className="border-b border-border pb-6 mb-6">
-        <label className="label-12 uppercase text-muted-foreground block mb-1">Hard Disqualifiers</label>
+        <label className="text-label-12 uppercase text-muted-foreground block mb-1">Hard Disqualifiers</label>
         <p className="text-copy-14 text-muted-foreground mb-3">
           If any disqualifier matches, the prospect is excluded regardless of other signals.
         </p>
         <div className="space-y-2">
           {disqualifiers.map((d, i) => (
-            <div key={i} className="flex items-center gap-2">
+            <div key={d || `disq-${i}`} className="flex items-center gap-2">
               <span className="flex-1 text-copy-14 bg-muted/30 rounded-md px-3 py-2">{d}</span>
               <button
                 type="button"

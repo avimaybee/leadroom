@@ -18,11 +18,30 @@
 			"database_id": "fc5f9b16-1bc5-43e5-8a5d-5e54d3ec7b70"
 		}
 	],
-	"limits": {
-		"cpu_ms": 300000
+	"triggers": {
+		"crons": ["*/5 * * * *"]
 	},
 	"browser": {
+		// BROWSER binding requires `--remote` for local dev (browser bindings only work remotely)
 		"binding": "BROWSER"
+	},
+	"kv_namespaces": [
+		{
+			"binding": "NEXT_INC_CACHE_KV",
+			"id": "219f06e6155043a7b79ee22cc8774df3"
+		},
+		{
+			"binding": "NEXT_TAG_CACHE_KV",
+			"id": "630f64e0566443deb987fd9da1f48e1b"
+		}
+	],
+	"vars": {
+		// Documented environment variables for local dev; set as secrets in production.
+		"NEXT_PUBLIC_FIREBASE_API_KEY": "",
+		"CRON_SECRET": "",
+		"RATE_LIMIT_WINDOW_MS": "60000",
+		"RATE_LIMIT_MAX": "100",
+		"DB_ENCRYPTION_KEY": ""
 	},
 	"services": [
 		{

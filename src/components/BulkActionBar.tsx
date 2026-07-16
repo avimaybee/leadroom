@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { useBulkSelect } from './BulkSelectProvider';
@@ -25,7 +25,7 @@ export function BulkActionBar() {
   const [isLoading, setIsLoading] = useState(false);
 
 
-  const ids = Array.from(selectedIds);
+  const ids = useMemo(() => Array.from(selectedIds), [selectedIds]);
 
   const handleAdvance = async () => {
     setIsLoading(true);

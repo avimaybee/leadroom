@@ -15,7 +15,7 @@ class MockD1PreparedStatement {
     try {
       const results = this.stmt.all(...this.params);
       return { results, success: true };
-    } catch (e: any) {
+    } catch (e: unknown) {
       log.error('Mock D1 PreparedStatement all() failed', e);
       throw e;
     }
@@ -32,7 +32,7 @@ class MockD1PreparedStatement {
           last_row_id: result.lastInsertRowid,
         }
       };
-    } catch (e: any) {
+    } catch (e: unknown) {
       log.error('Mock D1 PreparedStatement run() failed', e);
       throw e;
     }
@@ -44,7 +44,7 @@ class MockD1PreparedStatement {
       if (!row) return null;
       if (key) return row[key];
       return row;
-    } catch (e: any) {
+    } catch (e: unknown) {
       log.error('Mock D1 PreparedStatement first() failed', e);
       throw e;
     }
@@ -56,7 +56,7 @@ class MockD1PreparedStatement {
       const rows = this.stmt.all(...this.params);
       this.stmt.raw(false);
       return rows;
-    } catch (e: any) {
+    } catch (e: unknown) {
       log.error('Mock D1 PreparedStatement raw() failed', e);
       throw e;
     }
@@ -64,7 +64,11 @@ class MockD1PreparedStatement {
 }
 
 export class MockD1Database {
-  constructor(private db: any) {}
+  constructor(private db: any) {
+    process.on('exit', () => {
+      try { this.db.close(); } catch { /* ignore */ }
+    });
+  }
 
   prepare(query: string) {
     const stmt = this.db.prepare(query);
@@ -132,7 +136,7 @@ export function setupLocalDatabaseMock() {
 
   // Apply pending column migrations idempotently (safe even if columns exist)
   const migrationStmts = [
-    `ALTER TABLE leads ADD COLUMN is_read integer DEFAULT 0 NOT NULL`,
+    `ALTER TABLE prospects ADD COLUMN is_read integer DEFAULT 0 NOT NULL`,
     `ALTER TABLE tasks ADD COLUMN is_read integer DEFAULT 0 NOT NULL`,
     `ALTER TABLE outreach_drafts ADD COLUMN is_read integer DEFAULT 0 NOT NULL`,
     `ALTER TABLE audits ADD COLUMN is_modern integer`,
@@ -154,9 +158,12 @@ export function setupLocalDatabaseMock() {
   } catch (e) {
     log.error('Failed to create notifications table in mock DB', e);
   }
-  for (const stmt of migrationStmts) {
-    try { sqlite.exec(stmt); } catch { /* column already exists — safe to ignore */ }
-  }
+  const runMigrations = sqlite.transaction(() => {
+    for (const stmt of migrationStmts) {
+      try { sqlite.exec(stmt); } catch { /* column already exists — safe to ignore */ }
+    }
+  });
+  runMigrations();
 
   const mockD1 = new MockD1Database(sqlite);
 

@@ -225,8 +225,8 @@ export function OutreachSection({ prospectId, drafts }: OutreachSectionProps) {
                 <div>
                   <span className="text-label-12 text-chart-5 font-semibold block">Risk Flags</span>
                   <ul className="mt-1 space-y-0.5">
-                    {riskFlags.map((f, i) => (
-                      <li key={i} className="text-copy-13 text-chart-5">&bull; {f}</li>
+                    {riskFlags.map((f) => (
+                      <li key={f} className="text-copy-13 text-chart-5">&bull; {f}</li>
                     ))}
                   </ul>
                 </div>
@@ -239,8 +239,8 @@ export function OutreachSection({ prospectId, drafts }: OutreachSectionProps) {
                   Cited Evidence ({citedEvidence.length})
                 </summary>
                 <div className="mt-2 space-y-2">
-                  {citedEvidence.map((e, i) => (
-                    <div key={i} className="border-l-2 border-border pl-3">
+                  {citedEvidence.map((e) => (
+                    <div key={e.evidenceQuote + e.sourceUrl} className="border-l-2 border-border pl-3">
                       <p className="text-copy-13 italic text-muted-foreground">&ldquo;{e.evidenceQuote}&rdquo;</p>
                       {e.sourceUrl && (
                         <a href={e.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-label-12 text-primary hover:underline decoration-border underline-offset-4">
@@ -322,7 +322,7 @@ export function OutreachSection({ prospectId, drafts }: OutreachSectionProps) {
       {drafts.length > 0 && (
         <a
           href={`/prospects/${prospectId}/outreach`}
-          className="label-12 underline decoration-border underline-offset-4 text-muted-foreground hover:text-foreground transition-colors block text-center"
+          className="text-label-12 underline decoration-border underline-offset-4 text-muted-foreground hover:text-foreground transition-colors block text-center"
         >
           Open full Outreach Assistant
         </a>

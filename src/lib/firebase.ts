@@ -11,5 +11,12 @@ const firebaseConfig = {
   measurementId: "G-PGWEBF0K0V"
 };
 
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-export const auth = getAuth(app);
+const isServer = typeof window === 'undefined';
+let _auth: any = null;
+
+if (!isServer) {
+  const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+  _auth = getAuth(app);
+}
+
+export const auth = _auth;

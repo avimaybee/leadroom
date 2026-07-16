@@ -36,7 +36,7 @@ export function ProspectScorePanel({
   isOverridden,
   overrideReason,
 }: ProspectScorePanelProps) {
-  const [expanded, setExpanded] = useState<number | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
   const [showOverride, setShowOverride] = useState(false);
   const [overrideScore, setOverrideScore] = useState(fitScore ?? 50);
   const [overrideReason_, setOverrideReason_] = useState('');
@@ -106,8 +106,8 @@ export function ProspectScorePanel({
         <div className="flex items-center gap-3 p-4 rounded-xl bg-destructive/10 border border-destructive/20">
           <ShieldAlert className="w-5 h-5 text-destructive shrink-0" />
           <div>
-            <p className="label-14 text-destructive">Disqualified</p>
-            {fitReasoning && <p className="copy-14 text-destructive/90">{fitReasoning}</p>}
+            <p className="text-label-14 text-destructive">Disqualified</p>
+            {fitReasoning && <p className="text-copy-14 text-destructive/90">{fitReasoning}</p>}
           </div>
         </div>
       )}
@@ -148,15 +148,15 @@ export function ProspectScorePanel({
         {breakdown.length === 0 ? (
           <p className="text-copy-14 text-muted-foreground">No signals evaluated yet.</p>
         ) : (
-          breakdown.map((item, i) => (
-            <div key={i} className="rounded-lg border border-border overflow-hidden">
+          breakdown.map((item) => (
+            <div key={item.factor} className="rounded-lg border border-border overflow-hidden">
               <button
                 type="button"
-                onClick={() => setExpanded(expanded === i ? null : i)}
+                onClick={() => setExpanded(expanded === item.factor ? null : item.factor)}
                 className="flex w-full items-center justify-between px-3 py-2 text-left hover:bg-muted/50 transition-colors"
               >
                 <div className="flex items-center gap-2 min-w-0">
-                  {expanded === i ? <ChevronDown className="w-3.5 h-3.5 shrink-0 text-muted-foreground" /> : <ChevronRight className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />}
+                  {expanded === item.factor ? <ChevronDown className="w-3.5 h-3.5 shrink-0 text-muted-foreground" /> : <ChevronRight className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />}
                   <span className="text-copy-14 truncate">{item.factor}</span>
                 </div>
                 <span className={`text-label-12 font-semibold shrink-0 ml-2 px-2 py-0.5 rounded border ${
@@ -167,7 +167,7 @@ export function ProspectScorePanel({
                   {item.contribution < 0 ? 'Negative' : item.contribution > 0 ? 'Positive' : 'Neutral'}
                 </span>
               </button>
-              {expanded === i && (
+              {expanded === item.factor && (
                 <div className="border-t border-border px-3 py-2.5 space-y-2 bg-muted/20">
                   {item.evidenceQuote && (
                     <p className="text-copy-13 italic text-muted-foreground border-l-2 border-border pl-3">

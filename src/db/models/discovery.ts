@@ -9,7 +9,7 @@ export const CreateDiscoveryScopeSchema = z.object({
   businessTypeFilter: z.string().max(500, 'Business type filter must be at most 500 characters').optional().nullable(),
   digitalPresenceFilter: z.string().max(500, 'Digital presence filter must be at most 500 characters').optional().nullable(),
   notes: z.string().max(5000, 'Notes must be at most 5000 characters').optional().nullable(),
-  autoResearchPromotedLeads: z.boolean().default(true).optional(),
+  autoResearchPromotedLeads: z.boolean().default(true).nullable(),
   createdByUserId: z.string().min(1, 'Created by User ID is required'),
   workspaceId: z.string().uuid().optional().nullable(),
   marketId: z.string().uuid().optional().nullable(),

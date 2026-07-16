@@ -14,10 +14,13 @@ interface ScoringPreviewProps {
 export function ScoringPreview({ positiveSignals, negativeSignals, disqualifiers }: ScoringPreviewProps) {
   const [checked, setChecked] = useState<Set<string>>(new Set());
 
-  const allSignals = [
-    ...positiveSignals.map((s) => ({ ...s, type: 'positive' as const })),
-    ...negativeSignals.map((s) => ({ ...s, type: 'negative' as const })),
-  ];
+  const allSignals = useMemo(
+    () => [
+      ...positiveSignals.map((s) => ({ ...s, type: 'positive' as const })),
+      ...negativeSignals.map((s) => ({ ...s, type: 'negative' as const })),
+    ],
+    [positiveSignals, negativeSignals]
+  );
 
   const toggleSignal = (name: string) => {
     setChecked((prev) => {
@@ -66,7 +69,7 @@ export function ScoringPreview({ positiveSignals, negativeSignals, disqualifiers
   return (
     <div className="rounded-xl border border-border bg-card p-5 space-y-4">
       <div className="flex items-center justify-between">
-        <label className="label-12 uppercase text-muted-foreground">Scoring Preview</label>
+        <label className="text-label-12 uppercase text-muted-foreground">Scoring Preview</label>
         <span className="text-copy-13 text-muted-foreground">Simulate a prospect to verify weights</span>
       </div>
 

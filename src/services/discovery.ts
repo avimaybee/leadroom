@@ -1,6 +1,6 @@
 import { getLogger } from '../lib/logger';
 import { LoggingService } from './logging';
-import { Db } from '../db';
+import { type Db } from '../db';
 import { eq, sql, desc, and } from 'drizzle-orm';
 
 const log = getLogger('DiscoveryService');
@@ -34,7 +34,7 @@ export class DiscoveryService {
     });
     
     // For D1 / Better-SQLite3, we can query it back
-    const results = await this.db.select().from(discoveryScopes).where(eq(discoveryScopes.id, id));
+    const results = await this.db.select().from(discoveryScopes).where(eq(discoveryScopes.id, id)).limit(1);
     return results[0] || null;
   }
 
@@ -53,9 +53,9 @@ export class DiscoveryService {
 
   async listScopes(userId?: string) {
     if (userId) {
-      return this.db.select().from(discoveryScopes).where(eq(discoveryScopes.createdByUserId, userId)).orderBy(desc(discoveryScopes.createdAt));
+      return this.db.select().from(discoveryScopes).where(eq(discoveryScopes.createdByUserId, userId)).orderBy(desc(discoveryScopes.createdAt)).limit(200);
     }
-    return this.db.select().from(discoveryScopes).orderBy(desc(discoveryScopes.createdAt));
+    return this.db.select().from(discoveryScopes).orderBy(desc(discoveryScopes.createdAt)).limit(200);
   }
 
   async createCandidateLead(id: string, input: CreateCandidateLeadInput) {
@@ -74,7 +74,7 @@ export class DiscoveryService {
       updatedAt: now,
     });
 
-    const results = await this.db.select().from(candidateLeads).where(eq(candidateLeads.id, id));
+    const results = await this.db.select().from(candidateLeads).where(eq(candidateLeads.id, id)).limit(1);
     return results[0] || null;
   }
 
@@ -83,7 +83,7 @@ export class DiscoveryService {
       const [scope] = await this.db.select({ id: discoveryScopes.id }).from(discoveryScopes).where(and(eq(discoveryScopes.id, scopeId), eq(discoveryScopes.createdByUserId, userId))).limit(1);
       if (!scope) return [];
     }
-    return this.db.select().from(candidateLeads).where(eq(candidateLeads.discoveryScopeId, scopeId));
+    return this.db.select().from(candidateLeads).where(eq(candidateLeads.discoveryScopeId, scopeId)).limit(200);
   }
 
   async countPendingCandidates(userId?: string): Promise<number> {
@@ -111,7 +111,7 @@ export class DiscoveryService {
       .set(updateData)
       .where(eq(candidateLeads.id, candidateId));
 
-    const results = await this.db.select().from(candidateLeads).where(eq(candidateLeads.id, candidateId));
+    const results = await this.db.select().from(candidateLeads).where(eq(candidateLeads.id, candidateId)).limit(1);
     return results[0] || null;
   }
 
@@ -122,7 +122,7 @@ export class DiscoveryService {
       .set({ ...data, updatedAt: now })
       .where(eq(candidateLeads.id, candidateId));
 
-    const results = await this.db.select().from(candidateLeads).where(eq(candidateLeads.id, candidateId));
+    const results = await this.db.select().from(candidateLeads).where(eq(candidateLeads.id, candidateId)).limit(1);
     return results[0] || null;
   }
 
@@ -244,16 +244,16 @@ export class DiscoveryService {
 
     // 6. Create 4 research tasks for the new pipeline
     const taskTypes = ['WEBSITE_ANALYST', 'ICP_FIT', 'PAIN_EXTRACTOR', 'DISQUALIFIER_CHECK'] as const;
-    for (const taskType of taskTypes) {
-      await this.db.insert(researchTasks).values({
+    await this.db.insert(researchTasks).values(
+      taskTypes.map(taskType => ({
         id: crypto.randomUUID(),
         prospectId: leadId,
         taskType,
-        status: 'PENDING',
+        status: 'PENDING' as const,
         createdAt: now,
         updatedAt: now,
-      });
-    }
+      }))
+    );
 
     // 7. Recalculate baseline priority score
     const scoringService = new ScoringService(this.db);
@@ -273,7 +273,15 @@ export class DiscoveryService {
 
     if (shouldAutoResearch) {
       const jobId = crypto.randomUUID();
-      const { jobRuns } = await import('../db/schema/research');
+      let jobRuns: any;
+      let triggerResearchWorkflow: any;
+      try {
+        ({ jobRuns } = await import('../db/schema/research'));
+        ({ triggerResearchWorkflow } = await import('../lib/workflow-client'));
+      } catch (e) {
+        log.error('Failed to auto-trigger research', e);
+        return;
+      }
       await this.db.insert(jobRuns).values({
         id: jobId,
         jobType: 'RESEARCH_GENERATION',
@@ -285,8 +293,6 @@ export class DiscoveryService {
         finishedAt: null,
         createdAt: now,
       });
-
-      const { triggerResearchWorkflow } = await import('../lib/workflow-client');
       let workflowBinding: any = undefined;
       try {
         const { getCloudflareContext } = await import('@opennextjs/cloudflare');
@@ -295,7 +301,7 @@ export class DiscoveryService {
         log.info('getCloudflareContext unavailable — falling back to process.env for workflow binding');
       }
       if (!workflowBinding) {
-        workflowBinding = (process.env as any)?.RESEARCH_SNAPSHOT_WORKFLOW;
+        workflowBinding = process.env.RESEARCH_SNAPSHOT_WORKFLOW;
       }
       await triggerResearchWorkflow(this.db, workflowBinding, leadId, jobId, ownerId);
     }

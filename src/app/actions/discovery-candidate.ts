@@ -8,6 +8,9 @@ import { discoveryScopes, candidateLeads } from '@/db/schema/discovery';
 import { jobRuns } from '@/db/schema/research';
 import { eq, and } from 'drizzle-orm';
 import { withLogging } from '@/lib/actions/with-logging';
+import { getLogger } from '@/lib/logger';
+
+const log = getLogger('DiscoveryCandidateActions');
 
 async function getService() {
   const db = getDb();
@@ -55,7 +58,8 @@ export async function listCandidatesForMarketAction(marketId: string) {
         eq(discoveryScopes.workspaceId, userId)
       )
     )
-    .orderBy(candidateLeads.createdAt);
+    .orderBy(candidateLeads.createdAt)
+    .limit(200);
 
   return { success: true, candidates: rows };
 }
@@ -70,16 +74,17 @@ async function promoteCandidateActionImpl(
   const userId = await getUserId();
   if (!userId) return { error: 'Unauthorized' };
 
-  const candidateId = formData.get('candidateId') as string;
+  const candidateId = String(formData.get('candidateId') ?? '');
   if (!candidateId) return { error: 'Candidate ID is required' };
 
   try {
     const service = await getService();
     const promoted = await service.promoteCandidate(candidateId, userId);
 
-    revalidatePath(`/markets/${promoted.marketId}/prospects`);
+    revalidatePath(`/markets/${promoted!.marketId}/prospects`);
     return { success: true };
   } catch (error: unknown) {
+    log.error('Discovery candidate failed', error);
     const msg = error instanceof Error ? error.message : 'Failed to promote candidate';
     return { error: msg };
   }
@@ -97,12 +102,12 @@ async function updateCandidateActionImpl(
   const userId = await getUserId();
   if (!userId) return { error: 'Unauthorized' };
 
-  const candidateId = formData.get('candidateId') as string;
+  const candidateId = String(formData.get('candidateId') ?? '');
   if (!candidateId) return { error: 'Candidate ID is required' };
 
-  const rawName = formData.get('rawName') as string;
-  const rawWebsiteUrl = formData.get('rawWebsiteUrl') as string;
-  const rawLocation = formData.get('rawLocation') as string;
+  const rawName = String(formData.get('rawName') ?? '');
+  const rawWebsiteUrl = String(formData.get('rawWebsiteUrl') ?? '');
+  const rawLocation = String(formData.get('rawLocation') ?? '');
 
   if (!rawName || rawName.length > 500) {
     return { error: 'Name is required and must be at most 500 characters' };
@@ -119,6 +124,7 @@ async function updateCandidateActionImpl(
     revalidatePath(`/markets/*/prospects`);
     return { success: true };
   } catch (error: unknown) {
+    log.error('Discovery candidate failed', error);
     const msg = error instanceof Error ? error.message : 'Failed to update candidate';
     return { error: msg };
   }
@@ -136,9 +142,9 @@ async function discardCandidateActionImpl(
   const userId = await getUserId();
   if (!userId) return { error: 'Unauthorized' };
 
-  const candidateId = formData.get('candidateId') as string;
-  const marketId = formData.get('marketId') as string;
-  const discardReason = formData.get('discardReason') as string;
+  const candidateId = String(formData.get('candidateId') ?? '');
+  const marketId = String(formData.get('marketId') ?? '');
+  const discardReason = String(formData.get('discardReason') ?? '');
   if (!candidateId) return { error: 'Candidate ID is required' };
 
   try {
@@ -150,6 +156,7 @@ async function discardCandidateActionImpl(
     }
     return { success: true };
   } catch (error: unknown) {
+    log.error('Discovery candidate failed', error);
     const msg = error instanceof Error ? error.message : 'Failed to discard candidate';
     return { error: msg };
   }
@@ -181,6 +188,8 @@ export async function checkDiscoveryJobAction(jobId: string): Promise<JobStatusR
     if (!job) return { error: 'Job not found' };
     return job;
   } catch (error: unknown) {
-    return { error: error instanceof Error ? error.message : 'Failed to check job status' };
+    log.error('Discovery candidate failed', error);
+    const errMsg = error instanceof Error ? error.message : 'Failed to check job status';
+    return { error: errMsg };
   }
 }

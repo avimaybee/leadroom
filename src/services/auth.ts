@@ -1,4 +1,4 @@
-import { Db } from '../db';
+import { type Db } from '../db';
 import { users } from '../db/schema';
 import { eq } from 'drizzle-orm';
 import { encrypt, hashPassword, verifyPassword } from '../lib/auth';

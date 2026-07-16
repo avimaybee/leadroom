@@ -25,7 +25,7 @@ export default async function ApprovalsPage() {
   const drafts = result.drafts;
   const riskFlagged = drafts.filter(d => {
     try {
-      const flags = d.riskFlags ? JSON.parse(d.riskFlags) : [];
+      const flags = (d.riskFlags ?? []) as any[];
       return flags.length > 0;
     } catch { return false; }
   }).length;

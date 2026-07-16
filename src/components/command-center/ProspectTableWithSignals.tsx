@@ -33,9 +33,7 @@ export function ProspectTableWithSignals({ prospects }: { prospects: ProspectBas
       .then(data => {
         setSignals(data.signals || {});
       })
-      .catch(() => {
-        // Signals are a nice-to-have enhancement
-      })
+      .catch((err) => console.warn('Failed to fetch signals', err))
       .finally(() => setLoading(false));
   }, [prospects]);
 

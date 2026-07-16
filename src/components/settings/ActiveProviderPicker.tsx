@@ -168,7 +168,7 @@ export function ActiveProviderPicker({ configs }: ActiveProviderPickerProps) {
             <Settings2 className="w-4 h-4" />
           </div>
           <div>
-            <CardTitle className="heading-xl font-semibold">Task-Based AI Routing</CardTitle>
+            <CardTitle className="text-heading-xl font-semibold">Task-Based AI Routing</CardTitle>
             <CardDescription className="text-label-12 font-semibold">
               Route different AI workloads to different providers. Research tasks use one model, scoring uses another, and drafting uses a third.
             </CardDescription>

@@ -1,11 +1,15 @@
 'use server';
 
+// TODO(22.15): Add optimistic UI updates on lead mutations (create, archive, update stage)
 import { LeadService } from '@/services/lead';
 import { CreateLeadSchema, CreateLeadInput } from '@/db/models/lead';
 import { getDb } from '@/db';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { getUserId, verifyProspectAccess } from '@/lib/auth';
+import { getLogger } from '@/lib/logger';
+
+const log = getLogger('LeadsActions');
 
 
 async function getService() {
@@ -24,16 +28,16 @@ export async function createLeadAction(prevState: ActionState, formData: FormDat
   const service = await getService();
   
   const rawData = {
-    name: formData.get('name') as string,
-    company: formData.get('company') as string,
-    email: formData.get('email') as string,
-    phone: formData.get('phone') as string,
-    website: formData.get('website') as string,
-    city: formData.get('city') as string,
-    region: formData.get('region') as string,
-    industry: formData.get('industry') as string,
-    stage: formData.get('stage') as string,
-    sourceName: formData.get('sourceName') as string,
+    name: String(formData.get('name') ?? ''),
+    company: String(formData.get('company') ?? ''),
+    email: String(formData.get('email') ?? ''),
+    phone: String(formData.get('phone') ?? ''),
+    website: String(formData.get('website') ?? ''),
+    city: String(formData.get('city') ?? ''),
+    region: String(formData.get('region') ?? ''),
+    industry: String(formData.get('industry') ?? ''),
+    stage: String(formData.get('stage') ?? ''),
+    sourceName: String(formData.get('sourceName') ?? ''),
   };
 
   const validated = CreateLeadSchema.safeParse(rawData);
@@ -43,7 +47,7 @@ export async function createLeadAction(prevState: ActionState, formData: FormDat
   }
 
   // Check for duplicates unless force-created
-  const force = formData.get('_force') === 'true';
+  const force = String(formData.get('_force') ?? '') === 'true';
   if (!force) {
     const duplicates = await service.checkDuplicates(validated.data, userId);
     if (duplicates.length > 0) {
@@ -54,6 +58,7 @@ export async function createLeadAction(prevState: ActionState, formData: FormDat
   try {
     const lead = await service.createLead({ ...validated.data, ownerId: userId });
   } catch (error: unknown) {
+    log.error('Leads action failed', error);
     const msg = error instanceof Error ? error.message : 'Failed to create lead.';
     return { error: msg };
   }
@@ -81,13 +86,13 @@ export async function updateStageAction(formData: FormData) {
   if (!userId) throw new Error('Unauthorized');
 
   const db = getDb();
-  const id = formData.get('leadId') as string;
+  const id = String(formData.get('leadId') ?? '');
   if (id && !(await verifyProspectAccess(db, id, userId))) {
     throw new Error('Forbidden: you do not own this prospect');
   }
 
   const service = await getService();
-  const stage = formData.get('stage') as string;
+  const stage = String(formData.get('stage') ?? '');
   
   if (id && stage) {
     await service.updateStage(id, stage);
@@ -102,7 +107,7 @@ export async function updateLeadAction(prevState: ActionState, formData: FormDat
   if (!userId) return { error: 'Unauthorized' };
 
   const service = await getService();
-  const id = formData.get('leadId') as string;
+  const id = String(formData.get('leadId') ?? '');
   if (!id) return { error: 'Lead ID is required' };
 
   const db = getDb();
@@ -111,14 +116,14 @@ export async function updateLeadAction(prevState: ActionState, formData: FormDat
   }
 
   const rawData = {
-    name: formData.get('name') as string,
-    company: formData.get('company') as string || null,
-    email: formData.get('email') as string || null,
-    phone: formData.get('phone') as string || null,
-    website: formData.get('website') as string || null,
-    city: formData.get('city') as string || null,
-    region: formData.get('region') as string || null,
-    industry: formData.get('industry') as string || null,
+    name: String(formData.get('name') ?? ''),
+    company: String(formData.get('company') ?? ''),
+    email: String(formData.get('email') ?? ''),
+    phone: String(formData.get('phone') ?? ''),
+    website: String(formData.get('website') ?? ''),
+    city: String(formData.get('city') ?? ''),
+    region: String(formData.get('region') ?? ''),
+    industry: String(formData.get('industry') ?? ''),
   };
 
   const validated = CreateLeadSchema.partial().safeParse(rawData);
@@ -130,6 +135,7 @@ export async function updateLeadAction(prevState: ActionState, formData: FormDat
   try {
     await service.updateLead(id, validated.data);
   } catch (error: unknown) {
+    log.error('Leads action failed', error);
     const msg = error instanceof Error ? error.message : 'Failed to update lead.';
     return { error: msg };
   }
@@ -145,8 +151,8 @@ export async function addNoteAction(prevState: ActionState, formData: FormData) 
   if (!userId) return { error: 'Unauthorized' };
 
   const service = await getService();
-  const leadId = formData.get('leadId') as string;
-  const body = formData.get('body') as string;
+  const leadId = String(formData.get('leadId') ?? '');
+  const body = String(formData.get('body') ?? '');
 
   if (!leadId) return { error: 'Lead ID is required' };
   if (!body || body.trim() === '') {
@@ -170,6 +176,8 @@ export async function addNoteAction(prevState: ActionState, formData: FormData) 
 }
 
 export async function verifyStageRequirementsAction(leadId: string, targetStage: string) {
+  const userId = await getUserId();
+  if (!userId) return { error: 'Unauthorized' };
   const service = await getService();
   const reason = await service.verifyStageRequirements(leadId, targetStage);
   if (reason) return { blocked: true, reason };
@@ -177,6 +185,8 @@ export async function verifyStageRequirementsAction(leadId: string, targetStage:
 }
 
 export async function getUnmetStageRequirementsAction(leadId: string, email: string | null) {
+  const userId = await getUserId();
+  if (!userId) return { error: 'Unauthorized' };
   const service = await getService();
   return service.getUnmetStageRequirements(leadId, email);
 }

@@ -4,14 +4,13 @@ import { ResearchService } from '@/services/research';
 import { LeadService } from '@/services/lead';
 import { getDb } from '@/db';
 import { revalidatePath } from 'next/cache';
-import { cookies } from 'next/headers';
 import { decrypt, getUserId, verifyProspectAccess } from '@/lib/auth';
 import { prospects } from '@/db/schema/core';
 import { researchTasks } from '@/db/schema/jobs';
 import { workspaces, markets } from '@/db/schema/strategy';
 import { eq, and, desc, inArray } from 'drizzle-orm';
 import { z } from 'zod';
-import crypto from 'crypto';
+
 import { withLogging } from '@/lib/actions/with-logging';
  
 async function getService() {
@@ -40,11 +39,11 @@ async function createProspectActionImpl(prev: any, form: FormData) {
   if (wsRows.length === 0) return { error: 'No workspace found' };
 
   const raw = {
-    name: form.get('name') as string,
-    company: (form.get('company') as string) || '',
-    domain: (form.get('domain') as string) || (form.get('website') as string) || '',
-    notes: (form.get('notes') as string) || '',
-    marketId: form.get('marketId') as string,
+    name: String(form.get('name') ?? ''),
+    company: String(form.get('company') ?? ''),
+    domain: String(form.get('domain') ?? form.get('website') ?? ''),
+    notes: String(form.get('notes') ?? ''),
+    marketId: String(form.get('marketId') ?? ''),
   };
 
   const validated = CreateProspectSchema.safeParse(raw);
@@ -110,14 +109,42 @@ async function importProspectsCSVActionImpl(formData: FormData) {
   const wsRows = await db.select().from(workspaces).where(eq(workspaces.id, userId)).limit(1);
   if (wsRows.length === 0) return { error: 'No workspace found' };
 
-  const csvRaw = formData.get('csv') as string;
-  const marketId = formData.get('marketId') as string;
+  const csvRaw = String(formData.get('csv') ?? '');
+  const marketId = String(formData.get('marketId') ?? '');
   if (!csvRaw || !marketId) return { error: 'CSV data and market ID required' };
 
+  const MAX_CSV_ROWS = 10000;
   const lines = csvRaw.split('\n').map(l => l.trim()).filter(Boolean);
   if (lines.length < 2) return { error: 'CSV must have a header row and at least one data row' };
+  if (lines.length - 1 > MAX_CSV_ROWS) return { error: `CSV exceeds maximum of ${MAX_CSV_ROWS} data rows (got ${lines.length - 1})` };
 
-  const header = lines[0].split(',').map(h => h.trim().toLowerCase());
+  // TODO(9.12): Replace with proper CSV parser (e.g. papaparse) that handles
+  // quoted commas, escaped quotes, and multi-line fields.
+  function parseCSVLine(line: string): string[] {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQuotes && i + 1 < line.length && line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (ch === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += ch;
+      }
+    }
+    result.push(current.trim());
+    return result;
+  }
+
+  const header = parseCSVLine(lines[0]).map(h => h.trim().toLowerCase());
   const nameIdx = header.indexOf('name');
   const domainIdx = header.indexOf('domain');
   const notesIdx = header.indexOf('notes');
@@ -131,7 +158,7 @@ async function importProspectsCSVActionImpl(formData: FormData) {
   const now = new Date();
 
   for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i].split(',').map(c => c.trim());
+    const cols = parseCSVLine(lines[i]);
     const name = cols[nameIdx] || '';
     const domain = cols[domainIdx] || '';
     const notes = notesIdx !== -1 ? (cols[notesIdx] || '') : '';
@@ -235,7 +262,7 @@ async function saveResearchSnapshotActionImpl(prevState: ActionState, formData: 
   const userId = await getUserId();
   if (!userId) return { error: 'Authentication required' };
 
-  const leadId = formData.get('leadId') as string;
+  const leadId = String(formData.get('leadId') ?? '');
   if (!leadId) {
     return { error: 'Lead ID is required' };
   }
@@ -245,19 +272,15 @@ async function saveResearchSnapshotActionImpl(prevState: ActionState, formData: 
     return { error: 'Forbidden: you do not own this prospect' };
   }
 
-  const companySummary = formData.get('companySummary') as string;
-  const productsServicesSummary = formData.get('productsServicesSummary') as string;
-  const digitalPresenceNotes = formData.get('digitalPresenceNotes') as string;
-  const websiteNotes = formData.get('websiteNotes') as string;
-  const brandingNotes = formData.get('brandingNotes') as string;
-  const painPointsHypotheses = formData.get('painPointsHypotheses') as string;
-  const opportunityHypotheses = formData.get('opportunityHypotheses') as string;
-  const confidenceLevel = formData.get('confidenceLevel') as string;
-  const rawSources = formData.get('sources') as string;
-
-  if (!leadId) {
-    return { error: 'Lead ID is required' };
-  }
+  const companySummary = String(formData.get('companySummary') ?? '');
+  const productsServicesSummary = String(formData.get('productsServicesSummary') ?? '');
+  const digitalPresenceNotes = String(formData.get('digitalPresenceNotes') ?? '');
+  const websiteNotes = String(formData.get('websiteNotes') ?? '');
+  const brandingNotes = String(formData.get('brandingNotes') ?? '');
+  const painPointsHypotheses = String(formData.get('painPointsHypotheses') ?? '');
+  const opportunityHypotheses = String(formData.get('opportunityHypotheses') ?? '');
+  const confidenceLevel = String(formData.get('confidenceLevel') ?? '');
+  const rawSources = String(formData.get('sources') ?? '');
 
   const sources = rawSources
     ? rawSources
@@ -301,13 +324,13 @@ export async function addContactAction(prevState: ActionState, formData: FormDat
   const userId = await getUserId();
   if (!userId) return { error: 'Authentication required' };
 
-  const leadId = formData.get('leadId') as string;
-  const fullName = formData.get('fullName') as string;
-  const roleTitle = formData.get('roleTitle') as string;
-  const email = formData.get('email') as string;
-  const phone = formData.get('phone') as string;
-  const linkedinUrl = formData.get('linkedinUrl') as string;
-  const isPrimary = formData.get('isPrimary') === 'true' || formData.get('isPrimary') === 'on';
+  const leadId = String(formData.get('leadId') ?? '');
+  const fullName = String(formData.get('fullName') ?? '');
+  const roleTitle = String(formData.get('roleTitle') ?? '');
+  const email = String(formData.get('email') ?? '');
+  const phone = String(formData.get('phone') ?? '');
+  const linkedinUrl = String(formData.get('linkedinUrl') ?? '');
+  const isPrimary = String(formData.get('isPrimary') ?? '') === 'true' || String(formData.get('isPrimary') ?? '') === 'on';
 
   if (!leadId) {
     return { error: 'Lead ID is required' };
@@ -320,6 +343,14 @@ export async function addContactAction(prevState: ActionState, formData: FormDat
 
   if (!fullName && !email) {
     return { error: 'Either Full Name or Email is required' };
+  }
+
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { error: 'Invalid email address format' };
+  }
+
+  if (linkedinUrl && !/^https?:\/\/.+/.test(linkedinUrl)) {
+    return { error: 'Invalid LinkedIn URL format' };
   }
 
   try {
@@ -365,14 +396,14 @@ export async function updateContactAction(prevState: ActionState, formData: Form
   if (!userId) return { error: 'Unauthorized' };
 
   const service = await getService();
-  const leadId = formData.get('leadId') as string;
-  const contactId = formData.get('contactId') as string;
-  const fullName = formData.get('fullName') as string;
-  const roleTitle = formData.get('roleTitle') as string;
-  const email = formData.get('email') as string;
-  const phone = formData.get('phone') as string;
-  const linkedinUrl = formData.get('linkedinUrl') as string;
-  const isPrimary = formData.get('isPrimary') === 'true' || formData.get('isPrimary') === 'on';
+  const leadId = String(formData.get('leadId') ?? '');
+  const contactId = String(formData.get('contactId') ?? '');
+  const fullName = String(formData.get('fullName') ?? '');
+  const roleTitle = String(formData.get('roleTitle') ?? '');
+  const email = String(formData.get('email') ?? '');
+  const phone = String(formData.get('phone') ?? '');
+  const linkedinUrl = String(formData.get('linkedinUrl') ?? '');
+  const isPrimary = String(formData.get('isPrimary') ?? '') === 'true' || String(formData.get('isPrimary') ?? '') === 'on';
 
   if (!leadId || !contactId) {
     return { error: 'Lead ID and Contact ID are required' };

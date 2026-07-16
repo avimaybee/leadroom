@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useState, useEffect } from 'react';
 import { ExternalLink, Users, ShieldAlert, Clock } from 'lucide-react';
 import { buttonVariants } from '@/components/ui/button';
 import { formatUTC } from '@/lib/date';
@@ -41,6 +42,196 @@ function SelectAllCheckbox({ leadIds }: { leadIds: string[] }) {
       className="h-4 w-4 rounded border-input text-primary focus:ring-primary cursor-pointer"
     />
   );
+}
+
+function computeNextAction(lead: LeadData) {
+  let text = 'No next action scheduled';
+  let type: 'none' | 'overdue' | 'future' | 'stale' = 'none';
+  if (lead.overdueTasks && lead.overdueTasks.length > 0) {
+    text = `Overdue task: ${lead.overdueTasks[0].title}`;
+    type = 'overdue';
+  } else if (lead.openTasks && lead.openTasks.length > 0) {
+    const nextTask = lead.openTasks.reduce((earliest: any, current: any) => {
+      if (!earliest.dueDate) return current;
+      if (!current.dueDate) return earliest;
+      return new Date(current.dueDate) < new Date(earliest.dueDate) ? current : earliest;
+    }, lead.openTasks[0]);
+    text = `${nextTask.title} (due ${formatUTC(nextTask.dueDate)})`;
+    type = 'future';
+  } else if (lead.isStale) {
+    text = `Stale: ${Math.floor(lead.stageAgeDays)}d idle in ${lead.stage}`;
+    type = 'stale';
+  }
+  return { text, type };
+}
+
+function DesktopTable({ leads, getStageBadgeClass }: { leads: LeadData[]; getStageBadgeClass: (s: string) => string }) {
+  return (
+    <div className="bg-card rounded-xl border border-border overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-border text-left">
+          <thead className="bg-muted text-muted-foreground text-label-12 uppercase">
+            <tr>
+              <th className="px-4 py-4 w-10"><SelectAllCheckbox leadIds={leads.map(l => l.id)} /></th>
+              <th className="px-6 py-4">Prospect Details</th>
+              <th className="px-6 py-4">Campaign</th>
+              <th className="px-6 py-4">Pipeline Stage</th>
+              <th className="px-6 py-4">Priority / Drivers</th>
+              <th className="px-6 py-4">Next Action</th>
+              <th className="px-6 py-4">Last Active</th>
+              <th className="px-6 py-4 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border bg-card text-copy-14 text-foreground font-medium">
+            {leads.map((lead) => {
+              const { text: nextActionText, type: nextActionType } = computeNextAction(lead);
+              return (
+                <tr key={lead.id} className="hover:bg-muted/30 transition duration-150">
+                  <td className="px-4 py-4"><LeadCheckbox leadId={lead.id} /></td>
+                  <td className="px-6 py-4 min-w-[220px]">
+                    <Link href={`/leads/${lead.id}`} className="hover:underline group block">
+                      <div className="font-semibold text-card-foreground text-label-14 leading-snug group-hover:text-primary transition-colors max-w-[240px] truncate">{lead.name}</div>
+                    </Link>
+                    <div className="flex flex-col gap-0.5 mt-1 text-label-12 text-muted-foreground font-semibold">
+                      {lead.company && <div className="text-foreground/80 truncate max-w-[200px]">{lead.company}</div>}
+                      {lead.website && (
+                        <a href={lead.website} target="_blank" rel="noreferrer" className="text-primary/95 hover:underline flex items-center gap-1 w-fit mt-0.5">
+                          <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                          <span className="truncate max-w-[180px]">{lead.website.replace(/^https?:\/\//, '')}</span>
+                        </a>
+                      )}
+                      {lead.email && <div className="truncate max-w-[200px] mt-0.5">{lead.email}</div>}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    {lead.campaignName ? (
+                      <Link href={`/scopes/${lead.campaignId}`} className="inline-flex items-center px-2 py-0.5 rounded-md text-label-12 font-semibold bg-muted text-muted-foreground border border-border/70 uppercase tracking-wide hover:bg-muted hover:text-foreground transition-colors">
+                        {lead.campaignName}
+                      </Link>
+                    ) : (
+                      <span className="text-label-12 text-muted-foreground italic font-medium">Manual Entry</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-label-12 font-semibold ${getStageBadgeClass(lead.stage)}`}>{lead.stage}</span>
+                    {lead.activeJob && (
+                      <div className="flex items-center gap-1.5 mt-1.5 text-label-12 text-primary font-semibold animate-pulse">
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                        </span>
+                        <span>{lead.activeJob.status === 'QUEUED' ? 'Queued' : 'Researching...'}</span>
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 max-w-[240px]">
+                    {lead.scoreValue !== null && lead.scoreValue !== undefined ? (
+                      <div className="space-y-1">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-label-12 font-semibold border ${
+                          lead.scoreLabel === 'High' ? 'bg-destructive/10 text-destructive border-destructive/20' :
+                          lead.scoreLabel === 'Medium' ? 'bg-chart-3/15 text-chart-3 border-chart-3/30' : 'bg-muted text-muted-foreground border-border'
+                        }`}>
+                          <span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${
+                            lead.scoreLabel === 'High' ? 'bg-destructive animate-pulse' :
+                            lead.scoreLabel === 'Medium' ? 'bg-chart-3' : 'bg-muted-foreground'
+                          }`} />
+                          {lead.scoreLabel} ({lead.scoreValue})
+                        </span>
+                        {lead.rationaleSummary && <p className="text-label-12 text-muted-foreground leading-normal line-clamp-2 font-medium">{lead.rationaleSummary}</p>}
+                      </div>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-label-12 font-semibold border bg-muted/40 text-muted-foreground border-border/60">Unassessed</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 max-w-[200px]">
+                    <div className="flex items-center gap-1.5 text-label-12 font-semibold">
+                      {nextActionType === 'overdue' && <ShieldAlert className="w-4 h-4 text-destructive shrink-0" />}
+                      {nextActionType === 'stale' && <Clock className="w-4 h-4 text-chart-5 shrink-0" />}
+                      <span className={`line-clamp-2 leading-snug ${
+                        nextActionType === 'overdue' ? 'text-destructive font-semibold' :
+                        nextActionType === 'stale' ? 'text-chart-5 font-semibold' : 'text-muted-foreground'
+                      }`}>{nextActionText}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-label-12 text-muted-foreground font-semibold">{formatUTC(lead.updatedAt)}</td>
+                  <td className="px-6 py-4 text-right"><LeadRowActions leadId={lead.id} /></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function MobileCards({ leads, getStageBadgeClass }: { leads: LeadData[]; getStageBadgeClass: (s: string) => string }) {
+  return (
+    <div className="space-y-4">
+      {leads.map((lead) => {
+        const { text: nextActionText, type: nextActionType } = computeNextAction(lead);
+        return (
+          <div key={lead.id} className="bg-card rounded-xl border border-border p-5 space-y-4 relative overflow-hidden">
+            <div className="flex items-center gap-2 mb-2"><LeadCheckbox leadId={lead.id} /></div>
+            <div className="flex justify-between items-start gap-4">
+              <div>
+                <Link href={`/leads/${lead.id}`} className="hover:underline block">
+                  <h4 className="font-semibold text-card-foreground text-heading-lg truncate leading-snug">{lead.name}</h4>
+                </Link>
+                {lead.company && <p className="text-label-12 text-muted-foreground font-semibold mt-0.5">{lead.company}</p>}
+              </div>
+              <div className="shrink-0 flex flex-col items-end gap-1.5">
+                <div className="flex items-center gap-2">
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-label-12 font-semibold ${getStageBadgeClass(lead.stage)}`}>{lead.stage}</span>
+                  <LeadRowActions leadId={lead.id} />
+                </div>
+                {lead.activeJob && (
+                  <div className="flex items-center gap-1.5 text-label-12 text-primary font-semibold animate-pulse">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                    </span>
+                    <span>{lead.activeJob.status === 'QUEUED' ? 'Queued' : 'Researching...'}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-label-12 border-t border-border/50 pt-3 font-semibold text-muted-foreground">
+              <div>
+                <span className="block text-label-12 uppercase text-muted-foreground/80">Priority</span>
+                {lead.scoreValue !== null ? <span className="text-foreground font-semibold">{lead.scoreLabel} ({lead.scoreValue})</span> : <span>Unassessed</span>}
+              </div>
+              {lead.campaignName && <div>
+                <span className="block text-label-12 uppercase text-muted-foreground/80">Campaign</span>
+                <span className="text-foreground truncate block max-w-full">{lead.campaignName}</span>
+              </div>}
+            </div>
+            <div className={`p-2.5 rounded-md border text-label-12 font-semibold leading-relaxed flex items-center gap-2 ${
+              nextActionType === 'overdue' ? 'bg-destructive/10 border-destructive/20 text-destructive' :
+              nextActionType === 'stale' ? 'bg-chart-5/10 border-chart-5/20 text-chart-5' : 'bg-muted/40 border-border/60 text-muted-foreground'
+            }`}>
+              {nextActionType === 'overdue' && <ShieldAlert className="w-4 h-4 shrink-0" />}
+              {nextActionType === 'stale' && <Clock className="w-4 h-4 shrink-0" />}
+              <span className="truncate">{nextActionText}</span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function DualLayoutRenderer({ leads, getStageBadgeClass }: { leads: LeadData[]; getStageBadgeClass: (s: string) => string }) {
+  const [isMobile, setIsMobile] = useState<boolean | null>(null);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const handler = () => setIsMobile(mq.matches);
+    handler();
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  if (isMobile === null) return <DesktopTable leads={leads} getStageBadgeClass={getStageBadgeClass} />;
+  return isMobile ? <MobileCards leads={leads} getStageBadgeClass={getStageBadgeClass} /> : <DesktopTable leads={leads} getStageBadgeClass={getStageBadgeClass} />;
 }
 
 export default function LeadsTableClient({
@@ -145,185 +336,7 @@ export default function LeadsTableClient({
             </div>
           </div>
         ) : (
-          <>
-            {/* Desktop Table */}
-            <div className="hidden md:block bg-card rounded-xl border border-border overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-border text-left">
-                  <thead className="bg-muted text-muted-foreground text-label-12 uppercase">
-                    <tr>
-                      <th className="px-4 py-4 w-10"><SelectAllCheckbox leadIds={leads.map(l => l.id)} /></th>
-                      <th className="px-6 py-4">Prospect Details</th>
-                      <th className="px-6 py-4">Campaign</th>
-                      <th className="px-6 py-4">Pipeline Stage</th>
-                      <th className="px-6 py-4">Priority / Drivers</th>
-                      <th className="px-6 py-4">Next Action</th>
-                      <th className="px-6 py-4">Last Active</th>
-                      <th className="px-6 py-4 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border bg-card text-copy-14 text-foreground font-medium">
-                    {leads.map((lead) => {
-                      let nextActionText = 'No next action scheduled';
-                      let nextActionType: 'none' | 'overdue' | 'future' | 'stale' = 'none';
-                      if (lead.overdueTasks && lead.overdueTasks.length > 0) {
-                        nextActionText = `Overdue task: ${lead.overdueTasks[0].title}`;
-                        nextActionType = 'overdue';
-                      } else if (lead.openTasks && lead.openTasks.length > 0) {
-                        const nextTask = lead.openTasks.reduce((earliest: any, current: any) => {
-                          if (!earliest.dueDate) return current;
-                          if (!current.dueDate) return earliest;
-                          return new Date(current.dueDate) < new Date(earliest.dueDate) ? current : earliest;
-                        }, lead.openTasks[0]);
-                        nextActionText = `${nextTask.title} (due ${formatUTC(nextTask.dueDate)})`;
-                        nextActionType = 'future';
-                      } else if (lead.isStale) {
-                        nextActionText = `Stale: ${Math.floor(lead.stageAgeDays)}d idle in ${lead.stage}`;
-                        nextActionType = 'stale';
-                      }
-
-                      return (
-                        <tr key={lead.id} className="hover:bg-muted/30 transition duration-150">
-                          <td className="px-4 py-4"><LeadCheckbox leadId={lead.id} /></td>
-                          <td className="px-6 py-4 min-w-[220px]">
-                            <Link href={`/leads/${lead.id}`} className="hover:underline group block">
-                              <div className="font-semibold text-card-foreground text-label-14 leading-snug group-hover:text-primary transition-colors max-w-[240px] truncate">{lead.name}</div>
-                            </Link>
-                            <div className="flex flex-col gap-0.5 mt-1 text-label-12 text-muted-foreground font-semibold">
-                              {lead.company && <div className="text-foreground/80 truncate max-w-[200px]">{lead.company}</div>}
-                              {lead.website && (
-                                <a href={lead.website} target="_blank" rel="noreferrer" className="text-primary/95 hover:underline flex items-center gap-1 w-fit mt-0.5">
-                                  <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-                                  <span className="truncate max-w-[180px]">{lead.website.replace(/^https?:\/\//, '')}</span>
-                                </a>
-                              )}
-                              {lead.email && <div className="truncate max-w-[200px] mt-0.5">{lead.email}</div>}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            {lead.campaignName ? (
-                              <Link href={`/scopes/${lead.campaignId}`} className="inline-flex items-center px-2 py-0.5 rounded-md text-label-12 font-semibold bg-muted text-muted-foreground border border-border/70 uppercase tracking-wide hover:bg-muted hover:text-foreground transition-colors">
-                                {lead.campaignName}
-                              </Link>
-                            ) : (
-                              <span className="text-label-12 text-muted-foreground italic font-medium">Manual Entry</span>
-                            )}
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-label-12 font-semibold ${getStageBadgeClass(lead.stage)}`}>{lead.stage}</span>
-                            {lead.activeJob && (
-                              <div className="flex items-center gap-1.5 mt-1.5 text-label-12 text-primary font-semibold animate-pulse">
-                                <span className="relative flex h-2 w-2">
-                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-                                </span>
-                                <span>{lead.activeJob.status === 'QUEUED' ? 'Queued' : 'Researching...'}</span>
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 max-w-[240px]">
-                            {lead.scoreValue !== null && lead.scoreValue !== undefined ? (
-                              <div className="space-y-1">
-                                <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-label-12 font-semibold border ${
-                                  lead.scoreLabel === 'High' ? 'bg-destructive/10 text-destructive border-destructive/20' :
-                                  lead.scoreLabel === 'Medium' ? 'bg-chart-3/15 text-chart-3 border-chart-3/30' : 'bg-muted text-muted-foreground border-border'
-                                }`}>
-                                  <span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${
-                                    lead.scoreLabel === 'High' ? 'bg-destructive animate-pulse' :
-                                    lead.scoreLabel === 'Medium' ? 'bg-chart-3' : 'bg-muted-foreground'
-                                  }`} />
-                                  {lead.scoreLabel} ({lead.scoreValue})
-                                </span>
-                                {lead.rationaleSummary && <p className="text-label-12 text-muted-foreground leading-normal line-clamp-2 font-medium">{lead.rationaleSummary}</p>}
-                              </div>
-                            ) : (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-label-12 font-semibold border bg-muted/40 text-muted-foreground border-border/60">Unassessed</span>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 max-w-[200px]">
-                            <div className="flex items-center gap-1.5 text-label-12 font-semibold">
-                              {nextActionType === 'overdue' && <ShieldAlert className="w-4 h-4 text-destructive shrink-0" />}
-                              {nextActionType === 'stale' && <Clock className="w-4 h-4 text-chart-5 shrink-0" />}
-                              <span className={`line-clamp-2 leading-snug ${
-                                nextActionType === 'overdue' ? 'text-destructive font-semibold' :
-                                nextActionType === 'stale' ? 'text-chart-5 font-semibold' : 'text-muted-foreground'
-                              }`}>{nextActionText}</span>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 text-label-12 text-muted-foreground font-semibold">{formatUTC(lead.updatedAt)}</td>
-                          <td className="px-6 py-4 text-right"><LeadRowActions leadId={lead.id} /></td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Mobile Card List */}
-            <div className="md:hidden space-y-4">
-              {leads.map((lead) => {
-                let nextActionText = 'No next action';
-                let nextActionType: 'none' | 'overdue' | 'future' | 'stale' = 'none';
-                if (lead.overdueTasks && lead.overdueTasks.length > 0) {
-                  nextActionText = `Overdue task: ${lead.overdueTasks[0].title}`;
-                  nextActionType = 'overdue';
-                } else if (lead.openTasks && lead.openTasks.length > 0) {
-                  nextActionText = `${lead.openTasks[0].title} (due ${formatUTC(lead.openTasks[0].dueDate)})`;
-                  nextActionType = 'future';
-                } else if (lead.isStale) {
-                  nextActionText = `Stale: ${Math.floor(lead.stageAgeDays)}d idle in ${lead.stage}`;
-                  nextActionType = 'stale';
-                }
-                return (
-                  <div key={lead.id} className="bg-card rounded-xl border border-border p-5 space-y-4 relative overflow-hidden">
-                    <div className="flex items-center gap-2 mb-2"><LeadCheckbox leadId={lead.id} /></div>
-                    <div className="flex justify-between items-start gap-4">
-                      <div>
-                        <Link href={`/leads/${lead.id}`} className="hover:underline block">
-                          <h4 className="font-semibold text-card-foreground heading-lg truncate leading-snug">{lead.name}</h4>
-                        </Link>
-                        {lead.company && <p className="text-label-12 text-muted-foreground font-semibold mt-0.5">{lead.company}</p>}
-                      </div>
-                      <div className="shrink-0 flex flex-col items-end gap-1.5">
-                        <div className="flex items-center gap-2">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-label-12 font-semibold ${getStageBadgeClass(lead.stage)}`}>{lead.stage}</span>
-                          <LeadRowActions leadId={lead.id} />
-                        </div>
-                        {lead.activeJob && (
-                          <div className="flex items-center gap-1.5 text-label-12 text-primary font-semibold animate-pulse">
-                            <span className="relative flex h-2 w-2">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-                            </span>
-                            <span>{lead.activeJob.status === 'QUEUED' ? 'Queued' : 'Researching...'}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3 text-label-12 border-t border-border/50 pt-3 font-semibold text-muted-foreground">
-                      <div>
-                        <span className="block text-label-12 uppercase text-muted-foreground/80">Priority</span>
-                        {lead.scoreValue !== null ? <span className="text-foreground font-semibold">{lead.scoreLabel} ({lead.scoreValue})</span> : <span>Unassessed</span>}
-                      </div>
-                      {lead.campaignName && <div>
-                        <span className="block text-label-12 uppercase text-muted-foreground/80">Campaign</span>
-                        <span className="text-foreground truncate block max-w-full">{lead.campaignName}</span>
-                      </div>}
-                    </div>
-                    <div className={`p-2.5 rounded-md border text-label-12 font-semibold leading-relaxed flex items-center gap-2 ${
-                      nextActionType === 'overdue' ? 'bg-destructive/10 border-destructive/20 text-destructive' :
-                      nextActionType === 'stale' ? 'bg-chart-5/10 border-chart-5/20 text-chart-5' : 'bg-muted/40 border-border/60 text-muted-foreground'
-                    }`}>
-                      {nextActionType === 'overdue' && <ShieldAlert className="w-4 h-4 shrink-0" />}
-                      {nextActionType === 'stale' && <Clock className="w-4 h-4 shrink-0" />}
-                      <span className="truncate">{nextActionText}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </>
+          <DualLayoutRenderer leads={leads} getStageBadgeClass={getStageBadgeClass} />
         )}
       </div>
       <BulkActionBar />

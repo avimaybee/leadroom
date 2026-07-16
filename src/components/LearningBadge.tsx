@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, memo } from 'react';
 
-export function LearningBadge() {
+export const LearningBadge = memo(function LearningBadge() {
   const [count, setCount] = useState<number | null>(null);
 
   useEffect(() => {
@@ -16,7 +16,7 @@ export function LearningBadge() {
       } catch {}
     }
     fetchCount();
-    const interval = setInterval(fetchCount, 30000);
+    const interval = setInterval(fetchCount, 60000);
     return () => clearInterval(interval);
   }, []);
 
@@ -27,4 +27,4 @@ export function LearningBadge() {
       {count > 99 ? '99+' : count}
     </span>
   );
-}
+});

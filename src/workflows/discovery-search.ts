@@ -9,6 +9,12 @@ import { eq } from 'drizzle-orm';
 
 const log = getLogger('DiscoverySearchWorkflow');
 
+function chunkArray<T>(arr: T[], size: number): T[][] {
+  const result: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) result.push(arr.slice(i, i + size));
+  return result;
+}
+
 type DiscoveryParams = {
   jobId: string;
   runId: string;
@@ -28,12 +34,7 @@ export class DiscoverySearchWorkflow extends WorkflowEntrypoint<Env, DiscoveryPa
   async run(event: WorkflowEvent<DiscoveryParams>, step: WorkflowStep) {
     const { jobId, runId, datasetId, niche, location, scopeId, userId } = event.payload;
 
-    (process as any).env = {
-      ...(process as any).env,
-      ...this.env,
-    };
-
-    const db = getDb();
+    const db = getDb(this.env);
 
     try {
       // Mark RUNNING immediately so the UI shows progress
@@ -43,46 +44,25 @@ export class DiscoverySearchWorkflow extends WorkflowEntrypoint<Env, DiscoveryPa
           .where(eq(jobRuns.id, jobId));
       });
 
-      // Step 1: Wait for Apify Google Maps run to succeed
-      let status = await step.do(
-        'check-apify-status',
+      // Step 1: Wait for Apify Google Maps run to succeed (single step, retries internally)
+      const status = await step.do(
+        'poll-apify-complete',
         {
-          retries: { limit: 3, delay: 2000, backoff: 'exponential' },
-          timeout: '1 minute',
+          retries: { limit: 10, delay: 60000, backoff: 'constant' },
+          timeout: '30 seconds',
         },
-        async () => await checkApifyRunStatus(runId),
-      );
+        async () => {
+          const s = await checkApifyRunStatus(runId);
+          if (s === 'SUCCEEDED') return s;
+          if (s === 'FAILED') throw new Error(`Apify actor run failed with status: ${s}`);
 
-      let retries = 0;
-      const maxRetries = 200; // 200 * 15s = 50 min max
-      while (status === 'RUNNING' || status === 'READY') {
-        if (retries >= maxRetries) {
-          throw new Error('Apify actor run timed out after 50 minutes of polling');
-        }
-        await step.sleep(`wait-for-apify-retry-${retries}`, '15 seconds');
-
-        const isCancelled = await step.do(
-          `check-job-cancelled-${retries}`,
-          { timeout: '10 seconds' },
-          async () => {
-            const [j] = await db.select().from(jobRuns).where(eq(jobRuns.id, jobId)).limit(1);
-            return !!(j && (j.status === 'FAILED' || j.errorSummary === 'Cancelled by user'));
+          const [j] = await db.select().from(jobRuns).where(eq(jobRuns.id, jobId)).limit(1);
+          if (j && (j.status === 'FAILED' || j.status === 'CANCELLED')) {
+            throw new Error('Cancelled by user');
           }
-        );
-        if (isCancelled) {
-          throw new Error('Cancelled by user');
-        }
-
-        status = await step.do(
-          `check-apify-status-retry-${retries}`,
-          {
-            retries: { limit: 3, delay: 2000, backoff: 'exponential' },
-            timeout: '1 minute',
-          },
-          async () => await checkApifyRunStatus(runId),
-        );
-        retries++;
-      }
+          throw new Error('STILL_RUNNING');
+        },
+      );
 
       if (status !== 'SUCCEEDED') {
         throw new Error(`Apify actor run failed with status: ${status}`);
@@ -101,7 +81,14 @@ export class DiscoverySearchWorkflow extends WorkflowEntrypoint<Env, DiscoveryPa
           retries: { limit: 5, delay: 3000, backoff: 'exponential' },
           timeout: '3 minutes',
         },
-        async () => await fetchApifyResults(datasetId, niche, location),
+        async () => {
+          const results = await fetchApifyResults(datasetId, niche, location);
+          if (results.length > 500) {
+            log.warn(`Truncating fetch-results from ${results.length} to 500 to limit step output`);
+            results.length = 500;
+          }
+          return results;
+        },
       );
 
       // Step 3: Save all candidates immediately
@@ -111,26 +98,36 @@ export class DiscoverySearchWorkflow extends WorkflowEntrypoint<Env, DiscoveryPa
           retries: { limit: 3, delay: 1000, backoff: 'linear' },
           timeout: '1 minute',
         },
-        async () => {
-          const now = new Date();
-          if (results.length > 0) {
-            const candidates = results.map((r) => {
-              return {
-                id: crypto.randomUUID(),
-                discoveryScopeId: scopeId || null,
-                rawName: r.name || 'Unknown Business',
-                rawWebsiteUrl: r.website || null,
-                rawContactInfo: r.phone || null,
-                rawLocation: [r.city, r.region].filter(Boolean).join(', ') || null,
-                notes: r.industry ? `Industry: ${r.industry}` : null,
-                status: 'NEW' as const,
-                createdAt: now,
-                updatedAt: now,
-              };
-            });
+          async () => {
+            const now = new Date();
+            if (results.length > 0) {
+              // Dedup: skip candidates already saved for this scope
+              const existing = scopeId ? await db
+                .select({ rawWebsiteUrl: candidateLeads.rawWebsiteUrl, rawName: candidateLeads.rawName })
+                .from(candidateLeads)
+                .where(eq(candidateLeads.discoveryScopeId, scopeId))
+                .limit(5000) : [];
+              const existingSet = new Set(existing.map(e => `${e.rawWebsiteUrl ?? ''}|${e.rawName}`));
 
-            await db.insert(candidateLeads).values(candidates);
-          }
+              const candidates = results
+                .filter((r) => !existingSet.has(`${r.website ?? ''}|${r.name ?? 'Unknown Business'}`))
+                .map((r) => ({
+                  id: crypto.randomUUID(),
+                  discoveryScopeId: scopeId || null,
+                  rawName: r.name || 'Unknown Business',
+                  rawWebsiteUrl: r.website || null,
+                  rawContactInfo: r.phone || null,
+                  rawLocation: [r.city, r.region].filter(Boolean).join(', ') || null,
+                  notes: r.industry ? `Industry: ${r.industry}` : null,
+                  status: 'NEW' as const,
+                  createdAt: now,
+                  updatedAt: now,
+                }));
+
+              for (const batch of chunkArray(candidates, 10)) {
+                await db.insert(candidateLeads).values(batch);
+              }
+            }
 
           await db.update(jobRuns)
             .set({
@@ -159,18 +156,19 @@ export class DiscoverySearchWorkflow extends WorkflowEntrypoint<Env, DiscoveryPa
         },
       );
 
-    } catch (error: unknown) {
-      const errMsg = error instanceof Error ? error.message : 'Unknown error during discovery search';
-      log.error('DiscoverySearchWorkflow failed', error, { jobId });
+      } catch (error: unknown) {
+        const errMsg = error instanceof Error ? error.message : 'Unknown error during discovery search';
+        log.error('DiscoverySearchWorkflow failed', error, { jobId });
 
-      try {
-        await db.update(jobRuns)
-          .set({
-            status: 'FAILED',
-            errorSummary: errMsg,
-            finishedAt: new Date(),
-          })
-          .where(eq(jobRuns.id, jobId));
+        const isCancellation = errMsg === 'Cancelled by user';
+        try {
+          await db.update(jobRuns)
+            .set({
+              status: isCancellation ? 'CANCELLED' : 'FAILED',
+              errorSummary: errMsg,
+              finishedAt: new Date(),
+            })
+            .where(eq(jobRuns.id, jobId));
 
         const { userId, scopeId } = event.payload;
         if (userId) {
@@ -178,9 +176,9 @@ export class DiscoverySearchWorkflow extends WorkflowEntrypoint<Env, DiscoveryPa
             id: crypto.randomUUID(),
             userId,
             jobRunId: jobId,
-            title: 'Discovery Failed',
-            message: `Discovery search failed: ${errMsg}`,
-            status: 'ERROR',
+            title: isCancellation ? 'Discovery Cancelled' : 'Discovery Failed',
+            message: isCancellation ? `Discovery search was cancelled.` : `Discovery search failed: ${errMsg}`,
+            status: isCancellation ? 'WARNING' : 'ERROR',
             link: scopeId ? `/scopes/${scopeId}` : `/scopes`,
             isRead: false,
             createdAt: new Date(),

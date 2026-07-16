@@ -26,10 +26,35 @@ export default async function ProspectsPage() {
   }
 
   const allProspects = await db
-    .select()
+    .select({
+      id: prospects.id,
+      name: prospects.name,
+      company: prospects.company,
+      email: prospects.email,
+      phone: prospects.phone,
+      website: prospects.website,
+      city: prospects.city,
+      region: prospects.region,
+      industry: prospects.industry,
+      stage: prospects.stage,
+      isRead: prospects.isRead,
+      status: prospects.status,
+      workspaceId: prospects.workspaceId,
+      marketId: prospects.marketId,
+      fitScore: prospects.fitScore,
+      confidenceScore: prospects.confidenceScore,
+      priorityTier: prospects.priorityTier,
+      disqualifiedReason: prospects.disqualifiedReason,
+      ownerId: prospects.ownerId,
+      createdAt: prospects.createdAt,
+      updatedAt: prospects.updatedAt,
+      stageUpdatedAt: prospects.stageUpdatedAt,
+      lastActivityAt: prospects.lastActivityAt,
+    })
     .from(prospects)
     .where(and(eq(prospects.status, 'Active'), eq(prospects.ownerId, userId)))
-    .orderBy(sql`COALESCE(${prospects.fitScore}, 0) DESC`);
+    .orderBy(sql`COALESCE(${prospects.fitScore}, 0) DESC`)
+    .limit(200);
 
   const marketIds = [...new Set(allProspects.map(p => p.marketId).filter(Boolean))] as string[];
   const marketRows = marketIds.length > 0

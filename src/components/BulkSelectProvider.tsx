@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useCallback, useState } from 'react';
+import { createContext, useContext, useCallback, useState, useMemo } from 'react';
 
 interface BulkSelectContextType {
   selectedIds: Set<string>;
@@ -32,10 +32,16 @@ export function BulkSelectProvider({ children }: { children: React.ReactNode }) 
     setSelectedIds(new Set(ids));
   }, []);
 
+  const value = useMemo(() => ({
+    selectedIds,
+    toggleSelect,
+    clearSelection,
+    selectAll,
+    selectionCount: selectedIds.size,
+  }), [selectedIds, toggleSelect, clearSelection, selectAll]);
+
   return (
-    <BulkSelectContext.Provider
-      value={{ selectedIds, toggleSelect, clearSelection, selectAll, selectionCount: selectedIds.size }}
-    >
+    <BulkSelectContext.Provider value={value}>
       {children}
     </BulkSelectContext.Provider>
   );

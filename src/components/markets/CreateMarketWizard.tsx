@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,16 @@ export function CreateMarketWizard({ isOpen, onClose }: CreateMarketWizardProps)
 
   // Loading phase messages for micro-interactions
   const [loadingPhase, setLoadingPhase] = useState('Positioning offer...');
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current !== null) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, []);
 
   const nextStep = () => {
     if (step === 1 && !marketName.trim()) {
@@ -63,7 +73,7 @@ export function CreateMarketWizard({ isOpen, onClose }: CreateMarketWizardProps)
       'Assembling grading matrices...',
     ];
     let phaseIndex = 0;
-    const interval = setInterval(() => {
+    intervalRef.current = setInterval(() => {
       if (phaseIndex < phases.length - 1) {
         phaseIndex++;
         setLoadingPhase(phases[phaseIndex]);
@@ -78,7 +88,10 @@ export function CreateMarketWizard({ isOpen, onClose }: CreateMarketWizardProps)
 
       const result = await createMarketWithWizardAction(null, formData);
 
-      clearInterval(interval);
+      if (intervalRef.current !== null) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
 
       if (result.error) {
         setError(result.error);
@@ -89,9 +102,12 @@ export function CreateMarketWizard({ isOpen, onClose }: CreateMarketWizardProps)
         // Redirect to the market's prospects page
         router.push(`/markets/${result.marketId}/prospects`);
       }
-    } catch (err: any) {
-      clearInterval(interval);
-      setError(err.message || 'Something went wrong');
+    } catch (err: unknown) {
+      if (intervalRef.current !== null) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      setError(err instanceof Error ? err.message : 'Something went wrong');
       setLoading(false);
     }
   };

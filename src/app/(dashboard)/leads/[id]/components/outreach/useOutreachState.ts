@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import {
@@ -101,7 +101,14 @@ export function useOutreachState(
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [drafts, setDrafts] = useState<OutreachDraft[]>(() => initialDrafts.map(normalizeDraft));
+  const MAX_DRAFTS = 50;
+  const [drafts, _setDrafts] = useState<OutreachDraft[]>(() => initialDrafts.map(normalizeDraft));
+  const setDrafts = useCallback((updater: OutreachDraft[] | ((prev: OutreachDraft[]) => OutreachDraft[])) => {
+    _setDrafts(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      return next.length > MAX_DRAFTS ? next.slice(0, MAX_DRAFTS) : next;
+    });
+  }, []);
   const [selectedChannel, setSelectedChannel] = useState<Channel>(() => normalizeChannel(initialChannel));
   const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
   // Tracks the ID of a draft just created/duplicated so we auto-select it after router.refresh() lands
@@ -169,7 +176,10 @@ export function useOutreachState(
     fetchInfo();
   }, []);
 
-  const channelDrafts = drafts.filter((draft) => normalizeChannel(draft.channel) === selectedChannel);
+  const channelDrafts = useMemo(
+    () => drafts.filter((draft) => normalizeChannel(draft.channel) === selectedChannel),
+    [drafts, selectedChannel]
+  );
   const activeDraft = channelDrafts.find((draft) => draft.id === activeDraftId) ?? channelDrafts[0] ?? null;
   
   const draftCounts = CHANNEL_ORDER.reduce((acc, channel) => {
@@ -290,14 +300,15 @@ export function useOutreachState(
               resolve({ name: file.name, type: file.type, base64: base64String });
             };
             reader.onerror = () => reject(new Error(`Failed to read file: ${file.name}`));
+            reader.onabort = () => reject(new Error('File read aborted'));
             reader.readAsDataURL(file);
           })
         )
       );
 
       setAttachments((current) => [...current, ...uploaded]);
-    } catch (error: any) {
-      setErrorMsg(error?.message || 'Failed to upload attachments');
+    } catch (error: unknown) {
+      setErrorMsg(error instanceof Error ? error.message : 'Failed to upload attachments');
     } finally {
       setIsUploadingAttachments(false);
       event.target.value = '';
@@ -335,8 +346,8 @@ export function useOutreachState(
         toast.success('Draft saved');
       }
       return true;
-    } catch (error: any) {
-      const message = error?.message || 'Failed to save draft';
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to save draft';
       setErrorMsg(message);
       if (!options?.quiet) {
         toast.error(message);
@@ -388,8 +399,8 @@ export function useOutreachState(
       setAttachments([]);
       toast.success(created.length > 1 ? `${created.length} drafts generated` : 'Draft generated');
       refreshAfterMutation();
-    } catch (error: any) {
-      const message = error?.message || 'Failed to generate draft';
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to generate draft';
       setErrorMsg(message);
       toast.error(message);
     } finally {
@@ -439,8 +450,8 @@ export function useOutreachState(
         toast.success('Draft duplicated');
         refreshAfterMutation();
       }
-    } catch (error: any) {
-      const message = error?.message || 'Failed to duplicate draft';
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to duplicate draft';
       setErrorMsg(message);
       toast.error(message);
     } finally {
@@ -468,8 +479,8 @@ export function useOutreachState(
       setReviewOpen(false);
       toast.success('Draft approved');
       refreshAfterMutation();
-    } catch (error: any) {
-      const message = error?.message || 'Failed to approve draft';
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to approve draft';
       setErrorMsg(message);
       toast.error(message);
     } finally {
@@ -503,8 +514,8 @@ export function useOutreachState(
       setReviewOpen(false);
       toast.success('Draft rejected');
       refreshAfterMutation();
-    } catch (error: any) {
-      const message = error?.message || 'Failed to reject draft';
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to reject draft';
       setErrorMsg(message);
       toast.error(message);
     } finally {
@@ -531,8 +542,8 @@ export function useOutreachState(
       updateDraftInState(activeDraft.id, { status: 'SENT', updatedAt: new Date() });
       toast.success('Draft marked as sent');
       refreshAfterMutation();
-    } catch (error: any) {
-      const message = error?.message || 'Failed to mark draft as sent';
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to mark draft as sent';
       setErrorMsg(message);
       toast.error(message);
     } finally {
@@ -565,8 +576,8 @@ export function useOutreachState(
       }
 
       refreshAfterMutation();
-    } catch (error: any) {
-      const message = error?.message || 'Failed to delete draft';
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to delete draft';
       setErrorMsg(message);
       toast.error(message);
     }

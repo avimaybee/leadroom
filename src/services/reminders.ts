@@ -1,7 +1,6 @@
 import { type Db } from '@/db';
-import { reminders } from '@/db/schema/core';
-import { eq, and, lte } from 'drizzle-orm';
-import { createNotification } from '@/lib/notifications';
+import { reminders, notifications } from '@/db/schema/core';
+import { eq, and, lte, inArray } from 'drizzle-orm';
 import { LoggingService } from './logging';
 
 export class ReminderService {
@@ -44,24 +43,29 @@ export class ReminderService {
     const due = await this.db
       .select()
       .from(reminders)
-      .where(and(lte(reminders.remindAt, now), eq(reminders.isFired, false)));
+      .where(and(lte(reminders.remindAt, now), eq(reminders.isFired, false)))
+      .limit(200);
 
-    for (const r of due) {
-      await createNotification(
-        this.db,
-        r.userId,
-        null,
-        `\u23F0 ${r.title}`,
-        r.message || 'Reminder is due.',
-        'INFO',
-        r.link || (r.leadId ? `/leads/${r.leadId}` : undefined),
-      );
+    if (due.length === 0) return 0;
 
-      await this.db
-        .update(reminders)
-        .set({ isFired: true })
-        .where(eq(reminders.id, r.id));
-    }
+    const notificationRows = due.map(r => ({
+      id: crypto.randomUUID(),
+      userId: r.userId,
+      jobRunId: null as string | null,
+      title: `\u23F0 ${r.title}`,
+      message: r.message || 'Reminder is due.',
+      status: 'INFO' as const,
+      link: r.link || (r.leadId ? `/leads/${r.leadId}` : undefined) || null,
+      isRead: false,
+      createdAt: now,
+    }));
+
+    await this.db.insert(notifications).values(notificationRows);
+
+    await this.db
+      .update(reminders)
+      .set({ isFired: true })
+      .where(inArray(reminders.id, due.map(r => r.id)));
 
     return due.length;
   }

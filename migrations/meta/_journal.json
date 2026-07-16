@@ -166,14 +166,14 @@
     {
       "idx": 23,
       "version": "6",
-      "when": 1783300000000,
+      "when": 1783249286643,
       "tag": "0023_phase3_fit_reasoning",
       "breakpoints": true
     },
     {
       "idx": 24,
       "version": "6",
-      "when": 1783249286643,
+      "when": 1783300000000,
       "tag": "0024_add_notes_to_prospects",
       "breakpoints": true
     },
@@ -189,6 +189,34 @@
       "version": "6",
       "when": 1785000000000,
       "tag": "0026_discovery_discard_reason",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "6",
+      "when": 1786000000000,
+      "tag": "0027_sweep_locks",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "6",
+      "when": 1786100000000,
+      "tag": "0028_outreach_drafts_created_at_idx",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1786200000000,
+      "tag": "0029_rate_limits",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1742169600000,
+      "tag": "0030_add_missing_indexes",
       "breakpoints": true
     }
   ]

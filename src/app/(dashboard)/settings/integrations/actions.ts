@@ -8,13 +8,14 @@ import { revalidatePath } from 'next/cache';
 import { getUserId } from '@/lib/auth';
 
 const log = getLogger('IntegrationsActions');
+const FETCH_TIMEOUT_MS = 15_000;
 
 export async function saveIntegrationConfigAction(formData: FormData) {
   const userId = await getUserId();
   if (!userId) return { error: 'Authentication required' };
-  const provider = formData.get('provider') as string;
-  const apiKey = formData.get('apiKey') as string;
-  const modelName = formData.get('modelName') as string;
+  const provider = (formData.get('provider') as string) ?? '';
+  const apiKey = (formData.get('apiKey') as string) ?? '';
+  const modelName = (formData.get('modelName') as string) ?? '';
 
   if (!provider || !apiKey || !modelName) {
     return { error: 'Missing required fields' };
@@ -23,7 +24,7 @@ export async function saveIntegrationConfigAction(formData: FormData) {
   // Validate API key and model name against provider endpoints
   try {
     if (provider === 'openrouter') {
-      const res = await fetch('https://openrouter.ai/api/v1/models');
+      const res = await fetch('https://openrouter.ai/api/v1/models', { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
       if (res.ok) {
         const data = (await res.json()) as { data?: Array<{ id: string }> };
         const models = data.data || [];
@@ -34,9 +35,8 @@ export async function saveIntegrationConfigAction(formData: FormData) {
       }
     } else if (provider === 'nvidia') {
       const res = await fetch('https://integrate.api.nvidia.com/v1/models', {
-        headers: {
-          'Authorization': `Bearer ${apiKey}`
-        }
+        headers: { 'Authorization': `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
       if (res.status === 401) {
         return { error: 'Invalid NVIDIA API key.' };
@@ -50,7 +50,7 @@ export async function saveIntegrationConfigAction(formData: FormData) {
         }
       }
     } else if (provider === 'gemini') {
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models`, { headers: { 'x-goog-api-key': apiKey }, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
       if (res.status === 400 || res.status === 403) {
         return { error: 'Invalid Gemini API key.' };
       }
@@ -64,9 +64,8 @@ export async function saveIntegrationConfigAction(formData: FormData) {
       }
     } else if (provider === 'groq') {
       const res = await fetch('https://api.groq.com/openai/v1/models', {
-        headers: {
-          'Authorization': `Bearer ${apiKey}`
-        }
+        headers: { 'Authorization': `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
       if (res.status === 401) {
         return { error: 'Invalid Groq API key.' };
@@ -81,9 +80,8 @@ export async function saveIntegrationConfigAction(formData: FormData) {
       }
     } else if (provider === 'aiml') {
       const res = await fetch('https://api.aimlapi.com/v1/models', {
-        headers: {
-          'Authorization': `Bearer ${apiKey}`
-        }
+        headers: { 'Authorization': `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
       if (res.status === 401) {
         return { error: 'Invalid AIML API key.' };
@@ -98,7 +96,8 @@ export async function saveIntegrationConfigAction(formData: FormData) {
       }
     } else if (provider === 'openai') {
       const res = await fetch('https://api.openai.com/v1/models', {
-        headers: { 'Authorization': `Bearer ${apiKey}` }
+        headers: { 'Authorization': `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
       if (res.status === 401) {
         return { error: 'Invalid OpenAI API key.' };
@@ -116,7 +115,8 @@ export async function saveIntegrationConfigAction(formData: FormData) {
         headers: {
           'x-api-key': apiKey,
           'anthropic-version': '2023-06-01'
-        }
+        },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
       if (res.status === 401 || res.status === 403) {
         return { error: 'Invalid Anthropic API key.' };
@@ -142,7 +142,7 @@ export async function saveIntegrationConfigAction(formData: FormData) {
     await service.saveProviderConfig(provider, apiKey, modelName, userId);
     try {
       revalidatePath('/settings/integrations');
-    } catch (e) {}
+    } catch (e) { log.error('revalidatePath failed', e); }
     return { success: true };
   } catch (e: unknown) {
     log.error('Failed to save configuration', e);
@@ -175,6 +175,7 @@ export async function testIntegrationConnectionAction(provider: string, apiKey: 
           max_tokens: 5,
           temperature: 0,
         }),
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
       if (!res.ok) {
         const err = await res.text();
@@ -196,6 +197,7 @@ export async function testIntegrationConnectionAction(provider: string, apiKey: 
           max_tokens: 5,
           messages: [{ role: 'user', content: 'Respond with exactly one word: OK.' }],
         }),
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
       if (!res.ok) {
         const err = await res.text();
@@ -205,13 +207,14 @@ export async function testIntegrationConnectionAction(provider: string, apiKey: 
     }
 
     if (provider === 'gemini') {
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
         body: JSON.stringify({
           contents: [{ parts: [{ text: 'Respond with exactly one word: OK.' }] }],
           generationConfig: { maxOutputTokens: 5, temperature: 0 },
         }),
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
       if (!res.ok) {
         const err = await res.text();
@@ -233,6 +236,7 @@ export async function testIntegrationConnectionAction(provider: string, apiKey: 
           max_tokens: 5,
           temperature: 0,
         }),
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
       if (!res.ok) {
         const err = await res.text();
@@ -254,6 +258,7 @@ export async function testIntegrationConnectionAction(provider: string, apiKey: 
           max_tokens: 5,
           temperature: 0,
         }),
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
       if (!res.ok) {
         const err = await res.text();
@@ -275,6 +280,7 @@ export async function testIntegrationConnectionAction(provider: string, apiKey: 
           max_tokens: 5,
           temperature: 0,
         }),
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
       if (!res.ok) {
         const err = await res.text();
@@ -296,6 +302,7 @@ export async function testIntegrationConnectionAction(provider: string, apiKey: 
           max_tokens: 5,
           temperature: 0,
         }),
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
       if (!res.ok) {
         const err = await res.text();
@@ -331,11 +338,12 @@ export async function setActiveProviderForTaskAction(provider: string, taskType:
 
     try {
       revalidatePath('/settings/integrations');
-    } catch (e) {}
+    } catch (e) { log.error('revalidatePath failed', e); }
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to set active provider for task';
     log.error('Failed to set active provider for task', error);
-    return { error: error.message || 'Failed to set active provider for task' };
+    return { error: message };
   }
 }
 
@@ -351,7 +359,7 @@ export async function deleteIntegrationConfigAction(provider: string) {
     await service.deleteProviderConfig(provider, userId);
     try {
       revalidatePath('/settings/integrations');
-    } catch (e) {}
+    } catch (e) { log.error('revalidatePath failed', e); }
     return { success: true };
   } catch (e: unknown) {
     const errMsg = e instanceof Error ? e.message : 'Failed to delete configuration';
