@@ -13,7 +13,15 @@ const FirebaseAuthSchema = z.object({
   idToken: z.string().min(1),
 });
 
-const FIREBASE_API_KEY = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY || '';
+function getFirebaseApiKey(): string {
+  try {
+    const { getCloudflareContext } = require('@opennextjs/cloudflare');
+    const cfEnv = getCloudflareContext().env;
+    if (cfEnv?.NEXT_PUBLIC_FIREBASE_API_KEY) return cfEnv.NEXT_PUBLIC_FIREBASE_API_KEY;
+    if (cfEnv?.FIREBASE_API_KEY) return cfEnv.FIREBASE_API_KEY;
+  } catch {}
+  return process.env.NEXT_PUBLIC_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY || '';
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,9 +41,11 @@ export async function POST(request: NextRequest) {
     }
     const { idToken } = parsed.data;
 
+    const apiKey = getFirebaseApiKey();
+
     // Verify the Firebase ID token using Google's Identity Toolkit API
     const verifyResp = await fetch(
-      `https://www.googleapis.com/identitytoolkit/v3/relyingparty/getAccountInfo?key=${FIREBASE_API_KEY}`,
+      `https://www.googleapis.com/identitytoolkit/v3/relyingparty/getAccountInfo?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

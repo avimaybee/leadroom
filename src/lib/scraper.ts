@@ -374,7 +374,13 @@ async function fetchSiteContentViaJina(url: string, timeoutMs: number = 15000): 
     'Accept': 'application/json',
   };
 
-  const jinaKey = process.env.JINA_API_KEY;
+  let jinaKey = process.env.JINA_API_KEY;
+  if (!jinaKey || jinaKey === 'placeholder') {
+    try {
+      const { getCloudflareContext } = require('@opennextjs/cloudflare');
+      jinaKey = getCloudflareContext().env?.JINA_API_KEY;
+    } catch {}
+  }
   if (jinaKey && jinaKey !== 'placeholder') {
     headers['Authorization'] = `Bearer ${jinaKey}`;
   }

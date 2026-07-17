@@ -2,6 +2,61 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 import { normalizeUrl, fetchSiteContent } from '../scraper';
 
+function createJinaMockResponse(data: any) {
+  return {
+    ok: true,
+    status: 200,
+    statusText: 'OK',
+    headers: {
+      get: (name: string) => null,
+    },
+    body: {
+      getReader: () => {
+        const dataStr = JSON.stringify({
+          code: 200,
+          status: 20000,
+          data
+        });
+        const encoder = new TextEncoder();
+        let readCalled = false;
+        return {
+          read: async () => {
+            if (readCalled) return { done: true, value: undefined };
+            readCalled = true;
+            return { done: false, value: encoder.encode(dataStr) };
+          },
+          cancel: () => {}
+        };
+      }
+    }
+  } as any;
+}
+
+function createHtmlMockResponse(html: string) {
+  let readCalled = false;
+  return {
+    ok: true,
+    status: 200,
+    url: 'https://example.com',
+    headers: {
+      get: (name: string) => name.toLowerCase() === 'content-type' ? 'text/html' : null
+    },
+    body: {
+      getReader: () => {
+        const encoder = new TextEncoder();
+        return {
+          read: async () => {
+            if (readCalled) return { done: true, value: undefined };
+            readCalled = true;
+            return { done: false, value: encoder.encode(html) };
+          },
+          cancel: () => {}
+        };
+      }
+    }
+  } as any;
+}
+
 test('Web Scraper Utility', async (t) => {
   await t.test('normalizeUrl should prepend http protocols when missing', () => {
     assert.strictEqual(normalizeUrl('example.com'), 'https://example.com');
@@ -17,21 +72,12 @@ test('Web Scraper Utility', async (t) => {
       assert.strictEqual(url.toString(), 'https://r.jina.ai/https://example.com');
       assert.strictEqual(init?.headers && (init.headers as any)['Accept'], 'application/json');
       
-      return {
-        ok: true,
-        status: 200,
-        statusText: 'OK',
-        json: async () => ({
-          code: 200,
-          status: 20000,
-          data: {
-            title: 'Example Domain',
-            url: 'https://example.com',
-            content: 'This is the main markdown content of the scraped site.',
-            description: 'A mock site description'
-          }
-        })
-      } as any;
+      return createJinaMockResponse({
+        title: 'Example Domain',
+        url: 'https://example.com',
+        content: 'This is the main markdown content of the scraped site.',
+        description: 'A mock site description'
+      });
     };
 
     try {
@@ -50,16 +96,11 @@ test('Web Scraper Utility', async (t) => {
     const longContent = 'A'.repeat(20000);
 
     globalThis.fetch = async () => {
-      return {
-        ok: true,
-        json: async () => ({
-          data: {
-            title: 'Long Site',
-            content: longContent,
-            description: ''
-          }
-        })
-      } as any;
+      return createJinaMockResponse({
+        title: 'Long Site',
+        content: longContent,
+        description: ''
+      });
     };
 
     try {
@@ -104,16 +145,11 @@ test('Web Scraper Utility', async (t) => {
     };
 
     globalThis.fetch = async () => {
-      return {
-        ok: true,
-        json: async () => ({
-          data: {
-            title: 'Jina Fallback Site',
-            content: 'Scraped content via Jina fallback',
-            description: 'Fallback description'
-          }
-        })
-      } as any;
+      return createJinaMockResponse({
+        title: 'Jina Fallback Site',
+        content: 'Scraped content via Jina fallback',
+        description: 'Fallback description'
+      });
     };
 
     try {
@@ -128,17 +164,7 @@ test('Web Scraper Utility', async (t) => {
 
   await t.test('fetchSiteContent should succeed immediately via Fetch-First if the site returns static HTML', async () => {
     const originalFetch = globalThis.fetch;
-    
-    globalThis.fetch = async () => {
-      // Mock direct fetch response
-      return {
-        ok: true,
-        status: 200,
-        url: 'https://example.com',
-        headers: {
-          get: (name: string) => name.toLowerCase() === 'content-type' ? 'text/html' : null
-        },
-        text: async () => `
+    const htmlContent = `
           <html>
             <head><title>My Static Site</title></head>
             <body>
@@ -155,8 +181,10 @@ test('Web Scraper Utility', async (t) => {
               Thank you for reading this test text content.</p>
             </body>
           </html>
-        `
-      } as any;
+    `;
+    
+    globalThis.fetch = async () => {
+      return createHtmlMockResponse(htmlContent);
     };
 
     try {
@@ -195,13 +223,7 @@ test('Web Scraper Utility', async (t) => {
 
     globalThis.fetch = async () => {
       // Return a basic empty SPA container (triggers fallback)
-      return {
-        ok: true,
-        headers: {
-          get: (name: string) => name.toLowerCase() === 'content-type' ? 'text/html' : null
-        },
-        text: async () => '<html><head><title>SPA App</title></head><body><div id="app"></div></body></html>'
-      } as any;
+      return createHtmlMockResponse('<html><head><title>SPA App</title></head><body><div id="app"></div></body></html>');
     };
 
     try {
@@ -234,13 +256,7 @@ test('Web Scraper Utility', async (t) => {
 
     globalThis.fetch = async () => {
       // Return a basic empty SPA container
-      return {
-        ok: true,
-        headers: {
-          get: (name: string) => name.toLowerCase() === 'content-type' ? 'text/html' : null
-        },
-        text: async () => '<html><body><div id="root"></div></body></html>'
-      } as any;
+      return createHtmlMockResponse('<html><body><div id="root"></div></body></html>');
     };
 
     try {

@@ -150,6 +150,15 @@ function sanitizeError(msg: string): string {
 }
 
 function getEnvApiKey(provider: string): string | undefined {
+  let cfEnv: any = null;
+  try {
+    const { getCloudflareContext } = require('@opennextjs/cloudflare');
+    cfEnv = getCloudflareContext().env;
+  } catch {}
+
+  const keyName = `${provider.toUpperCase()}_API_KEY`;
+  if (cfEnv && cfEnv[keyName]) return cfEnv[keyName];
+
   switch (provider) {
     case 'gemini': return process.env.GEMINI_API_KEY;
     case 'openai': return process.env.OPENAI_API_KEY;

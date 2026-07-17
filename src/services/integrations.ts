@@ -7,7 +7,13 @@ import { encrypt, decrypt } from '@/lib/crypto';
 
 
 function getEncryptionSecret(): string {
-  const key = process.env.DB_ENCRYPTION_KEY;
+  let key = process.env.DB_ENCRYPTION_KEY;
+  if (!key) {
+    try {
+      const { getCloudflareContext } = require('@opennextjs/cloudflare');
+      key = getCloudflareContext().env?.DB_ENCRYPTION_KEY;
+    } catch {}
+  }
   if (!key) {
     throw new Error('DB_ENCRYPTION_KEY is required. Set it in your environment or .env file.');
   }

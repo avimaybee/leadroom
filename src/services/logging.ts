@@ -29,21 +29,30 @@ interface LogEntry {
   metadata?: ActivityMetadata;
 }
 
-const _logBuffer: LogEntry[] = [];
-const _logBufferDb = new WeakMap<Db, true>();
+const _logBuffers = new WeakMap<Db, LogEntry[]>();
+const _flushTimers = new WeakMap<Db, ReturnType<typeof setTimeout>>();
 const BUFFER_FLUSH_THRESHOLD = 20;
 const BUFFER_FLUSH_INTERVAL_MS = 5000;
-let _flushTimer: ReturnType<typeof setTimeout> | null = null;
 let _waitUntil: ((p: Promise<unknown>) => void) | null = null;
 
+function getLogBuffer(db: Db): LogEntry[] {
+  let buffer = _logBuffers.get(db);
+  if (!buffer) {
+    buffer = [];
+    _logBuffers.set(db, buffer);
+  }
+  return buffer;
+}
+
 function scheduleFlush(db: Db): void {
-  if (_flushTimer) return;
-  _flushTimer = setTimeout(() => {
-    _flushTimer = null;
+  if (_flushTimers.has(db)) return;
+  const timer = setTimeout(() => {
+    _flushTimers.delete(db);
     const promise = flushLogBuffer(db);
     promise.catch(() => {});
     _waitUntil?.(promise);
   }, BUFFER_FLUSH_INTERVAL_MS);
+  _flushTimers.set(db, timer);
 }
 
 export function setLogWaitUntil(fn: (p: Promise<unknown>) => void): void {
@@ -51,8 +60,9 @@ export function setLogWaitUntil(fn: (p: Promise<unknown>) => void): void {
 }
 
 async function flushLogBuffer(db: Db): Promise<void> {
-  if (_logBuffer.length === 0) return;
-  const batch = _logBuffer.splice(0);
+  const buffer = getLogBuffer(db);
+  if (buffer.length === 0) return;
+  const batch = buffer.splice(0);
   const now = new Date();
   const queries: any[] = [];
   for (const entry of batch) {
@@ -91,18 +101,28 @@ export class LoggingService {
     summary: string;
     metadata?: ActivityMetadata;
   }) {
-    _logBuffer.push(params);
-    if (_logBuffer.length > 200) {
-      const overflow = _logBuffer.length - 200;
-      _logBuffer.splice(0, overflow);
+    const buffer = getLogBuffer(this.db);
+    buffer.push(params);
+    if (buffer.length > 200) {
+      const overflow = buffer.length - 200;
+      buffer.splice(0, overflow);
+    }
+    if (process.env.NODE_ENV === 'test') {
+      await flushLogBuffer(this.db);
+      return;
     }
     scheduleFlush(this.db);
-    if (_logBuffer.length >= BUFFER_FLUSH_THRESHOLD) {
+    if (buffer.length >= BUFFER_FLUSH_THRESHOLD) {
       await flushLogBuffer(this.db);
     }
   }
 
   async flush(): Promise<void> {
+    const timer = _flushTimers.get(this.db);
+    if (timer) {
+      clearTimeout(timer);
+      _flushTimers.delete(this.db);
+    }
     await flushLogBuffer(this.db);
   }
 }

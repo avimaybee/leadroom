@@ -501,17 +501,38 @@ test('API Route Handlers & Integration Pipeline', async (t) => {
         } as any;
       }
 
+      // Mock Jina Reader response with streaming body support
+      const jinaData = JSON.stringify({
+        code: 200,
+        status: 20000,
+        data: {
+          title: 'Stripe | Payments Infrastructure',
+          url: 'https://stripe.com',
+          content: 'Stripe is a suite of APIs powering online payments and merchant solutions.',
+          description: 'Stripe description'
+        }
+      });
+      const encoder = new TextEncoder();
+      let readCalled = false;
       return {
         ok: true,
-        json: async () => ({
-          code: 200,
-          data: {
-            title: 'Stripe | Payments Infrastructure',
-            url: 'https://stripe.com',
-            content: 'Stripe is a suite of APIs powering online payments and merchant solutions.',
-            description: 'Stripe description'
+        status: 200,
+        statusText: 'OK',
+        headers: {
+          get: (name: string) => null
+        },
+        body: {
+          getReader: () => {
+            return {
+              read: async () => {
+                if (readCalled) return { done: true, value: undefined };
+                readCalled = true;
+                return { done: false, value: encoder.encode(jinaData) };
+              },
+              cancel: () => {}
+            };
           }
-        })
+        }
       } as any;
     };
 

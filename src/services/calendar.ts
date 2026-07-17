@@ -23,7 +23,13 @@ async function hmacSign(data: string, secret: string): Promise<string> {
 const log = getLogger('CalendarService');
 
 function getEncryptionSecret(): string {
-  const key = process.env.DB_ENCRYPTION_KEY;
+  let key = process.env.DB_ENCRYPTION_KEY;
+  if (!key) {
+    try {
+      const { getCloudflareContext } = require('@opennextjs/cloudflare');
+      key = getCloudflareContext().env?.DB_ENCRYPTION_KEY;
+    } catch {}
+  }
   if (!key) {
     throw new Error('DB_ENCRYPTION_KEY is required. Set it in your environment or .env file.');
   }
@@ -41,7 +47,14 @@ export class CalendarService {
       const creds = await this.getStoredCredentials(userId);
       if (creds?.googleClientId) return creds.googleClientId;
     }
-    return process.env.GOOGLE_CLIENT_ID || null;
+    let clientId = process.env.GOOGLE_CLIENT_ID;
+    if (!clientId) {
+      try {
+        const { getCloudflareContext } = require('@opennextjs/cloudflare');
+        clientId = getCloudflareContext().env?.GOOGLE_CLIENT_ID;
+      } catch {}
+    }
+    return clientId || null;
   }
 
   async getClientSecret(userId?: string): Promise<string | null> {
@@ -49,11 +62,25 @@ export class CalendarService {
       const creds = await this.getStoredCredentials(userId);
       if (creds?.googleClientSecret) return creds.googleClientSecret;
     }
-    return process.env.GOOGLE_CLIENT_SECRET || null;
+    let clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+    if (!clientSecret) {
+      try {
+        const { getCloudflareContext } = require('@opennextjs/cloudflare');
+        clientSecret = getCloudflareContext().env?.GOOGLE_CLIENT_SECRET;
+      } catch {}
+    }
+    return clientSecret || null;
   }
 
   getRedirectUri(): string {
-    return `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/calendar/callback`;
+    let appUrl = process.env.NEXT_PUBLIC_APP_URL;
+    if (!appUrl) {
+      try {
+        const { getCloudflareContext } = require('@opennextjs/cloudflare');
+        appUrl = getCloudflareContext().env?.NEXT_PUBLIC_APP_URL;
+      } catch {}
+    }
+    return `${appUrl || 'http://localhost:3000'}/api/calendar/callback`;
   }
 
   async isConfigured(userId?: string): Promise<boolean> {

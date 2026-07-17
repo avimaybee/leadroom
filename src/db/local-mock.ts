@@ -79,7 +79,15 @@ export class MockD1Database {
     const results: any[] = [];
     const runBatch = this.db.transaction(() => {
       for (const stmt of statements) {
-        const res = (stmt as any).stmt.all(...(stmt as any).params);
+        const rawStmt = (stmt as any).stmt;
+        const params = (stmt as any).params;
+        let res: any;
+        if (rawStmt.reader) {
+          res = rawStmt.all(...params);
+        } else {
+          rawStmt.run(...params);
+          res = [];
+        }
         results.push({ results: res, success: true });
       }
     });
