@@ -5,12 +5,8 @@ import { eq, and, or, isNull, ne } from 'drizzle-orm';
 import { prospects as leads } from '../db/schema/core';
 import { encrypt, decrypt } from '@/lib/crypto';
 
-// Module-level guard — fails fast if encryption key is missing.
-if (!process.env.DB_ENCRYPTION_KEY) {
-  throw new Error(
-    'DB_ENCRYPTION_KEY is required. Set it in your environment or .env file before using CalendarService.'
-  );
-}
+// Defer encryption key validation to runtime (via getEncryptionSecret) to allow build-time static evaluation of routes.
+
 
 async function hmacSign(data: string, secret: string): Promise<string> {
   const key = await crypto.subtle.importKey(
