@@ -11,14 +11,10 @@ let _localMockResolved = false;
 function getCloudflareEnvOnce(): any {
   if (!_cfResolved) {
     _cfResolved = true;
-    if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') {
-      try {
-        const { getCloudflareContext } = require('@opennextjs/cloudflare');
-        _cfEnv = getCloudflareContext().env;
-      } catch (e) {
-        _cfEnv = null;
-      }
-    } else {
+    try {
+      const { getCloudflareContext } = require('@opennextjs/cloudflare');
+      _cfEnv = getCloudflareContext().env;
+    } catch (e) {
       _cfEnv = null;
     }
   }
