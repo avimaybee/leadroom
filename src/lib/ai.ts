@@ -1482,8 +1482,8 @@ export async function checkModelVisionCapability(provider: string, modelName: st
   return fallbackResult;
 }
 
-export async function getModelInfo(db: Db): Promise<{ provider: string; modelName: string; hasVision: boolean }> {
-  const config = await getActiveProviderConfig(db);
+export async function getModelInfo(db: Db, userId?: string | null): Promise<{ provider: string; modelName: string; hasVision: boolean }> {
+  const config = await getActiveProviderConfig(db, userId);
   const provider = config?.provider || 'gemini';
   const apiKey = config?.apiKey || getEnvApiKey(provider);
   const modelName = config?.modelName || getDefaultModel(provider);

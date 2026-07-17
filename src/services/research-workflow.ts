@@ -158,7 +158,7 @@ export class ResearchWorkflowService {
           matchedDisqualifiers = sdrIcpFitResult.disqualifiersTriggered || [];
         } else {
           // Fallback to legacy signal extraction
-          const fallback = await this.extractAndMatchSignals(lead, websiteMarkdown, icpProfile);
+          const fallback = await this.extractAndMatchSignals(lead, websiteMarkdown, icpProfile, userId);
           matchedPositive = fallback.matchedPositive;
           matchedNegative = fallback.matchedNegative;
           matchedDisqualifiers = fallback.matchedDisqualifiers;
@@ -339,14 +339,16 @@ export class ResearchWorkflowService {
   async extractAndMatchSignals(
     lead: WorkflowLead,
     websiteMarkdown: string | null,
-    icpProfile: any
+    icpProfile: any,
+    userId?: string | null
   ): Promise<{ matchedPositive: any[]; matchedNegative: any[]; matchedDisqualifiers: any[] }> {
     const extractedSignals = await extractICPSignals(
       this.db,
       lead.company || lead.name,
       lead.website,
       websiteMarkdown,
-      icpProfile
+      icpProfile,
+      userId
     );
 
     const matchedPositive = extractedSignals.filter((s: any) =>

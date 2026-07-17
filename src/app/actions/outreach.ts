@@ -29,8 +29,9 @@ export async function getModelInfoAction() {
   }
 
   const db = getDb();
+  const userId = await getUserId();
   try {
-    const info = await getModelInfo(db);
+    const info = await getModelInfo(db, userId);
     cachedModelInfo = info;
     cachedModelInfoTime = now;
     return { success: true, info };
@@ -88,7 +89,8 @@ async function generateOutreachDraftActionImpl(
       auditSnapshot,
       customPrompt,
       attachments,
-      (event) => failoverHistory.push(event)
+      (event) => failoverHistory.push(event),
+      userId
     );
 
     const newDrafts = [];
