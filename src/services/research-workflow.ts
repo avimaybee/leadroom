@@ -234,7 +234,8 @@ export class ResearchWorkflowService {
         lead.website,
         lead.industry,
         websiteMarkdown,
-        location
+        location,
+        userId
       );
     }
 
