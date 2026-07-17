@@ -20,7 +20,7 @@ function getFirebaseApiKey(): string {
     if (cfEnv?.NEXT_PUBLIC_FIREBASE_API_KEY) return cfEnv.NEXT_PUBLIC_FIREBASE_API_KEY;
     if (cfEnv?.FIREBASE_API_KEY) return cfEnv.FIREBASE_API_KEY;
   } catch {}
-  return process.env.NEXT_PUBLIC_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY || '';
+  return process.env.NEXT_PUBLIC_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY || 'AIzaSyCaf1FHg56-HIa-39FkPEY3146guGiZCX8';
 }
 
 export async function POST(request: NextRequest) {
