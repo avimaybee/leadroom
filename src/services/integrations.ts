@@ -6,8 +6,15 @@ import { encrypt, decrypt } from '@/lib/crypto';
 // Defer encryption key validation to runtime (via getEncryptionSecret) to allow build-time static evaluation of routes.
 
 
-function getEncryptionSecret(): string {
-  let key = process.env.DB_ENCRYPTION_KEY;
+function getEncryptionSecret(externalKey?: string): string {
+  let key = externalKey;
+  if (!key) key = process.env.DB_ENCRYPTION_KEY;
+  if (!key) {
+    try {
+      const cfContext = (globalThis as any)[Symbol.for('__cloudflare-context__')];
+      key = cfContext?.env?.DB_ENCRYPTION_KEY;
+    } catch {}
+  }
   if (!key) {
     try {
       const { getCloudflareContext } = require('@opennextjs/cloudflare');
@@ -29,7 +36,7 @@ const TASK_TYPE_TO_COLUMN: Record<TaskType, keyof typeof providerConfigs> = {
 };
 
 export class IntegrationsService {
-  constructor(private db: Db) {}
+  constructor(private db: Db, private encryptionKey?: string) {}
 
   async getProviderConfig(provider: string, userId?: string | null) {
     if (!userId) return null;
@@ -40,7 +47,7 @@ export class IntegrationsService {
     
     if (!config) return null;
 
-    const secret = getEncryptionSecret();
+    const secret = getEncryptionSecret(this.encryptionKey);
     return {
       ...config,
       apiKey: await decrypt(config.apiKey, secret),
@@ -52,7 +59,7 @@ export class IntegrationsService {
     const configs = await this.db.select()
       .from(providerConfigs)
       .where(eq(providerConfigs.userId, userId));
-    const secret = getEncryptionSecret();
+    const secret = getEncryptionSecret(this.encryptionKey);
     const decrypted = await Promise.all(
       configs.map(async (c) => ({
         ...c,
@@ -72,7 +79,7 @@ export class IntegrationsService {
 
     if (!config) return null;
 
-    const secret = getEncryptionSecret();
+    const secret = getEncryptionSecret(this.encryptionKey);
     return {
       ...config,
       apiKey: await decrypt(config.apiKey, secret),
@@ -92,7 +99,7 @@ export class IntegrationsService {
   ) {
     const id = crypto.randomUUID();
     const now = new Date();
-    const secret = getEncryptionSecret();
+    const secret = getEncryptionSecret(this.encryptionKey);
     const encryptedKey = await encrypt(apiKey, secret);
 
     const existing = await this.db.select()

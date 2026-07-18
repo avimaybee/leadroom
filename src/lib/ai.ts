@@ -175,14 +175,14 @@ function getEnvApiKey(provider: string): string | undefined {
  * Resolves the active provider config for a given task type, caching the result by Db instance.
  * Subsequent calls within the same scope reuse the cached value.
  */
-export async function getActiveProviderConfig(db: Db, userId?: string | null, taskType?: TaskType) {
+export async function getActiveProviderConfig(db: Db, userId?: string | null, taskType?: TaskType, encryptionKey?: string) {
   const cacheKey = `${userId || 'system'}:${taskType || 'default'}`;
   const cached = _providerConfigWeakCache.get(db);
   if (cached && cached.cacheKey === cacheKey && Date.now() - cached.timestamp < PROVIDER_CONFIG_CACHE_TTL_MS) {
     return cached.config;
   }
 
-  const integrationsService = new IntegrationsService(db);
+  const integrationsService = new IntegrationsService(db, encryptionKey);
 
   let config: { provider: string; apiKey: string | null; modelName: string | null } | null = null;
 
@@ -228,14 +228,14 @@ function getDefaultModel(provider: string): string {
   return DEFAULT_MODELS[provider.toLowerCase()] || 'gemini-2.5-flash';
 }
 
-async function getProviderChain(db: Db, taskType: TaskType, userId?: string | null): Promise<Array<{ provider: string; apiKey: string; modelName: string }>> {
+async function getProviderChain(db: Db, taskType: TaskType, userId?: string | null, encryptionKey?: string): Promise<Array<{ provider: string; apiKey: string; modelName: string }>> {
   const cacheKey = `${userId || 'global'}:${taskType}`;
   const cached = _providerChainCache.get(cacheKey);
   if (cached && (Date.now() - cached.timestamp) < PROVIDER_CHAIN_CACHE_TTL_MS) {
     return cached.chain;
   }
 
-  const integrationsService = new IntegrationsService(db);
+  const integrationsService = new IntegrationsService(db, encryptionKey);
   const allConfigs = await integrationsService.getAllProviderConfigs(userId);
 
   const primary = allConfigs.find(c => {
@@ -286,8 +286,9 @@ async function callWithProviderChain<T>(
   callFn: (provider: string, apiKey: string, modelName: string, signal?: AbortSignal) => Promise<T>,
   onFailover?: FailoverCallback,
   externalSignal?: AbortSignal,
+  encryptionKey?: string,
 ): Promise<T> {
-  const chain = await getProviderChain(db, taskType, userId);
+  const chain = await getProviderChain(db, taskType, userId, encryptionKey);
 
   if (chain.length === 0) {
     log.warn(`No AI provider configured for ${taskType}, returning fallback.`);

@@ -26,6 +26,12 @@ export class ResearchSnapshotWorkflow extends WorkflowEntrypoint<Env, Params> {
     const { leadId, jobId, userId } = event.payload;
 
     const db = getDb(this.env);
+    // Ensure Cloudflare context global is set so getEncryptionSecret() (via IntegrationsService) can find DB_ENCRYPTION_KEY
+    // WorkflowEntrypoint.run() is called outside the fetch handler, so OpenNext's context isn't set automatically.
+    const cfKey = Symbol.for('__cloudflare-context__');
+    if (!(globalThis as any)[cfKey]) {
+      (globalThis as any)[cfKey] = { env: this.env };
+    }
     const workflowService = new ResearchWorkflowService(db, this.env.BROWSER);
 
     try {

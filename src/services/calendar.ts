@@ -22,8 +22,15 @@ async function hmacSign(data: string, secret: string): Promise<string> {
 
 const log = getLogger('CalendarService');
 
-function getEncryptionSecret(): string {
-  let key = process.env.DB_ENCRYPTION_KEY;
+function getEncryptionSecret(externalKey?: string): string {
+  let key = externalKey;
+  if (!key) key = process.env.DB_ENCRYPTION_KEY;
+  if (!key) {
+    try {
+      const cfContext = (globalThis as any)[Symbol.for('__cloudflare-context__')];
+      key = cfContext?.env?.DB_ENCRYPTION_KEY;
+    } catch {}
+  }
   if (!key) {
     try {
       const { getCloudflareContext } = require('@opennextjs/cloudflare');
@@ -40,7 +47,7 @@ const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const GOOGLE_CALENDAR_URL = 'https://www.googleapis.com/calendar/v3/calendars/primary/events';
 
 export class CalendarService {
-  constructor(private db: Db) {}
+  constructor(private db: Db, private encryptionKey?: string) {}
 
   async getClientId(userId?: string): Promise<string | null> {
     if (userId) {
@@ -94,7 +101,7 @@ export class CalendarService {
     if (!clientId) return null;
     const redirectUri = this.getRedirectUri();
     const scope = 'https://www.googleapis.com/auth/calendar.events';
-    const secret = getEncryptionSecret();
+    const secret = getEncryptionSecret(this.encryptionKey);
     const payload = JSON.stringify({ userId });
     const b64 = btoa(payload);
     const sig = await hmacSign(payload, secret);
@@ -110,7 +117,7 @@ export class CalendarService {
       const b64 = state.slice(0, dotIdx);
       const sig = state.slice(dotIdx + 1);
       const payload = atob(b64);
-      const secret = getEncryptionSecret();
+      const secret = getEncryptionSecret(this.encryptionKey);
       const expectedSig = await hmacSign(payload, secret);
       if (sig !== expectedSig) return { userId: '', error: 'Invalid state parameter' };
       const parsed = JSON.parse(payload);
@@ -150,7 +157,7 @@ export class CalendarService {
 
     const data = await resp.json() as any;
     const expiryDate = new Date(Date.now() + (data.expires_in || 3600) * 1000);
-    const secret = getEncryptionSecret();
+    const secret = getEncryptionSecret(this.encryptionKey);
     const encryptedAccessToken = await encrypt(data.access_token, secret);
     const encryptedRefreshToken = data.refresh_token ? await encrypt(data.refresh_token, secret) : null;
 
@@ -178,7 +185,7 @@ export class CalendarService {
   }
 
   async saveCredentials(userId: string, googleClientId: string, googleClientSecret: string) {
-    const secret = getEncryptionSecret();
+    const secret = getEncryptionSecret(this.encryptionKey);
     const encryptedClientSecret = await encrypt(googleClientSecret, secret);
     const existing = await this.db.select({ id: googleCalendarTokens.id }).from(googleCalendarTokens).where(eq(googleCalendarTokens.userId, userId)).limit(1);
     if (existing.length > 0) {
@@ -204,7 +211,7 @@ export class CalendarService {
       googleClientSecret: googleCalendarTokens.googleClientSecret,
     }).from(googleCalendarTokens).where(eq(googleCalendarTokens.userId, userId)).limit(1);
     if (!row) return null;
-    const secret = getEncryptionSecret();
+    const secret = getEncryptionSecret(this.encryptionKey);
     return {
       ...row,
       googleClientSecret: row.googleClientSecret ? await decrypt(row.googleClientSecret, secret) : null,
@@ -215,7 +222,7 @@ export class CalendarService {
     const [row] = await this.db.select().from(googleCalendarTokens).where(eq(googleCalendarTokens.userId, userId)).limit(1);
     if (!row) return null;
 
-    const secret = getEncryptionSecret();
+    const secret = getEncryptionSecret(this.encryptionKey);
     const accessToken = row.accessToken ? await decrypt(row.accessToken, secret) : null;
     const refreshToken = row.refreshToken ? await decrypt(row.refreshToken, secret) : null;
 
@@ -249,7 +256,7 @@ export class CalendarService {
     if (!resp.ok) return null;
     const data = await resp.json() as any;
     const expiryDate = new Date(Date.now() + (data.expires_in || 3600) * 1000);
-    const secret = getEncryptionSecret();
+    const secret = getEncryptionSecret(this.encryptionKey);
     const encryptedAccessToken = await encrypt(data.access_token, secret);
 
     await this.db.update(googleCalendarTokens).set({

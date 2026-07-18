@@ -20,7 +20,7 @@ function chunkArray<T>(arr: T[], size: number): T[][] {
   return result;
 }
 
-let _cfModule: unknown = null;
+let _cfModule: unknown | false = null;
 
 function getCloudflareContextOnce(): { ctx: { waitUntil: (p: Promise<any>) => void }; env: any } | null {
   if (_cfModule === null) {
@@ -35,6 +35,8 @@ function getCloudflareContextOnce(): { ctx: { waitUntil: (p: Promise<any>) => vo
     const { getCloudflareContext } = _cfModule as { getCloudflareContext: () => any };
     return getCloudflareContext();
   } catch {
+    // Don't cache failures — the context may become available later (e.g., after initOpenNextCloudflareForDev completes)
+    _cfModule = null;
     return null;
   }
 }

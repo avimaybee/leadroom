@@ -20,10 +20,14 @@ export default async function IntegrationsPage() {
   const userId = await getUserId();
 
   // Check if encryption key is configured - required for storing API keys
-  // NOTE: In Cloudflare Workers, secrets are accessed via process.env only if configured as vars
-  // (not secrets). Use the env helper from @/lib/env for a consistent interface across
-  // local dev, Pages, and Workers runtimes.
-  const encryptionAvailable = !!process.env.DB_ENCRYPTION_KEY;
+  let encryptionKey: string | undefined = process.env.DB_ENCRYPTION_KEY;
+  if (!encryptionKey) {
+    try {
+      const cfContext = (globalThis as any)[Symbol.for('__cloudflare-context__')];
+      encryptionKey = cfContext?.env?.DB_ENCRYPTION_KEY;
+    } catch {}
+  }
+  const encryptionAvailable = !!encryptionKey;
   if (!encryptionAvailable) {
     return (
       <div className="space-y-8 max-w-4xl">
@@ -42,8 +46,8 @@ export default async function IntegrationsPage() {
     );
   }
 
-  const service = new IntegrationsService(db);
-  const calendarService = new CalendarService(db);
+  const service = new IntegrationsService(db, encryptionKey);
+  const calendarService = new CalendarService(db, encryptionKey);
 
   let geminiConfig = null;
   let nvidiaConfig = null;
