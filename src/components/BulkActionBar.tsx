@@ -263,7 +263,12 @@ function BulkReminderForm({ leadIds, onSuccess }: { leadIds: string[]; onSuccess
     if (!title.trim() || !remindAt) return;
     setIsSubmitting(true);
     try {
-      const result = await bulkSetReminderAction(leadIds, title.trim(), remindAt);
+      const offset = -new Date().getTimezoneOffset();
+      const tzSign = offset >= 0 ? '+' : '-';
+      const tzHours = String(Math.floor(Math.abs(offset) / 60)).padStart(2, '0');
+      const tzMins = String(Math.abs(offset) % 60).padStart(2, '0');
+      const remindAtTz = remindAt + `:00${tzSign}${tzHours}:${tzMins}`;
+      const result = await bulkSetReminderAction(leadIds, title.trim(), remindAtTz);
       toast.success(`Reminder set for ${result.created} lead${result.created !== 1 ? 's' : ''}.`);
       onSuccess();
     } catch {

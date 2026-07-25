@@ -7,6 +7,7 @@ import { CreateCandidateLeadSchema } from '@/db/models/discovery';
 import { fetchSiteContent } from '@/lib/scraper';
 
 import { getUserId } from '@/lib/auth';
+import { getSafeErrorMessage } from '@/lib/errors';
 
 const CandidatePatchSchema = z.object({
   id: z.string().min(1),
@@ -57,12 +58,13 @@ export async function POST(request: NextRequest) {
     const service = new DiscoveryService(db);
 
     const id = crypto.randomUUID();
-    const candidate = await service.createCandidateLead(id, parsed.data);
+    const candidate = await service.createCandidateLead(id, parsed.data, userId);
 
     return NextResponse.json({ success: true, data: candidate }, { status: 201 });
   } catch (error: unknown) {
     log.error('POST error', error);
-    return NextResponse.json({ success: false, error: 'An internal error occurred' }, { status: 500 });
+    const msg = getSafeErrorMessage(error, 'Failed to create candidate lead.');
+    return NextResponse.json({ success: false, error: msg }, { status: 500 });
   }
 }
 
@@ -87,18 +89,13 @@ export async function PATCH(request: NextRequest) {
       const lead = await service.promoteCandidate(id, userId);
       return NextResponse.json({ success: true, data: lead });
     } else {
-      const candidate = await service.updateCandidateStatus(id, status);
+      const candidate = await service.updateCandidateStatus(id, status, null, userId);
       return NextResponse.json({ success: true, data: candidate });
     }
   } catch (error: unknown) {
     log.error('Candidate route failed', error);
-    const knownErrors = ['not found', 'has already been promoted', 'failed to'];
-    const msg = error instanceof Error ? error.message : '';
-    const isKnown = knownErrors.some(k => msg.toLowerCase().includes(k.toLowerCase()));
-    if (isKnown) {
-      return NextResponse.json({ success: false, error: msg }, { status: 400 });
-    }
-    log.error('PATCH error', error);
-    return NextResponse.json({ success: false, error: 'An internal error occurred' }, { status: 500 });
+    const msg = getSafeErrorMessage(error, 'An internal error occurred');
+    const status = msg.toLowerCase().includes('forbidden') ? 403 : 400;
+    return NextResponse.json({ success: false, error: msg }, { status });
   }
 }

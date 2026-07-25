@@ -227,7 +227,16 @@ export function ProviderConfigForm({ provider, displayName, defaultModel, config
     
     setLoadingModels(true);
     try {
-      const res = await fetch(`/api/settings/models?provider=${provider}&apiKey=${encodeURIComponent(keyToUse)}`);
+      const res = await fetch(`/api/settings/models`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          provider,
+          apiKey: keyToUse,
+        }),
+      });
       if (res.ok) {
         const data = (await res.json()) as { models?: ModelOption[] };
         if (data.models && data.models.length > 0) {

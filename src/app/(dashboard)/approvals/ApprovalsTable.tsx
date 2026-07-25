@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Loader2, CheckCircle2, X, Send, TriangleAlert, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { clientLog } from '@/lib/client-logger';
 import { approveDraftAction, rejectDraftAction } from '@/app/actions/outcomes';
 import { markAsSentAction } from '@/app/actions/outreach';
 import { useRouter } from 'next/navigation';
@@ -114,8 +115,8 @@ export function ApprovalsTable({ drafts }: ApprovalsTableProps) {
         {filteredDrafts.map(d => {
           let riskFlags: string[] = [];
           let citedEvidence: { sentence: string; evidenceQuote: string; sourceUrl: string }[] = [];
-          try { riskFlags = d.riskFlags ? JSON.parse(d.riskFlags) : []; } catch {}
-          try { citedEvidence = d.citedEvidence ? JSON.parse(d.citedEvidence) : []; } catch {}
+          try { riskFlags = d.riskFlags ? JSON.parse(d.riskFlags) : []; } catch { clientLog.warn('ApprovalsTable: failed to parse riskFlags', d.id); }
+          try { citedEvidence = d.citedEvidence ? JSON.parse(d.citedEvidence) : []; } catch { clientLog.warn('ApprovalsTable: failed to parse citedEvidence', d.id); }
           const isExpanded = expandedId === d.id;
           const isDraft = d.status === 'DRAFT';
 

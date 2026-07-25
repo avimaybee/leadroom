@@ -6,7 +6,11 @@ export async function POST(request: NextRequest) {
   const response = NextResponse.json({ success: true });
   response.headers.append(
     'Set-Cookie',
-    `__Secure-session=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`
+    `__Host-session=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`
+  );
+  response.headers.append(
+    'Set-Cookie',
+    `__Secure-session=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`
   );
   return response;
 }

@@ -13,19 +13,6 @@ const FetchModelsSchema = z.object({
 
 const FETCH_TIMEOUT_MS = 15000;
 
-export async function GET(request: Request) {
-  const userId = await getUserId();
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const { searchParams } = new URL(request.url);
-  const provider = searchParams.get('provider');
-  const apiKey = searchParams.get('apiKey');
-
-  return fetchModelsForProvider(provider, apiKey);
-}
-
 export async function POST(request: Request) {
   const userId = await getUserId();
   if (!userId) {

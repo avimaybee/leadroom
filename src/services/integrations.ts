@@ -1,31 +1,7 @@
 import { type Db } from '../db';
 import { eq, and } from 'drizzle-orm';
 import { providerConfigs } from '../db/schema/core';
-import { encrypt, decrypt } from '@/lib/crypto';
-
-// Defer encryption key validation to runtime (via getEncryptionSecret) to allow build-time static evaluation of routes.
-
-
-function getEncryptionSecret(externalKey?: string): string {
-  let key = externalKey;
-  if (!key) key = process.env.DB_ENCRYPTION_KEY;
-  if (!key) {
-    try {
-      const cfContext = (globalThis as any)[Symbol.for('__cloudflare-context__')];
-      key = cfContext?.env?.DB_ENCRYPTION_KEY;
-    } catch {}
-  }
-  if (!key) {
-    try {
-      const { getCloudflareContext } = require('@opennextjs/cloudflare');
-      key = getCloudflareContext().env?.DB_ENCRYPTION_KEY;
-    } catch {}
-  }
-  if (!key) {
-    throw new Error('DB_ENCRYPTION_KEY is required. Set it in your environment or .env file.');
-  }
-  return key;
-}
+import { encrypt, decrypt, getEncryptionSecret } from '@/lib/crypto';
 
 export type TaskType = 'research' | 'scoring' | 'drafting';
 

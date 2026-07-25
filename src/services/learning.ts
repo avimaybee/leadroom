@@ -252,7 +252,8 @@ function safeParseJsonArray(value: unknown): any[] {
     try {
       const parsed = JSON.parse(value);
       return Array.isArray(parsed) ? parsed : [];
-    } catch {
+    } catch (e) {
+      log.error('Failed to parse JSON array in learning', e);
       return [];
     }
   }

@@ -36,12 +36,13 @@
 		}
 	],
 	"vars": {
-		// Documented environment variables for local dev; set as secrets in production.
-		"NEXT_PUBLIC_FIREBASE_API_KEY": "",
-		"CRON_SECRET": "",
+		// Rate limiting — safe as plaintext vars
 		"RATE_LIMIT_WINDOW_MS": "60000",
-		"RATE_LIMIT_MAX": "100",
-		"DB_ENCRYPTION_KEY": ""
+		"RATE_LIMIT_MAX": "100"
+		// NOTE: CRON_SECRET, DB_ENCRYPTION_KEY, and NEXT_PUBLIC_FIREBASE_API_KEY
+		// are deliberately omitted from vars. wrangler deploy overwrites dashboard-set
+		// secrets with empty var values. Set them via `wrangler secret put` or the
+		// Cloudflare dashboard instead.
 	},
 	"services": [
 		{

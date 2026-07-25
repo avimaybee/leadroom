@@ -4,9 +4,10 @@ import { getDb } from '@/db';
 import { revalidatePath } from 'next/cache';
 import { getUserId } from '@/lib/auth';
 import { getLogger } from '@/lib/logger';
+import { getSafeErrorMessage } from '@/lib/errors';
+import { workspaces, markets } from '@/db/schema/strategy';
 
 const log = getLogger('DiscoveryMarketActions');
-import { markets } from '@/db/schema/strategy';
 import { eq, and } from 'drizzle-orm';
 import { DiscoveryService } from '@/services/discovery';
 import { runSearchForScope } from '@/lib/discovery/run-search';
@@ -42,11 +43,15 @@ async function triggerDiscoveryForMarketActionImpl(
 
   const db = getDb();
 
+  // Resolve user workspace first instead of assuming workspaceId === userId
+  const [ws] = await db.select().from(workspaces).where(eq(workspaces.id, userId)).limit(1);
+  if (!ws) return { error: 'Workspace not found' };
+
   // Verify market ownership
   const [market] = await db
     .select({ id: markets.id, name: markets.name, workspaceId: markets.workspaceId })
     .from(markets)
-    .where(and(eq(markets.id, marketId), eq(markets.workspaceId, userId)))
+    .where(and(eq(markets.id, marketId), eq(markets.workspaceId, ws.id)))
     .limit(1);
 
   if (!market) {
@@ -83,7 +88,7 @@ async function triggerDiscoveryForMarketActionImpl(
     return { success: true, scopeId, jobId: result.jobId };
   } catch (error: unknown) {
     log.error('Discovery market failed', error);
-    const msg = error instanceof Error ? error.message : 'Failed to start discovery search';
+    const msg = getSafeErrorMessage(error, 'Failed to start discovery search');
     return { error: msg };
   }
 }

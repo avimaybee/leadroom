@@ -110,20 +110,14 @@ export async function triggerResearchWorkflow(
   jobId: string,
   userId?: string | null
 ) {
+  // NOTE: The deployed worker (.open-next/worker.js) doesn't export workflow classes,
+  // so Cloudflare Workflow bindings can never execute. Always use simulation.
   if (workflowBinding && typeof workflowBinding.create === 'function') {
-    logger.info('Triggering Cloudflare Workflow', { leadId, jobId });
-    try {
-      await workflowBinding.create({
-        params: { leadId, jobId, userId: userId || null }
-      });
-      return;
-    } catch (err: unknown) {
-      logger.error('Failed to trigger Cloudflare Workflow binding. Falling back to simulation.', err, { leadId, jobId });
-    }
+    logger.info('Cloudflare Workflow binding available but unused — running simulation instead', { leadId, jobId });
   }
 
   // Simulation mode
-  logger.info('Local simulation mode', { leadId, jobId });
+  logger.info('Starting research simulation', { leadId, jobId });
 
   const runSimulation = async () => {
     const workflowService = new ResearchWorkflowService(db);
@@ -278,20 +272,14 @@ export async function triggerDiscoverySearchWorkflow(
   scopeId: string | null,
   userId: string
 ) {
+  // NOTE: The deployed worker (.open-next/worker.js) doesn't export workflow classes,
+  // so Cloudflare Workflow bindings can never execute. Always use simulation.
   if (workflowBinding && typeof workflowBinding.create === 'function') {
-    logger.info('Triggering Cloudflare Discovery Search Workflow', { jobId });
-    try {
-      await workflowBinding.create({
-        params: { jobId, runId, datasetId, niche, location, scopeId: scopeId || null, userId }
-      });
-      return;
-    } catch (err: unknown) {
-      logger.error('Failed to trigger Cloudflare Discovery Search Workflow binding. Falling back to simulation.', err, { jobId });
-    }
+    logger.info('Cloudflare Workflow binding available but unused — running simulation instead', { jobId });
   }
 
   // Simulation mode
-  logger.info('Local simulation mode for discovery search', { jobId });
+  logger.info('Starting discovery search simulation', { jobId });
 
   const runSimulation = async () => {
     let notifyUrl = scopeId ? `/scopes/${scopeId}` : `/scopes`;
@@ -460,21 +448,14 @@ export async function triggerMonitorStalledLeadWorkflow(
   leadId: string,
   stageUpdatedAt: number
 ) {
+  // NOTE: The deployed worker (.open-next/worker.js) doesn't export workflow classes,
+  // so Cloudflare Workflow bindings can never execute. Always use simulation.
   if (workflowBinding && typeof workflowBinding.create === 'function') {
-    logger.info('Triggering Cloudflare Monitor Stalled Lead Workflow', { leadId });
-    try {
-      await workflowBinding.create({
-        id: `monitor-stalled-${leadId}`,
-        params: { leadId, stageUpdatedAt }
-      });
-      return;
-    } catch (err: unknown) {
-      logger.error('Failed to trigger Cloudflare Monitor Stalled Lead Workflow binding. Falling back to simulation.', err, { leadId });
-    }
+    logger.info('Cloudflare Workflow binding available but unused — running simulation instead', { leadId });
   }
 
   // Simulation mode
-  logger.info('Local simulation mode for monitor stalled lead', { leadId });
+  logger.info('Starting monitor stalled lead simulation', { leadId });
 
   const runSimulation = async () => {
     try {

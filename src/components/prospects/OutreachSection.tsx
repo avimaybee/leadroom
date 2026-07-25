@@ -165,8 +165,8 @@ export function OutreachSection({ prospectId, drafts }: OutreachSectionProps) {
         let riskFlags: string[] = [];
         let citedEvidence: { sentence: string; evidenceQuote: string; sourceUrl: string }[] = [];
 
-        try { riskFlags = d.riskFlags ? JSON.parse(d.riskFlags) : []; } catch {}
-        try { citedEvidence = d.citedEvidence ? JSON.parse(d.citedEvidence) : []; } catch {}
+        try { riskFlags = d.riskFlags ? JSON.parse(d.riskFlags) : []; } catch { console.warn('OutreachSection: failed to parse riskFlags', d.id); }
+        try { citedEvidence = d.citedEvidence ? JSON.parse(d.citedEvidence) : []; } catch { console.warn('OutreachSection: failed to parse citedEvidence', d.id); }
 
         return (
           <div key={d.id} className="space-y-3">

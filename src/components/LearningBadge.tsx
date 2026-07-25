@@ -13,7 +13,7 @@ export const LearningBadge = memo(function LearningBadge() {
           const data: { count?: number } = await res.json();
           setCount(data.count ?? 0);
         }
-      } catch {}
+      } catch { console.warn('LearningBadge: failed to fetch count'); }
     }
     fetchCount();
     const interval = setInterval(fetchCount, 60000);

@@ -41,10 +41,9 @@ export async function POST(request: NextRequest) {
     }
 
     const response = NextResponse.json({ success: true, user: result.user });
-    const isSecure = request.url.startsWith('https://');
     response.headers.append(
       'Set-Cookie',
-      `__Secure-session=${result.session}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=86400`
+      `__Host-session=${result.session}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=86400`
     );
 
     return response;

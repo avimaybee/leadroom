@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/db';
+import { getLogger } from '@/lib/logger';
 import { learningSuggestions } from '@/db/schema/outreach';
 import { workspaces } from '@/db/schema/strategy';
 import { getUserId } from '@/lib/auth';
 import { eq, and } from 'drizzle-orm';
+
+const log = getLogger('LearningCountAPI');
 
 export const revalidate = 30;
 
@@ -23,7 +26,8 @@ export async function GET() {
       .limit(100);
 
     return NextResponse.json({ count: rows.length });
-  } catch {
+  } catch (err) {
+    log.error('Failed to fetch learning suggestion count', err);
     return NextResponse.json({ error: 'Failed to fetch learning suggestion count' }, { status: 500 });
   }
 }

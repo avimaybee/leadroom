@@ -11,7 +11,7 @@ export const revalidate = 30;
 
 export async function GET(request: NextRequest) {
   try {
-    const session = request.cookies.get('__Secure-session')?.value;
+    const session = request.cookies.get('__Host-session')?.value || request.cookies.get('__Secure-session')?.value;
     const payload = await decrypt(session);
 
     if (!payload || !payload.userId) {

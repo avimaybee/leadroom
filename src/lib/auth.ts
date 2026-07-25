@@ -7,10 +7,10 @@ let _cfEnv: any = null;
 
 function getCloudflareEnvOnce(): any {
   if (!_cfResolved) {
-    _cfResolved = true;
     try {
       const { getCloudflareContext } = require('@opennextjs/cloudflare');
       _cfEnv = getCloudflareContext().env;
+      _cfResolved = true;
     } catch (e) {
       _cfEnv = null;
     }
@@ -20,18 +20,15 @@ function getCloudflareEnvOnce(): any {
 
 function getSecretKey(env?: any): Uint8Array {
   let secret: string | undefined;
-  // 1. Use injected env if provided (production path)
   if (env?.AUTH_SECRET) {
     secret = env.AUTH_SECRET;
   }
-  // 2. Try Cloudflare context (legacy fallback) — resolved once
   if (!secret) {
     const cfEnv = getCloudflareEnvOnce();
     if (cfEnv) {
       secret = cfEnv.AUTH_SECRET;
     }
   }
-  // 3. Fall back to process.env (local dev / tests)
   if (!secret) {
     secret = (typeof process !== 'undefined' ? process.env : undefined)?.AUTH_SECRET;
   }
@@ -151,7 +148,7 @@ export const getUserId = cache(async (): Promise<string | null> => {
   }
   try {
     const cookieStore = await cookies();
-    const sessionToken = cookieStore.get('__Secure-session')?.value;
+    const sessionToken = cookieStore.get('__Host-session')?.value || cookieStore.get('__Secure-session')?.value;
     const payload = await decrypt(sessionToken);
     return payload?.userId || null;
   } catch (e) {

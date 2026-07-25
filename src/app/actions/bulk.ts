@@ -21,10 +21,10 @@ let _cfEnv: any = null;
 
 function getCloudflareEnvOnce(): any {
   if (!_cfEnvResolved) {
-    _cfEnvResolved = true;
     try {
       const { getCloudflareContext } = require('@opennextjs/cloudflare');
       _cfEnv = getCloudflareContext().env;
+      _cfEnvResolved = true;
     } catch (e) {
       _cfEnv = null;
     }

@@ -107,10 +107,10 @@ test('DiscoveryService - updateCandidate edits fields', async () => {
 test('DiscoveryService - promoteCandidate works', async () => {
   const { db, service } = setupTestDb();
 
-  // Create parent scope
+  // Create parent scope owned by owner_123
   await service.createScope('scope_1', {
     name: 'Dentists in Austin',
-    createdByUserId: 'user_admin',
+    createdByUserId: 'owner_123',
   });
 
   // Create candidate
@@ -129,6 +129,14 @@ test('DiscoveryService - promoteCandidate works', async () => {
     email: 'owner@test.com',
     password: 'password_hash',
   });
+
+  // Promote from unauthorized user should throw Forbidden error
+  await assert.rejects(
+    async () => {
+      await service.promoteCandidate('cand_1', 'unauthorized_user');
+    },
+    /forbidden/i
+  );
 
   // Promote
   const promotedLead = await service.promoteCandidate('cand_1', 'owner_123');

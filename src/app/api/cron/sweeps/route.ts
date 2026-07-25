@@ -40,11 +40,10 @@ export async function GET(request: Request) {
       ...results
     });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'An error occurred during sweeps';
     log.error('Cron sweeps error', error);
     return NextResponse.json({ 
       success: false, 
-      error: message 
+      error: 'An error occurred during sweeps' 
     }, { status: 500 });
   }
 }

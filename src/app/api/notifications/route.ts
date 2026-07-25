@@ -2,9 +2,12 @@ export const revalidate = 30;
 
 import { NextResponse } from 'next/server';
 import { getDb } from '@/db';
+import { getLogger } from '@/lib/logger';
 import { notifications } from '@/db/schema';
 import { eq, and, desc, gte } from 'drizzle-orm';
 import { getUserId } from '@/lib/auth';
+
+const log = getLogger('NotificationsAPI');
 
 export async function GET(request: Request) {
   try {
@@ -34,7 +37,8 @@ export async function GET(request: Request) {
       .offset(offset);
 
     return NextResponse.json(notifs);
-  } catch {
+  } catch (err) {
+    log.error('Failed to fetch notifications', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -9,21 +9,19 @@ import { candidateLeads, discoveryScopes } from '../db/schema/discovery';
 import { CreateLeadInput } from '../db/models/lead';
 import { LoggingService } from './logging';
 import { ScoringService } from './scoring';
-import { CalendarService } from './calendar';
 import { getLogger } from '../lib/logger';
 
 const log = getLogger('LeadService');
-const _calendarSyncInFlight = new Set<string>();
 
 let _cfEnvResolved = false;
 let _cfEnv: any = null;
 
 function getCloudflareEnvOnce(): any {
   if (!_cfEnvResolved) {
-    _cfEnvResolved = true;
     try {
       const { getCloudflareContext } = require('@opennextjs/cloudflare');
       _cfEnv = getCloudflareContext().env;
+      _cfEnvResolved = true;
     } catch (e) {
       _cfEnv = null;
     }
@@ -596,17 +594,6 @@ export class LeadService {
       summary: `Created task: "${title}"`,
     });
 
-    // Auto-sync to Google Calendar if assignee has calendar connected (gated)
-    if (assigneeId && !_calendarSyncInFlight.has(assigneeId)) {
-      _calendarSyncInFlight.add(assigneeId);
-      const calendarService = new CalendarService(this.db);
-      calendarService.syncTasksToCalendar(assigneeId).finally(() => {
-        _calendarSyncInFlight.delete(assigneeId);
-      }).catch((err) => {
-        log.error('Calendar sync failed for assignee', err, { assigneeId });
-      });
-    }
-
     const [task] = await this.db.select().from(tasks).where(eq(tasks.id, id)).limit(1);
     return task;
   }
@@ -659,17 +646,6 @@ export class LeadService {
         leadId: oldTask.leadId,
         type: 'Task updated',
         summary: `Task "${oldTask.title}" marked as ${newStatus}`,
-      });
-    }
-
-    // Auto-sync to Google Calendar if assignee has calendar connected (gated)
-    if (oldTask.assigneeId && !_calendarSyncInFlight.has(oldTask.assigneeId)) {
-      _calendarSyncInFlight.add(oldTask.assigneeId);
-      const calendarService = new CalendarService(this.db);
-      calendarService.syncTasksToCalendar(oldTask.assigneeId).finally(() => {
-        _calendarSyncInFlight.delete(oldTask.assigneeId!);
-      }).catch((err) => {
-        log.error('Calendar sync failed for assignee', err, { assigneeId: oldTask.assigneeId });
       });
     }
 
@@ -974,7 +950,11 @@ export class LeadService {
       await this.db.insert(notifications).values(notificationRows);
     }
     if (batchActions.length > 0) {
-      await this.db.batch(batchActions as any);
+      const MAX_BATCH = 50;
+      for (let i = 0; i < batchActions.length; i += MAX_BATCH) {
+        const chunk = batchActions.slice(i, i + MAX_BATCH);
+        await this.db.batch(chunk as any);
+      }
     }
     return alertCount;
   }

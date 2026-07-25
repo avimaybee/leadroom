@@ -10,10 +10,10 @@ let _localMockResolved = false;
 
 function getCloudflareEnvOnce(): any {
   if (!_cfResolved) {
-    _cfResolved = true;
     try {
       const { getCloudflareContext } = require('@opennextjs/cloudflare');
       _cfEnv = getCloudflareContext().env;
+      _cfResolved = true;
     } catch (e) {
       _cfEnv = null;
     }
@@ -44,9 +44,8 @@ export function getDb(env?: any): DrizzleD1Database<typeof schema> {
     DB = process.env.DB;
   }
 
-  // 3. Fall back to local mock database (for local dev without wrangler) — resolved once
+  // 3. Fall back to local mock database (for local dev without wrangler) — retryable on failure
   if (!DB && !_localMockResolved && typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') {
-    _localMockResolved = true;
     const req = typeof require !== 'undefined' ? require : undefined;
     if (req) {
       try {
@@ -55,6 +54,7 @@ export function getDb(env?: any): DrizzleD1Database<typeof schema> {
         if (typeof process !== 'undefined' && process.env) {
           DB = process.env.DB;
         }
+        _localMockResolved = true;
       } catch (e) {
         log.error('Failed to load local database mock', e);
       }

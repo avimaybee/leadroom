@@ -14,13 +14,45 @@ function addSecurityHeaders(response: NextResponse): void {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // CSRF Defense-in-Depth for modifying operations
+  const method = request.method;
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && !pathname.startsWith('/api/cron')) {
+    const origin = request.headers.get('origin');
+    const referer = request.headers.get('referer');
+    const host = request.headers.get('host');
+
+    let isSafe = false;
+    if (origin) {
+      try {
+        const originUrl = new URL(origin);
+        if (host && (originUrl.host === host || originUrl.host === `localhost:${host.split(':')[1] || ''}`)) {
+          isSafe = true;
+        }
+      } catch {}
+    } else if (referer) {
+      try {
+        const refererUrl = new URL(referer);
+        if (host && (refererUrl.host === host || refererUrl.host === `localhost:${host.split(':')[1] || ''}`)) {
+          isSafe = true;
+        }
+      } catch {}
+    } else {
+      // If neither is present, reject the state-changing API request
+      isSafe = false;
+    }
+
+    if (!isSafe) {
+      return NextResponse.json({ error: 'CSRF security check failed' }, { status: 403 });
+    }
+  }
+
   if (pathname === '/login' || pathname.startsWith('/api/auth')) {
     const response = NextResponse.next();
     addSecurityHeaders(response);
     return response;
   }
 
-  const session = request.cookies.get('__Secure-session')?.value;
+  const session = request.cookies.get('__Host-session')?.value || request.cookies.get('__Secure-session')?.value;
   const payload = await verifySession(session);
 
   if (!payload) {

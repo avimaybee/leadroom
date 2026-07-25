@@ -20,7 +20,9 @@ function getFirebaseApiKey(): string {
     if (cfEnv?.NEXT_PUBLIC_FIREBASE_API_KEY) return cfEnv.NEXT_PUBLIC_FIREBASE_API_KEY;
     if (cfEnv?.FIREBASE_API_KEY) return cfEnv.FIREBASE_API_KEY;
   } catch {}
-  return process.env.NEXT_PUBLIC_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY || 'AIzaSyCaf1FHg56-HIa-39FkPEY3146guGiZCX8';
+  const key = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY;
+  if (!key) throw new Error('FIREBASE_API_KEY is not configured. Set NEXT_PUBLIC_FIREBASE_API_KEY or FIREBASE_API_KEY.');
+  return key;
 }
 
 export async function POST(request: NextRequest) {
@@ -43,9 +45,9 @@ export async function POST(request: NextRequest) {
 
     const apiKey = getFirebaseApiKey();
 
-    // Verify the Firebase ID token using Google's Identity Toolkit API
+    // Verify the Firebase ID token using Google's Identity Toolkit API v1
     const verifyResp = await fetch(
-      `https://www.googleapis.com/identitytoolkit/v3/relyingparty/getAccountInfo?key=${apiKey}`,
+      `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -94,7 +96,7 @@ export async function POST(request: NextRequest) {
     const response = NextResponse.json({ success: true, user: { id: user.id, name: user.name, email: user.email } });
     response.headers.append(
       'Set-Cookie',
-      `__Secure-session=${session}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=86400`
+      `__Host-session=${session}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=86400`
     );
 
     return response;

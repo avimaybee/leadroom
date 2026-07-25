@@ -47,7 +47,8 @@ export function DraftReview({ drafts, onGenerate, onApprove, onReject, generatin
     try {
       const parsed = JSON.parse(raw);
       return Array.isArray(parsed) ? parsed : [];
-    } catch {
+    } catch (e) {
+      clientLog.warn('DraftReview', 'Failed to parse evidence JSON', e);
       return [];
     }
   };
@@ -57,7 +58,8 @@ export function DraftReview({ drafts, onGenerate, onApprove, onReject, generatin
     try {
       const parsed = JSON.parse(raw);
       return Array.isArray(parsed) ? parsed : [];
-    } catch {
+    } catch (e) {
+      clientLog.warn('DraftReview', 'Failed to parse risk flags JSON', e);
       return [];
     }
   };

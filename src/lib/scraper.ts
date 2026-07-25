@@ -9,6 +9,7 @@
 
 import { extractAll, type ContactExtract } from './contacts/extract';
 import { getLogger } from './logger';
+import { isPrivateHostname } from './network';
 
 const logger = getLogger('Scraper');
 
@@ -19,82 +20,6 @@ export interface ScrapedContent {
   description: string;
   screenshot?: string;
   extractedContacts?: ContactExtract;
-}
-
-/**
- * Check whether the given IPv4 address (dotted decimal) is in a private range.
- */
-function isPrivateIpv4(a: number, b: number, _c: number, _d: number): boolean {
-  if (a === 127 || a === 10 || (a === 192 && b === 168)) return true;
-  if (a === 172 && b >= 16 && b <= 31) return true;
-  if (a === 169 && b === 254) return true;
-  return false;
-}
-
-/**
- * Converts an integer (decimal or hex) to dotted-decimal IPv4.
- * Returns null if the integer is out of IPv4 range.
- */
-function integerToDotted(n: number): string | null {
-  if (n < 0 || n > 0xffffffff) return null;
-  return `${(n >>> 24) & 0xff}.${(n >>> 16) & 0xff}.${(n >>> 8) & 0xff}.${n & 0xff}`;
-}
-
-/**
- * Pattern-based check for private/internal IP addresses in hostnames.
- * Catches dotted-decimal, decimal, hex, and hex-per-octet encodings.
- */
-function isPrivateHostname(hostname: string): boolean {
-  // Normalize: strip brackets for IPv6
-  const h = hostname.replace(/^\[|\]$/g, '').toLowerCase();
-
-  // Exact matches for loopback / invalid
-  if (h === 'localhost' || h === 'localhost.localdomain' || h === '0.0.0.0' || h === '[::1]' || h === '::1') {
-    return true;
-  }
-
-  // IPv4 private ranges (standard dotted decimal)
-  const ipv4Match = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
-  if (ipv4Match) {
-    const a = parseInt(ipv4Match[1], 10);
-    const b = parseInt(ipv4Match[2], 10);
-    const c = parseInt(ipv4Match[3], 10);
-    const d = parseInt(ipv4Match[4], 10);
-    if (a <= 255 && b <= 255 && c <= 255 && d <= 255 && isPrivateIpv4(a, b, c, d)) return true;
-  }
-
-  // Decimal integer hostname (e.g. 2130706433 = 127.0.0.1)
-  if (/^\d+$/.test(h) && h.length >= 9) {
-    const dotted = integerToDotted(parseInt(h, 10));
-    if (dotted) {
-      const parts = dotted.split('.').map(Number);
-      if (isPrivateIpv4(parts[0], parts[1], parts[2], parts[3])) return true;
-    }
-  }
-
-  // Hexadecimal integer hostname (e.g. 0x7f000001 = 127.0.0.1)
-  if (/^0x[0-9a-f]{1,8}$/i.test(h)) {
-    const dotted = integerToDotted(parseInt(h, 16));
-    if (dotted) {
-      const parts = dotted.split('.').map(Number);
-      if (isPrivateIpv4(parts[0], parts[1], parts[2], parts[3])) return true;
-    }
-  }
-
-  // Hex-per-octet dotted (e.g. 0x7f.0x00.0x00.0x01)
-  const hexDottedMatch = h.match(/^0x([0-9a-f]{1,2})\.0x([0-9a-f]{1,2})\.0x([0-9a-f]{1,2})\.0x([0-9a-f]{1,2})$/i);
-  if (hexDottedMatch) {
-    const a = parseInt(hexDottedMatch[1], 16);
-    const b = parseInt(hexDottedMatch[2], 16);
-    const c = parseInt(hexDottedMatch[3], 16);
-    const d = parseInt(hexDottedMatch[4], 16);
-    if (isPrivateIpv4(a, b, c, d)) return true;
-  }
-
-  // RFC 3849 documentation prefix (2001:db8::/32) — reject
-  if (h.startsWith('2001:db8:')) return true;
-
-  return false;
 }
 
 /**

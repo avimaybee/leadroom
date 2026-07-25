@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { getUserId } from '@/lib/auth';
 import { getLogger } from '@/lib/logger';
+import { getSafeErrorMessage } from '@/lib/errors';
 
 const log = getLogger('ScopesActions');
 
@@ -56,7 +57,7 @@ export async function createScopeAction(prevState: ActionState, formData: FormDa
     await service.createScope(id, validated.data);
   } catch (error: unknown) {
     log.error('Create scope failed', error);
-    const msg = error instanceof Error ? error.message : 'Failed to create discovery scope.';
+    const msg = getSafeErrorMessage(error, 'Failed to create discovery scope.');
     return { error: msg };
   }
 

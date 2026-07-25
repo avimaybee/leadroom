@@ -441,7 +441,8 @@ function safeParseJsonArray(value: unknown): any[] {
     try {
       const parsed = JSON.parse(value);
       return Array.isArray(parsed) ? parsed : [];
-    } catch {
+    } catch (e) {
+      logger.error('Failed to parse JSON array in research-workflow', e);
       return [];
     }
   }

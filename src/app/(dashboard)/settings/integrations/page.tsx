@@ -1,10 +1,8 @@
 import { getDb } from '@/db';
 import { getUserId } from '@/lib/auth';
 import { IntegrationsService } from '@/services/integrations';
-import { CalendarService } from '@/services/calendar';
 import { ProviderConfigForm } from '@/components/settings/ProviderConfigForm';
 import { ActiveProviderPicker } from '@/components/settings/ActiveProviderPicker';
-import { CalendarIntegration } from '@/components/settings/CalendarIntegration';
 import { getLogger } from '@/lib/logger';
 
 const log = getLogger('IntegrationsPage');
@@ -47,7 +45,6 @@ export default async function IntegrationsPage() {
   }
 
   const service = new IntegrationsService(db, encryptionKey);
-  const calendarService = new CalendarService(db, encryptionKey);
 
   let geminiConfig = null;
   let nvidiaConfig = null;
@@ -56,11 +53,6 @@ export default async function IntegrationsPage() {
   let aimlConfig = null;
   let openaiConfig = null;
   let anthropicConfig = null;
-  let calendarStatus = { connected: false };
-  let clientId = null;
-  let clientSecret = null;
-  let storedCreds = null;
-
   try {
     [geminiConfig, nvidiaConfig, openrouterConfig, groqConfig, aimlConfig, openaiConfig, anthropicConfig] = await Promise.all([
       service.getProviderConfig('gemini', userId),
@@ -71,11 +63,6 @@ export default async function IntegrationsPage() {
       service.getProviderConfig('openai', userId),
       service.getProviderConfig('anthropic', userId),
     ]);
-
-    calendarStatus = userId ? await calendarService.getStatus(userId) : { connected: false };
-    clientId = userId ? await calendarService.getClientId(userId) : null;
-    clientSecret = userId ? await calendarService.getClientSecret(userId) : null;
-    storedCreds = userId ? await calendarService.getStoredCredentials(userId) : null;
   } catch (err) {
     log.error('Failed to load integration configs', err);
   }
@@ -156,20 +143,7 @@ export default async function IntegrationsPage() {
         </div>
       </div>
 
-      {/* Calendar Integration */}
-      <div className="rounded-xl border border-border bg-card">
-        <div className="border-b border-border px-6 py-4">
-          <h2 className="text-heading-lg text-foreground">Calendar Sync</h2>
-          <p className="text-copy-14 text-muted-foreground mt-0.5">Sync tasks to your Google Calendar for external visibility.</p>
-        </div>
-        <div className="p-6">
-          <CalendarIntegration
-            initialConnected={calendarStatus.connected}
-            isConfigured={!!(clientId && clientSecret)}
-            hasStoredCredentials={!!(storedCreds?.googleClientId && storedCreds?.googleClientSecret)}
-          />
-        </div>
-      </div>
+
     </div>
   );
 }

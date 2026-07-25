@@ -1292,7 +1292,7 @@ Provide your response strictly in JSON format. The response must match the follo
             : textResultTrimmed;
         let parsedCleaned;
         try { parsedCleaned = JSON.parse(cleaned); } catch (e) { throw new Error(`Failed to parse Gemini response as JSON: ${e}`); }
-        try { return AIOutreachDraftSchema.parse(parsedCleaned); } catch { return { drafts: [{ body: '' }] }; }
+        try { return AIOutreachDraftSchema.parse(parsedCleaned); } catch { log.error('Gemini outreach draft Zod validation failed'); return { drafts: [{ body: '' }] }; }
       } else {
         await response.body?.cancel();
         throw new Error(`Gemini API returned status ${response.status}`);
@@ -1310,7 +1310,7 @@ Provide your response strictly in JSON format. The response must match the follo
       else if (textResult.startsWith('```')) textResult = textResult.replace(/^```\n/, '').replace(/\n```$/, '');
       let parsedAnthropic;
       try { parsedAnthropic = JSON.parse(textResult); } catch (e) { throw new Error(`Failed to parse Anthropic response as JSON: ${e}`); }
-      try { return AIOutreachDraftSchema.parse(parsedAnthropic); } catch { return { drafts: [{ body: '' }] }; }
+      try { return AIOutreachDraftSchema.parse(parsedAnthropic); } catch { log.error('Anthropic outreach draft Zod validation failed'); return { drafts: [{ body: '' }] }; }
     }
 
     const url = 
@@ -1363,7 +1363,7 @@ Provide your response strictly in JSON format. The response must match the follo
       else if (textResult.startsWith('```')) textResult = textResult.replace(/^```\n/, '').replace(/\n```$/, '');
       let parsedOpenAI;
       try { parsedOpenAI = JSON.parse(textResult); } catch (e) { throw new Error(`Failed to parse ${provider} response as JSON: ${e}`); }
-      try { return AIOutreachDraftSchema.parse(parsedOpenAI); } catch { return { drafts: [{ body: '' }] }; }
+      try { return AIOutreachDraftSchema.parse(parsedOpenAI); } catch { log.error(`${provider} outreach draft Zod validation failed`); return { drafts: [{ body: '' }] }; }
     } else {
       await response.body?.cancel();
       throw new Error(`${provider} API returned status ${response.status}`);
@@ -1720,7 +1720,7 @@ Provide your response strictly in JSON format matching this schema:
         const textResult = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
         let parsed;
         try { parsed = JSON.parse(textResult); } catch (e) { throw new Error(`Failed to parse Gemini response as JSON: ${e}`); }
-        try { return AILeadScoreSchema.parse(parsed); } catch { return { score: 0, rationaleSummary: '', factors: [] }; }
+        try { return AILeadScoreSchema.parse(parsed); } catch { log.error('Gemini lead score Zod validation failed'); return { score: 0, rationaleSummary: '', factors: [] }; }
       } else {
         await response.body?.cancel();
         throw new Error(`Gemini API returned status ${response.status}`);
@@ -1735,7 +1735,7 @@ Provide your response strictly in JSON format matching this schema:
       );
       let parsed;
       try { parsed = JSON.parse(textResult); } catch (e) { throw new Error(`Failed to parse Anthropic response as JSON: ${e}`); }
-      try { return AILeadScoreSchema.parse(parsed); } catch { return { score: 0, rationaleSummary: '', factors: [] }; }
+      try { return AILeadScoreSchema.parse(parsed); } catch { log.error('Anthropic lead score Zod validation failed'); return { score: 0, rationaleSummary: '', factors: [] }; }
     }
 
     const textResult = await callOpenAICompatible(
@@ -1746,7 +1746,7 @@ Provide your response strictly in JSON format matching this schema:
       );
     let parsed;
     try { parsed = JSON.parse(textResult); } catch (e) { throw new Error(`Failed to parse OpenAI-compatible response as JSON: ${e}`); }
-    try { return AILeadScoreSchema.parse(parsed); } catch { return { score: 0, rationaleSummary: '', factors: [] }; }
+    try { return AILeadScoreSchema.parse(parsed); } catch { log.error(`${provider} lead score Zod validation failed`); return { score: 0, rationaleSummary: '', factors: [] }; }
   });
 }
 
@@ -1895,7 +1895,7 @@ Provide your response strictly in JSON format matching this schema:
         if (!textResult) throw new Error('Invalid response structure from Gemini API');
         let parsed;
         try { parsed = JSON.parse(textResult); } catch (e) { throw new Error(`Failed to parse Gemini response as JSON: ${e}`); }
-        try { return AIExtractedSignalsSchema.parse(parsed).signals; } catch { return []; }
+        try { return AIExtractedSignalsSchema.parse(parsed).signals; } catch { log.error('Gemini signal extraction Zod validation failed'); return []; }
       }
 
       if (provider === 'anthropic') {
@@ -1906,7 +1906,7 @@ Provide your response strictly in JSON format matching this schema:
         );
         let parsed;
         try { parsed = JSON.parse(textResult); } catch (e) { throw new Error(`Failed to parse Anthropic response as JSON: ${e}`); }
-        try { return AIExtractedSignalsSchema.parse(parsed).signals; } catch { return []; }
+        try { return AIExtractedSignalsSchema.parse(parsed).signals; } catch { log.error('Anthropic signal extraction Zod validation failed'); return []; }
       }
 
       // OpenAI-compatible providers
@@ -1918,7 +1918,7 @@ Provide your response strictly in JSON format matching this schema:
       );
       let parsed;
       try { parsed = JSON.parse(textResult); } catch (e) { throw new Error(`Failed to parse OpenAI-compatible response as JSON: ${e}`); }
-      try { return AIExtractedSignalsSchema.parse(parsed).signals; } catch { return []; }
+      try { return AIExtractedSignalsSchema.parse(parsed).signals; } catch { log.error(`${provider} signal extraction Zod validation failed`); return []; }
     });
   } catch (err) {
     log.error('Failed to run AI signal extraction, falling back to empty', err);

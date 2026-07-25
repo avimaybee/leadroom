@@ -1,7 +1,10 @@
 import type { Db } from '@/db';
 import { getDb } from '@/db';
+import { getLogger } from '@/lib/logger';
 import { rateLimits } from '@/db/schema/core';
 import { eq, lt, sql } from 'drizzle-orm';
+
+const log = getLogger('RateLimit');
 
 /**
  * In-memory rate limiter keyed by user ID.
@@ -83,34 +86,39 @@ export class D1RateLimiter {
     const reset = windowStart + windowMs;
 
     try {
+      // Cleanup expired entries outside the batch
       await this.db
         .delete(rateLimits)
         .where(lt(rateLimits.windowStart, new Date(now - windowMs * 2)));
 
-      await this.db
-        .insert(rateLimits)
-        .values({ key, count: 1, windowStart: windowStartDate })
-        .onConflictDoUpdate({
-          target: rateLimits.key,
-          set: {
-            count: sql`CASE WHEN ${rateLimits.windowStart} = ${windowStartDate} THEN ${rateLimits.count} + 1 ELSE 1 END`,
-            windowStart: windowStartDate,
-          },
-        });
+      // Batch upsert + select atomically to prevent race conditions
+      const results = await this.db.batch([
+        this.db
+          .insert(rateLimits)
+          .values({ key, count: 1, windowStart: windowStartDate })
+          .onConflictDoUpdate({
+            target: rateLimits.key,
+            set: {
+              count: sql`CASE WHEN ${rateLimits.windowStart} = ${windowStartDate} THEN ${rateLimits.count} + 1 ELSE 1 END`,
+              windowStart: windowStartDate,
+            },
+          }),
+        this.db
+          .select({ count: rateLimits.count })
+          .from(rateLimits)
+          .where(eq(rateLimits.key, key))
+          .limit(1),
+      ] as any);
 
-      const [row] = await this.db
-        .select({ count: rateLimits.count })
-        .from(rateLimits)
-        .where(eq(rateLimits.key, key))
-        .limit(1);
-
+      const row = (results as any[])?.[1]?.[0] as { count: number } | undefined;
       const count = row?.count ?? 1;
       return {
         allowed: count <= limit,
         remaining: Math.max(0, limit - count),
         reset,
       };
-    } catch {
+    } catch (err) {
+      log.error('Rate limiter DB error — allowing request', err);
       return { allowed: true, remaining: 1, reset: Date.now() + windowMs };
     }
   }

@@ -9,6 +9,8 @@ import { jobRuns } from '@/db/schema/research';
 import { eq, and } from 'drizzle-orm';
 import { withLogging } from '@/lib/actions/with-logging';
 import { getLogger } from '@/lib/logger';
+import { getSafeErrorMessage } from '@/lib/errors';
+import { workspaces } from '@/db/schema/strategy';
 
 const log = getLogger('DiscoveryCandidateActions');
 
@@ -35,6 +37,9 @@ export async function listCandidatesForMarketAction(marketId: string) {
   if (!userId) return { error: 'Unauthorized' };
 
   const db = getDb();
+  const [ws] = await db.select({ id: workspaces.id }).from(workspaces).where(eq(workspaces.id, userId)).limit(1);
+  if (!ws) return { success: true, candidates: [] };
+
   const rows = await db
     .select({
       id: candidateLeads.id,
@@ -55,7 +60,7 @@ export async function listCandidatesForMarketAction(marketId: string) {
       and(
         eq(discoveryScopes.marketId, marketId),
         eq(candidateLeads.status, 'NEW'),
-        eq(discoveryScopes.workspaceId, userId)
+        eq(discoveryScopes.workspaceId, ws.id)
       )
     )
     .orderBy(candidateLeads.createdAt)
@@ -85,7 +90,7 @@ async function promoteCandidateActionImpl(
     return { success: true };
   } catch (error: unknown) {
     log.error('Discovery candidate failed', error);
-    const msg = error instanceof Error ? error.message : 'Failed to promote candidate';
+    const msg = getSafeErrorMessage(error, 'Failed to promote candidate');
     return { error: msg };
   }
 }
@@ -119,13 +124,13 @@ async function updateCandidateActionImpl(
       rawName,
       rawWebsiteUrl: rawWebsiteUrl || null,
       rawLocation: rawLocation || null,
-    });
+    }, userId);
 
     revalidatePath(`/markets/*/prospects`);
     return { success: true };
   } catch (error: unknown) {
     log.error('Discovery candidate failed', error);
-    const msg = error instanceof Error ? error.message : 'Failed to update candidate';
+    const msg = getSafeErrorMessage(error, 'Failed to update candidate');
     return { error: msg };
   }
 }
@@ -149,7 +154,7 @@ async function discardCandidateActionImpl(
 
   try {
     const service = await getService();
-    await service.updateCandidateStatus(candidateId, 'DISCARDED', discardReason || null);
+    await service.updateCandidateStatus(candidateId, 'DISCARDED', discardReason || null, userId);
 
     if (marketId) {
       revalidatePath(`/markets/${marketId}/prospects`);
@@ -157,7 +162,7 @@ async function discardCandidateActionImpl(
     return { success: true };
   } catch (error: unknown) {
     log.error('Discovery candidate failed', error);
-    const msg = error instanceof Error ? error.message : 'Failed to discard candidate';
+    const msg = getSafeErrorMessage(error, 'Failed to discard candidate');
     return { error: msg };
   }
 }

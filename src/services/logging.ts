@@ -49,7 +49,7 @@ function scheduleFlush(db: Db): void {
   const timer = setTimeout(() => {
     _flushTimers.delete(db);
     const promise = flushLogBuffer(db);
-    promise.catch(() => {});
+    promise.catch((err) => { console.error('Log buffer flush failed', err); });
     _waitUntil?.(promise);
   }, BUFFER_FLUSH_INTERVAL_MS);
   _flushTimers.set(db, timer);
@@ -58,6 +58,8 @@ function scheduleFlush(db: Db): void {
 export function setLogWaitUntil(fn: (p: Promise<unknown>) => void): void {
   _waitUntil = fn;
 }
+
+const MAX_FLUSH_BATCH = 50;
 
 async function flushLogBuffer(db: Db): Promise<void> {
   const buffer = getLogBuffer(db);
@@ -87,8 +89,9 @@ async function flushLogBuffer(db: Db): Promise<void> {
       );
     }
   }
-  if (queries.length > 0) {
-    await db.batch(queries as any);
+  for (let i = 0; i < queries.length; i += MAX_FLUSH_BATCH) {
+    const chunk = queries.slice(i, i + MAX_FLUSH_BATCH);
+    await db.batch(chunk as any);
   }
 }
 

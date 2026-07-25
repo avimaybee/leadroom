@@ -45,7 +45,7 @@ import ClientContactsList from './ClientContactsList';
 import OutreachAssistant from './OutreachAssistant';
 import { updateStageAction, addNoteAction, updateLeadAction, archiveLeadAction } from '@/app/actions/leads';
 import { logNbaActionAction, dismissNbaActionAction } from '@/app/actions/tracking';
-import { getCalendarStatusAction } from '@/app/actions/calendar';
+
 import { ClientStageDropdown } from '@/components/ClientStageDropdown';
 import { SetReminderDialog } from '@/components/SetReminderDialog';
 import { StageAgingBar } from '@/components/lead/StageAgingBar';
@@ -148,11 +148,6 @@ export default function LeadDetailsWorkspace({
   const nbaTop = nbaResults && nbaResults.length > 0 ? nbaResults[0] : null;
 
   const intervalRef = useRef<ReturnType<typeof setInterval>>(undefined);
-  const [calendarStatus, setCalendarStatus] = useState<{ connected: boolean; isConfigured: boolean } | null>(null);
-
-  useEffect(() => {
-    getCalendarStatusAction().then(setCalendarStatus).catch(() => setCalendarStatus(null));
-  }, []);
 
   const [isEditLeadOpen, setIsEditLeadOpen] = useState(false);
   const [showAllTasks, setShowAllTasks] = useState(false);
@@ -404,12 +399,6 @@ export default function LeadDetailsWorkspace({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 lg:mt-1">
-            {calendarStatus && (
-              <span className={`inline-flex items-center gap-1.5 text-label-12 font-medium ${calendarStatus.connected ? 'text-chart-3' : 'text-muted-foreground'}`}>
-                <Calendar className="w-3.5 h-3.5" />
-                {calendarStatus.connected ? 'Calendar synced' : 'Calendar off'}
-              </span>
-            )}
             <SetReminderDialog leadId={lead.id} leadName={lead.name} />
             <label htmlFor="lead-stage" className="text-label-14 font-medium text-muted-foreground">Change stage:</label>
             <ClientStageDropdown

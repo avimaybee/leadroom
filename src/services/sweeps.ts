@@ -10,6 +10,16 @@ import { researchTasks } from '../db/schema/jobs';
 import { createNotification } from '@/lib/notifications';
 import { eq, and, isNotNull, lt, gte, lte, inArray } from 'drizzle-orm';
 
+const MAX_BATCH_SIZE = 50;
+
+function chunkArray<T>(arr: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    chunks.push(arr.slice(i, i + size));
+  }
+  return chunks;
+}
+
 const log = getLogger('Sweeps');
 const SWEEP_CONCURRENCY = 5;
 const SWEEP_LOCK_TTL_MS = 4 * 60 * 1000; // 4 minutes — cron runs every 5 min, so 4 min prevents overlap
@@ -159,13 +169,15 @@ export async function runStuckResearchTaskSweep(db: Db): Promise<number> {
   if (stuckTasks.length === 0) return 0;
 
   const now = new Date();
-  const batchUpdates = stuckTasks.map(({ id }) =>
-    db
-      .update(researchTasks)
-      .set({ status: 'PENDING', startedAt: null, updatedAt: now })
-      .where(eq(researchTasks.id, id))
-  );
-  await db.batch(batchUpdates as any);
+  for (const chunk of chunkArray(stuckTasks, MAX_BATCH_SIZE)) {
+    const batchUpdates = chunk.map(({ id }) =>
+      db
+        .update(researchTasks)
+        .set({ status: 'PENDING', startedAt: null, updatedAt: now })
+        .where(eq(researchTasks.id, id))
+    );
+    await db.batch(batchUpdates as any);
+  }
 
   log.info(`Reset ${stuckTasks.length} stuck research task(s) back to PENDING`);
   return stuckTasks.length;
@@ -192,13 +204,15 @@ export async function runStuckJobRunSweep(db: Db): Promise<number> {
   if (stuckJobs.length === 0) return 0;
 
   const now = new Date();
-  const batchUpdates = stuckJobs.map(({ id }) =>
-    db
-      .update(jobRuns)
-      .set({ status: 'FAILED', finishedAt: now })
-      .where(eq(jobRuns.id, id))
-  );
-  await db.batch(batchUpdates as any);
+  for (const chunk of chunkArray(stuckJobs, MAX_BATCH_SIZE)) {
+    const batchUpdates = chunk.map(({ id }) =>
+      db
+        .update(jobRuns)
+        .set({ status: 'FAILED', finishedAt: now })
+        .where(eq(jobRuns.id, id))
+    );
+    await db.batch(batchUpdates as any);
+  }
 
   log.info(`Reset ${stuckJobs.length} stuck job run(s) to FAILED`);
   return stuckJobs.length;

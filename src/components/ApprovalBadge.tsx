@@ -13,7 +13,7 @@ export const ApprovalBadge = memo(function ApprovalBadge() {
           const data: { count?: number } = await res.json();
           setCount(data.count ?? 0);
         }
-      } catch {}
+      } catch { console.warn('ApprovalBadge: failed to fetch count'); }
     }
     fetchCount();
     const interval = setInterval(fetchCount, 60000);

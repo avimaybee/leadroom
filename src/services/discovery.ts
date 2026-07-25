@@ -58,7 +58,29 @@ export class DiscoveryService {
     return this.db.select().from(discoveryScopes).orderBy(desc(discoveryScopes.createdAt)).limit(200);
   }
 
-  async createCandidateLead(id: string, input: CreateCandidateLeadInput) {
+  async verifyCandidateAccess(candidateId: string, userId: string): Promise<boolean> {
+    if (!candidateId || !userId) return false;
+    const [candidate] = await this.db
+      .select({ createdByUserId: discoveryScopes.createdByUserId })
+      .from(candidateLeads)
+      .innerJoin(discoveryScopes, eq(candidateLeads.discoveryScopeId, discoveryScopes.id))
+      .where(eq(candidateLeads.id, candidateId))
+      .limit(1);
+    return candidate ? candidate.createdByUserId === userId : false;
+  }
+
+  async createCandidateLead(id: string, input: CreateCandidateLeadInput, userId?: string) {
+    if (userId && input.discoveryScopeId) {
+      const [scope] = await this.db
+        .select({ id: discoveryScopes.id })
+        .from(discoveryScopes)
+        .where(and(eq(discoveryScopes.id, input.discoveryScopeId), eq(discoveryScopes.createdByUserId, userId)))
+        .limit(1);
+      if (!scope) {
+        throw new Error('Forbidden: Discovery scope does not belong to user');
+      }
+    }
+
     const now = new Date();
     await this.db.insert(candidateLeads).values({
       id,
@@ -100,7 +122,14 @@ export class DiscoveryService {
     return Number(result[0]?.count || 0);
   }
 
-  async updateCandidateStatus(candidateId: string, status: 'NEW' | 'REVIEWED' | 'PROMOTED' | 'DISCARDED', discardReason?: string | null) {
+  async updateCandidateStatus(candidateId: string, status: 'NEW' | 'REVIEWED' | 'PROMOTED' | 'DISCARDED', discardReason?: string | null, userId?: string) {
+    if (userId) {
+      const hasAccess = await this.verifyCandidateAccess(candidateId, userId);
+      if (!hasAccess) {
+        throw new Error('Forbidden: Candidate does not belong to user');
+      }
+    }
+
     const now = new Date();
     const updateData: Record<string, any> = { status, updatedAt: now };
     if (discardReason !== undefined) {
@@ -115,7 +144,14 @@ export class DiscoveryService {
     return results[0] || null;
   }
 
-  async updateCandidate(candidateId: string, data: { rawName?: string; rawWebsiteUrl?: string | null; rawLocation?: string | null; rawContactInfo?: string | null }) {
+  async updateCandidate(candidateId: string, data: { rawName?: string; rawWebsiteUrl?: string | null; rawLocation?: string | null; rawContactInfo?: string | null }, userId?: string) {
+    if (userId) {
+      const hasAccess = await this.verifyCandidateAccess(candidateId, userId);
+      if (!hasAccess) {
+        throw new Error('Forbidden: Candidate does not belong to user');
+      }
+    }
+
     const now = new Date();
     await this.db
       .update(candidateLeads)
@@ -128,6 +164,11 @@ export class DiscoveryService {
 
   async promoteCandidate(candidateId: string, ownerId: string) {
     const now = new Date();
+
+    const hasAccess = await this.verifyCandidateAccess(candidateId, ownerId);
+    if (!hasAccess) {
+      throw new Error('Forbidden: Candidate does not belong to user');
+    }
 
     // 1. Fetch the candidate
     const [candidate] = await this.db.select().from(candidateLeads).where(eq(candidateLeads.id, candidateId)).limit(1);

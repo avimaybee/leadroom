@@ -10,17 +10,23 @@ import { prospects as leads, activities } from '@/db/schema/core';
 import { discoveryScopes, candidateLeads } from '@/db/schema/discovery';
 import { eq, and } from 'drizzle-orm';
 import { decrypt, getUserId } from '@/lib/auth';
+import { isValidPublicUrl } from '@/lib/network';
+import { workspaces, markets } from '@/db/schema/strategy';
 
 const log = getLogger('DiscoveryImportAPI');
 
 const ImportItemSchema = z.object({
   name: z.string().min(1),
-  website: z.string().nullable().optional(),
+  website: z.string().nullable().optional().refine(val => !val || isValidPublicUrl(val), {
+    message: 'Invalid website URL or private IP address'
+  }),
   phone: z.string().nullable().optional(),
   city: z.string().nullable().optional(),
   region: z.string().nullable().optional(),
   industry: z.string().nullable().optional(),
-  sourceUrl: z.string().nullable().optional(),
+  sourceUrl: z.string().nullable().optional().refine(val => !val || isValidPublicUrl(val), {
+    message: 'Invalid source URL or private IP address'
+  }),
   workspaceId: z.string().nullable().optional(),
   marketId: z.string().nullable().optional(),
 });
@@ -51,6 +57,24 @@ export async function POST(request: Request) {
     }
 
     const db = getDb();
+    
+    // Ensure workspace exists for this user and resolve it
+    let [userWorkspace] = await db.select().from(workspaces).where(eq(workspaces.id, userId)).limit(1);
+    if (!userWorkspace) {
+      const now = new Date();
+      await db.insert(workspaces).values({
+        id: userId,
+        name: `${userId}'s Workspace`,
+        createdAt: now,
+        updatedAt: now,
+      });
+      [userWorkspace] = await db.select().from(workspaces).where(eq(workspaces.id, userId)).limit(1);
+    }
+
+    // Resolve user markets to prevent marketId injection/hijacking
+    const userMarkets = await db.select({ id: markets.id }).from(markets).where(eq(markets.workspaceId, userWorkspace.id));
+    const allowedMarketIds = new Set(userMarkets.map(m => m.id));
+
     const importedLeadIds: string[] = [];
     const now = new Date();
 
@@ -80,6 +104,8 @@ export async function POST(request: Request) {
 
     for (const item of items) {
       const leadId = crypto.randomUUID();
+      const targetMarketId = item.marketId && allowedMarketIds.has(item.marketId) ? item.marketId : null;
+
       leadValues.push({
         id: leadId,
         name: item.name,
@@ -91,8 +117,8 @@ export async function POST(request: Request) {
         ownerId: userId,
         stage: 'New',
         status: 'Active',
-        workspaceId: item.workspaceId ?? null,
-        marketId: item.marketId ?? null,
+        workspaceId: userWorkspace.id, // FORCE workspaceId to belong to user's resolved workspace
+        marketId: targetMarketId,       // Enforce that marketId must be owned by the user
         createdAt: now,
         updatedAt: now,
       });

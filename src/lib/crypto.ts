@@ -1,5 +1,3 @@
-const ENCRYPTION_KEY_VAR = 'DB_ENCRYPTION_KEY';
-
 const _keyCache = new Map<string, CryptoKey>();
 
 async function getKey(secret: string): Promise<CryptoKey> {
@@ -7,17 +5,34 @@ async function getKey(secret: string): Promise<CryptoKey> {
   if (cached) return cached;
   const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(secret));
   const key = await crypto.subtle.importKey(
-    'raw',
-    hash,
-    { name: 'AES-GCM' },
-    false,
-    ['encrypt', 'decrypt']
+    'raw', hash, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']
   );
   if (_keyCache.size > 10) {
     const firstKey = _keyCache.keys().next().value;
     if (firstKey) _keyCache.delete(firstKey);
   }
   _keyCache.set(secret, key);
+  return key;
+}
+
+export function getEncryptionSecret(externalKey?: string): string {
+  let key = externalKey;
+  if (!key) key = process.env.DB_ENCRYPTION_KEY;
+  if (!key) {
+    try {
+      const cfContext = (globalThis as any)[Symbol.for('__cloudflare-context__')];
+      key = cfContext?.env?.DB_ENCRYPTION_KEY;
+    } catch {}
+  }
+  if (!key) {
+    try {
+      const { getCloudflareContext } = require('@opennextjs/cloudflare');
+      key = getCloudflareContext().env?.DB_ENCRYPTION_KEY;
+    } catch {}
+  }
+  if (!key) {
+    throw new Error('DB_ENCRYPTION_KEY is required. Set it in your environment or .env file.');
+  }
   return key;
 }
 
@@ -42,16 +57,16 @@ export async function decrypt(hexString: string, secret: string): Promise<string
   try {
     const key = await getKey(secret);
     const matches = hexString.match(/.{1,2}/g);
-    if (!matches) return hexString;
+    if (!matches) return hexString; // Plaintext fallback
 
     const parsedBytes = matches.map(byte => parseInt(byte, 16));
     if (parsedBytes.some(isNaN)) {
-      return hexString;
+      return hexString; // Plaintext fallback
     }
 
     const bytes = new Uint8Array(parsedBytes);
     if (bytes.length < 13) {
-      return hexString;
+      return hexString; // Plaintext fallback
     }
 
     const iv = bytes.slice(0, 12);
@@ -63,6 +78,7 @@ export async function decrypt(hexString: string, secret: string): Promise<string
     );
     return new TextDecoder().decode(decrypted);
   } catch (e) {
+    // Return original string on wrong secret / format issues
     return hexString;
   }
 }

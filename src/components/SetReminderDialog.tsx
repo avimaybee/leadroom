@@ -45,7 +45,11 @@ export function SetReminderDialog({ leadId, leadName }: SetReminderDialogProps) 
       formData.append('leadId', leadId);
       formData.append('title', title.trim());
       formData.append('message', message.trim());
-      formData.append('remindAt', remindAt);
+      const offset = -new Date().getTimezoneOffset();
+      const tzSign = offset >= 0 ? '+' : '-';
+      const tzHours = String(Math.floor(Math.abs(offset) / 60)).padStart(2, '0');
+      const tzMins = String(Math.abs(offset) % 60).padStart(2, '0');
+      formData.append('remindAt', remindAt + `:00${tzSign}${tzHours}:${tzMins}`);
 
       const result = await createReminderAction(null, formData);
       if (result?.error) {

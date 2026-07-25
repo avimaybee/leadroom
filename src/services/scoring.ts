@@ -24,7 +24,8 @@ function parseSignalsCached(raw: string | null, taskId: string): any[] {
     }
     _parsedSignalCache.set(taskId, result);
     return result;
-  } catch {
+  } catch (e) {
+    log.error('Failed to parse signals', e, { taskId });
     return [];
   }
 }
@@ -409,7 +410,8 @@ function safeParseJsonArray(value: unknown): any[] {
     try {
       const parsed = JSON.parse(value);
       return Array.isArray(parsed) ? parsed : [];
-    } catch {
+    } catch (e) {
+      log.error('Failed to parse JSON array in scoring', e);
       return [];
     }
   }

@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { getUserId, verifyProspectAccess } from '@/lib/auth';
 import { getLogger } from '@/lib/logger';
+import { getSafeErrorMessage } from '@/lib/errors';
 
 const log = getLogger('ProspectsActions');
 
@@ -58,7 +59,7 @@ export async function createLeadAction(prevState: ActionState, formData: FormDat
     const lead = await service.createLead({ ...validated.data, ownerId: userId });
   } catch (error: unknown) {
     log.error('Prospects action failed', error);
-    const msg = error instanceof Error ? error.message : 'Failed to create lead.';
+    const msg = getSafeErrorMessage(error, 'Failed to create lead.');
     return { error: msg };
   }
   
@@ -135,7 +136,7 @@ export async function updateLeadAction(prevState: ActionState, formData: FormDat
     await service.updateLead(id, validated.data);
   } catch (error: unknown) {
     log.error('Prospects action failed', error);
-    const msg = error instanceof Error ? error.message : 'Failed to update lead.';
+    const msg = getSafeErrorMessage(error, 'Failed to update lead.');
     return { error: msg };
   }
   
@@ -166,7 +167,7 @@ export async function addNoteAction(prevState: ActionState, formData: FormData) 
   try {
     await service.addNote(leadId, userId, body);
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'Failed to add note';
+    const msg = getSafeErrorMessage(e, 'Failed to add note');
     return { error: msg };
   }
 
