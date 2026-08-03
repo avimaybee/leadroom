@@ -86,7 +86,11 @@ async function promoteCandidateActionImpl(
     const service = await getService();
     const promoted = await service.promoteCandidate(candidateId, userId);
 
-    revalidatePath(`/markets/${promoted!.marketId}/prospects`);
+    if (promoted?.marketId) {
+      revalidatePath(`/markets/${promoted.marketId}/prospects`);
+    } else {
+      revalidatePath('/markets/*/prospects');
+    }
     return { success: true };
   } catch (error: unknown) {
     log.error('Discovery candidate failed', error);

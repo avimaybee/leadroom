@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, ArrowRight, ArrowLeft, Target, Sparkles, AlertCircle } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Target, Sparkles, AlertCircle, Radar, MapPin, Hash } from 'lucide-react';
 import { createMarketWithWizardAction } from '@/app/actions/strategy';
 import { toast } from 'sonner';
 
@@ -25,6 +25,12 @@ export function CreateMarketWizard({ isOpen, onClose }: CreateMarketWizardProps)
   const [marketName, setMarketName] = useState('');
   const [offerDescription, setOfferDescription] = useState('');
   const [icpDescription, setIcpDescription] = useState('');
+
+  // Automatic discovery state
+  const [runDiscovery, setRunDiscovery] = useState(true);
+  const [discoveryNiche, setDiscoveryNiche] = useState('');
+  const [discoveryLocation, setDiscoveryLocation] = useState('');
+  const [discoveryLimit, setDiscoveryLimit] = useState('25');
 
   // Loading phase messages for micro-interactions
   const [loadingPhase, setLoadingPhase] = useState('Positioning offer...');
@@ -48,6 +54,13 @@ export function CreateMarketWizard({ isOpen, onClose }: CreateMarketWizardProps)
       toast.error('Please describe what you sell');
       return;
     }
+    if (step === 3 && !icpDescription.trim()) {
+      toast.error('Please describe your ideal customer');
+      return;
+    }
+    if (step === 3) {
+      setDiscoveryNiche(marketName.trim());
+    }
     setStep((prev) => prev + 1);
   };
 
@@ -55,12 +68,8 @@ export function CreateMarketWizard({ isOpen, onClose }: CreateMarketWizardProps)
     setStep((prev) => prev - 1);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!icpDescription.trim()) {
-      toast.error('Please describe your ideal customer');
-      return;
-    }
 
     setLoading(true);
     setError(null);
@@ -86,6 +95,13 @@ export function CreateMarketWizard({ isOpen, onClose }: CreateMarketWizardProps)
       formData.append('offerDescription', offerDescription);
       formData.append('icpDescription', icpDescription);
 
+      if (runDiscovery) {
+        formData.append('runDiscovery', 'on');
+        formData.append('discoveryNiche', discoveryNiche.trim() || marketName.trim());
+        formData.append('discoveryLocation', discoveryLocation.trim());
+        formData.append('discoveryLimit', discoveryLimit);
+      }
+
       const result = await createMarketWithWizardAction(null, formData);
 
       if (intervalRef.current !== null) {
@@ -99,8 +115,9 @@ export function CreateMarketWizard({ isOpen, onClose }: CreateMarketWizardProps)
       } else {
         toast.success('Market campaign built successfully!');
         onClose();
-        // Redirect to the market's prospects page
-        router.push(`/markets/${result.marketId}/prospects`);
+        // Redirect to the market's prospects page, showing live scan progress when discovery was auto-started
+        const query = result.jobId ? `?jobId=${result.jobId}` : '';
+        router.push(`/markets/${result.marketId}/prospects${query}`);
       }
     } catch (err: unknown) {
       if (intervalRef.current !== null) {
@@ -118,6 +135,10 @@ export function CreateMarketWizard({ isOpen, onClose }: CreateMarketWizardProps)
     setMarketName('');
     setOfferDescription('');
     setIcpDescription('');
+    setDiscoveryNiche('');
+    setDiscoveryLocation('');
+    setDiscoveryLimit('25');
+    setRunDiscovery(true);
     setError(null);
     onClose();
   };
@@ -136,6 +157,11 @@ export function CreateMarketWizard({ isOpen, onClose }: CreateMarketWizardProps)
             <div className="space-y-2">
               <h3 className="text-heading-lg font-semibold text-foreground">AI is building your campaign</h3>
               <p className="text-copy-14 text-muted-foreground animate-pulse">{loadingPhase}</p>
+              {runDiscovery && (
+                <p className="text-label-12 text-muted-foreground">
+                  Lead discovery will start automatically when setup completes.
+                </p>
+              )}
             </div>
           </div>
         ) : (
@@ -148,7 +174,7 @@ export function CreateMarketWizard({ isOpen, onClose }: CreateMarketWizardProps)
               <div>
                 <DialogTitle className="text-heading-lg">Create Market Campaign</DialogTitle>
                 <DialogDescription className="text-label-12 text-muted-foreground">
-                  Step {step} of 3 • AI Strategy Generator
+                  Step {step} of 4 • AI Strategy Generator
                 </DialogDescription>
               </div>
             </div>
@@ -216,6 +242,81 @@ export function CreateMarketWizard({ isOpen, onClose }: CreateMarketWizardProps)
                   />
                 </div>
               )}
+
+              {step === 4 && (
+                <div className="space-y-5">
+                  {/* Toggle */}
+                  <label className="flex items-start gap-3 cursor-pointer select-none group">
+                    <input
+                      type="checkbox"
+                      checked={runDiscovery}
+                      onChange={(e) => setRunDiscovery(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-border accent-primary cursor-pointer"
+                    />
+                    <div>
+                      <span className="text-label-14 font-semibold text-foreground flex items-center gap-1.5 group-hover:text-primary transition-colors">
+                        <Radar className="w-4 h-4 text-primary" />
+                        Automatically discover leads
+                      </span>
+                      <p className="text-label-12 text-muted-foreground mt-0.5 leading-normal">
+                        Right after the campaign is built, Leadroom scans Google Maps for matching businesses and queues
+                        them in the review inbox. No manual step needed.
+                      </p>
+                    </div>
+                  </label>
+
+                  {runDiscovery && (
+                    <div className="space-y-4 bg-muted/20 border border-border/60 rounded-xl p-4">
+                      <div className="space-y-1.5">
+                        <label className="text-label-14 font-semibold text-foreground flex items-center gap-1.5">
+                          <Target className="w-3.5 h-3.5 text-muted-foreground" />
+                          Search Niche
+                        </label>
+                        <Input
+                          placeholder="e.g. SaaS marketing agencies"
+                          value={discoveryNiche}
+                          onChange={(e) => setDiscoveryNiche(e.target.value)}
+                          className="h-11 text-copy-14"
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-label-14 font-semibold text-foreground flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
+                          Location
+                        </label>
+                        <Input
+                          placeholder="e.g. Austin, TX (optional)"
+                          value={discoveryLocation}
+                          onChange={(e) => setDiscoveryLocation(e.target.value)}
+                          className="h-11 text-copy-14"
+                        />
+                        <p className="text-label-12 text-muted-foreground">
+                          Leave blank to scan a random US state.
+                        </p>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-label-14 font-semibold text-foreground flex items-center gap-1.5">
+                          <Hash className="w-3.5 h-3.5 text-muted-foreground" />
+                          Lead Limit
+                        </label>
+                        <select
+                          value={discoveryLimit}
+                          onChange={(e) => setDiscoveryLimit(e.target.value)}
+                          className="flex h-11 w-full min-w-0 rounded-md border border-input bg-card px-3 py-2 text-copy-14 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring text-foreground hover:bg-muted/40 cursor-pointer"
+                        >
+                          <option value={5}>5 leads</option>
+                          <option value={10}>10 leads</option>
+                          <option value={25}>25 leads (Recommended)</option>
+                          <option value={50}>50 leads</option>
+                          <option value={100}>100 leads</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Footer */}
@@ -229,7 +330,7 @@ export function CreateMarketWizard({ isOpen, onClose }: CreateMarketWizardProps)
                 <div />
               )}
 
-              {step < 3 ? (
+              {step < 4 ? (
                 <Button type="button" onClick={nextStep}>
                   Next
                   <ArrowRight className="w-4 h-4 ml-2" />

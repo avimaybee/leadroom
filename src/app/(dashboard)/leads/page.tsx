@@ -1,9 +1,10 @@
 export const dynamic = 'force-dynamic';
 import { getDb } from '@/db';
-import { leads, leadScores, candidateLeads, discoveryScopes, tasks, stageThresholds, jobRuns } from '@/db/schema';
-import { eq, desc, inArray, and } from 'drizzle-orm';
+import { discoveryScopes } from '@/db/schema';
+import { eq, desc } from 'drizzle-orm';
 import LeadsTableClient from '@/components/LeadsTableClient';
 import { getUserId } from '@/lib/auth';
+import { fetchEnrichedLeadsPage } from '@/lib/leads-query';
 
 export default async function LeadsPage({ searchParams }: { searchParams: Promise<{ campaignId?: string; filter?: string; stage?: string }> }) {
   const db = getDb();
@@ -16,116 +17,15 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   const activeFilter = resolvedParams.filter || 'all';
   const stageFilter = resolvedParams.stage;
 
-  const [activeLeadsData, scores, campaigns, allTasks, thresholds, activeJobs, allScopes] = await Promise.all([
-    db.select({
-      id: leads.id,
-      name: leads.name,
-      company: leads.company,
-      email: leads.email,
-      phone: leads.phone,
-      website: leads.website,
-      city: leads.city,
-      region: leads.region,
-      industry: leads.industry,
-      stage: leads.stage,
-      isRead: leads.isRead,
-      status: leads.status,
-      workspaceId: leads.workspaceId,
-      marketId: leads.marketId,
-      fitScore: leads.fitScore,
-      confidenceScore: leads.confidenceScore,
-      priorityTier: leads.priorityTier,
-      disqualifiedReason: leads.disqualifiedReason,
-      ownerId: leads.ownerId,
-      createdAt: leads.createdAt,
-      updatedAt: leads.updatedAt,
-      stageUpdatedAt: leads.stageUpdatedAt,
-      lastActivityAt: leads.lastActivityAt,
-    }).from(leads).where(and(eq(leads.status, 'Active'), eq(leads.ownerId, userId))).orderBy(desc(leads.updatedAt)).limit(200),
-    db.select({
-      leadId: leadScores.leadId,
-      scoreValue: leadScores.scoreValue,
-      scoreLabel: leadScores.scoreLabel,
-      rationaleSummary: leadScores.rationaleSummary,
-    }).from(leadScores).where(eq(leadScores.isCurrent, 1)).limit(200),
-    db.select({
-      campaignId: discoveryScopes.id,
-      campaignName: discoveryScopes.name,
-      leadId: candidateLeads.promotedLeadId,
-    }).from(discoveryScopes)
-      .leftJoin(candidateLeads, eq(discoveryScopes.id, candidateLeads.discoveryScopeId))
-      .where(eq(discoveryScopes.createdByUserId, userId)).limit(200),
-    db.select({
-      id: tasks.id,
-      title: tasks.title,
-      leadId: tasks.leadId,
-      dueDate: tasks.dueDate,
-      status: tasks.status,
-      priority: tasks.priority,
-      assigneeId: tasks.assigneeId,
-      category: tasks.category,
-    }).from(tasks).where(and(eq(tasks.status, 'Open'), eq(tasks.assigneeId, userId))).limit(200),
-    db.select().from(stageThresholds),
-    db.select({
-      id: jobRuns.id,
-      targetLeadId: jobRuns.targetLeadId,
-      status: jobRuns.status,
-      jobType: jobRuns.jobType,
-    }).from(jobRuns).where(inArray(jobRuns.status, ['QUEUED', 'RUNNING'])).limit(200),
-    db.select({ id: discoveryScopes.id, name: discoveryScopes.name }).from(discoveryScopes).where(eq(discoveryScopes.createdByUserId, userId)).orderBy(desc(discoveryScopes.createdAt)).limit(200),
+  const [pageData, allScopes] = await Promise.all([
+    fetchEnrichedLeadsPage(db, userId, { offset: 0, limit: 200 }),
+    db.select({ id: discoveryScopes.id, name: discoveryScopes.name }).from(discoveryScopes).where(eq(discoveryScopes.createdByUserId, userId)).orderBy(desc(discoveryScopes.createdAt)).limit(500),
   ]);
 
-  const scoreMap = new Map(scores.map(s => [s.leadId, { scoreValue: s.scoreValue, scoreLabel: s.scoreLabel, rationaleSummary: s.rationaleSummary }]));
-  const campaignMap = new Map(campaigns.filter(c => c.leadId).map(c => [c.leadId!, { campaignId: c.campaignId, campaignName: c.campaignName }]));
-  const activeJobsMap = new Map();
-  activeJobs.forEach(job => {
-    if (job.targetLeadId) {
-      activeJobsMap.set(job.targetLeadId, { status: job.status, jobType: job.jobType });
-    }
-  });
-
-  const tasksByLeadId = new Map<string, typeof allTasks>();
-  for (const task of allTasks) {
-    if (!task.leadId) continue;
-    let arr = tasksByLeadId.get(task.leadId);
-    if (!arr) { arr = []; tasksByLeadId.set(task.leadId, arr); }
-    arr.push(task);
-  }
-
-  const now = Date.now();
-  const enrichedLeads = activeLeadsData.map(lead => {
-    const leadTasks = tasksByLeadId.get(lead.id) || [];
-    let isFollowUpDue = false;
-    let overdueTasks: typeof leadTasks = [];
-    let openTasks: typeof leadTasks = [];
-    for (const t of leadTasks) {
-      const taskDue = t.dueDate ? new Date(t.dueDate).getTime() : NaN;
-      if (!isNaN(taskDue) && taskDue < now) {
-        isFollowUpDue = true;
-        overdueTasks.push(t);
-      }
-      if ((t as any).status === 'Open') openTasks.push(t);
-    }
-    const stageThreshold = thresholds.find(t => t.stage === lead.stage)?.days ?? 5;
-    const stageAgeDays = lead.stageUpdatedAt 
-      ? (now - new Date(lead.stageUpdatedAt).getTime()) / (1000 * 60 * 60 * 24) : 0;
-    const isStale = stageAgeDays > stageThreshold;
-    const activeJob = activeJobsMap.get(lead.id);
-    return {
-      ...lead,
-      isFollowUpDue,
-      overdueTasks,
-      openTasks,
-      isStale,
-      stageAgeDays,
-      activeJob: activeJob || null,
-      ...(scoreMap.get(lead.id) || { scoreValue: null, scoreLabel: null, rationaleSummary: null }),
-      ...(campaignMap.get(lead.id) || { campaignId: null, campaignName: null }),
-    };
-  });
+  const { leads: activeLeadsData, total: totalCount } = pageData;
 
   let filteredLeads = campaignIdFilter
-    ? enrichedLeads.filter(l => l.campaignId === campaignIdFilter) : enrichedLeads;
+    ? activeLeadsData.filter(l => l.campaignId === campaignIdFilter) : activeLeadsData;
 
   if (stageFilter) {
     filteredLeads = filteredLeads.filter(l => l.stage === stageFilter);
@@ -141,7 +41,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
     filteredLeads = filteredLeads.filter(l => l.isStale);
   }
 
-  let description = `Showing ${filteredLeads.length} of ${enrichedLeads.length} active leads.`;
+  let description = `Showing ${filteredLeads.length} of ${totalCount} active leads.`;
   if (stageFilter) description = `Showing ${filteredLeads.length} active leads currently in the "${stageFilter}" stage.`;
   else if (activeFilter === 'needs_research') description = `Showing ${filteredLeads.length} leads requiring initial market research.`;
   else if (activeFilter === 'needs_audit') description = `Showing ${filteredLeads.length} leads requiring digital presence auditing.`;
@@ -157,7 +57,8 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
       stageFilter={stageFilter}
       campaignIdFilter={campaignIdFilter}
       description={description}
-      enrichedCount={enrichedLeads.length}
+      enrichedCount={totalCount}
+      totalCount={totalCount}
     />
   );
 }

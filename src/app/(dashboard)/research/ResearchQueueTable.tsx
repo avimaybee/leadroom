@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronRight, ChevronDown, Loader2, RotateCcw, ExternalLink } from 'lucide-react';
-import { retryResearchTaskAction } from '@/app/actions/research';
+import { useRouter } from 'next/navigation';
+import { ChevronRight, ChevronDown, Loader2, RotateCcw, ExternalLink, Ban } from 'lucide-react';
+import { retryResearchTaskAction, cancelResearchTaskAction } from '@/app/actions/research';
 import { toast } from 'sonner';
 
 interface TaskRow {
@@ -36,6 +37,14 @@ const TASK_LABELS: Record<string, string> = {
   DISQUALIFIER_CHECK: 'Disqualifier Check',
 };
 
+const STATUS_FILTERS = [
+  { value: 'all', label: 'All' },
+  { value: 'PENDING', label: 'Pending' },
+  { value: 'RUNNING', label: 'Running' },
+  { value: 'COMPLETED', label: 'Completed' },
+  { value: 'FAILED', label: 'Failed' },
+];
+
 function timeAgo(date: number | null): string {
   if (!date) return '-';
   const seconds = Math.floor((Date.now() - date) / 1000);
@@ -57,7 +66,7 @@ function parseSignals(raw: string | null): { signalName: string; matchStrength: 
   }
 }
 
-function TaskExpandedContent({ task }: { task: TaskRow }) {
+function TaskExpandedContent({ task, onChanged }: { task: TaskRow; onChanged: () => void }) {
   if (task.status === 'FAILED') {
     return (
       <div className="space-y-2">
@@ -68,6 +77,7 @@ function TaskExpandedContent({ task }: { task: TaskRow }) {
             const result = await retryResearchTaskAction(task.id);
             if (result.success) {
               toast.success('Task queued for retry');
+              onChanged();
             } else {
               toast.error('Failed to retry task');
             }
@@ -83,9 +93,28 @@ function TaskExpandedContent({ task }: { task: TaskRow }) {
 
   if (task.status === 'RUNNING') {
     return (
-      <div className="flex items-center gap-2 text-copy-13 text-muted-foreground">
-        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-        Running...
+      <div className="flex items-center gap-3 text-copy-13 text-muted-foreground">
+        <span className="inline-flex items-center gap-2">
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          Running...
+        </span>
+        <button
+          type="button"
+          onClick={async () => {
+            if (!confirm('Cancel this research task?')) return;
+            const result = await cancelResearchTaskAction(task.id);
+            if (result.success) {
+              toast.success('Research task cancelled');
+              onChanged();
+            } else {
+              toast.error(result.error || 'Failed to cancel task');
+            }
+          }}
+          className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-destructive/30 text-label-12 text-destructive hover:bg-destructive/10 transition-colors"
+        >
+          <Ban className="w-3 h-3" />
+          Cancel
+        </button>
       </div>
     );
   }
@@ -125,7 +154,7 @@ function TaskExpandedContent({ task }: { task: TaskRow }) {
   return null;
 }
 
-function TaskRow({ task, isExpanded, onToggle }: { task: TaskRow; isExpanded: boolean; onToggle: () => void }) {
+function TaskRowView({ task, isExpanded, onToggle, onChanged }: { task: TaskRow; isExpanded: boolean; onToggle: () => void; onChanged: () => void }) {
   return (
     <>
       <tr className="border-b border-border/40 last:border-0 hover:bg-muted/30 transition-colors">
@@ -167,7 +196,7 @@ function TaskRow({ task, isExpanded, onToggle }: { task: TaskRow; isExpanded: bo
         <tr key={`${task.id}-expanded`}>
           <td colSpan={6} className="px-3 py-3 bg-muted/10 border-b border-border/40">
             <div className="ml-8">
-              <TaskExpandedContent task={task} />
+              <TaskExpandedContent task={task} onChanged={onChanged} />
             </div>
           </td>
         </tr>
@@ -177,32 +206,79 @@ function TaskRow({ task, isExpanded, onToggle }: { task: TaskRow; isExpanded: bo
 }
 
 export function ResearchQueueTable({ tasks }: { tasks: TaskRow[] }) {
+  const router = useRouter();
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState('all');
+
+  const filtered = statusFilter === 'all' ? tasks : tasks.filter(t => t.status === statusFilter);
+  const counts = STATUS_FILTERS.reduce<Record<string, number>>((acc, f) => {
+    acc[f.value] = f.value === 'all' ? tasks.length : tasks.filter(t => t.status === f.value).length;
+    return acc;
+  }, {});
+
+  const handleChanged = () => {
+    router.refresh();
+  };
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-border">
-      <table className="w-full">
-        <thead>
-          <tr className="border-b border-border bg-muted/20">
-            <th className="w-8 px-2 py-3" />
-            <th className="text-left px-3 py-3 text-label-12 text-muted-foreground">Prospect</th>
-            <th className="text-left px-3 py-3 text-label-12 text-muted-foreground">Task</th>
-            <th className="text-left px-3 py-3 text-label-12 text-muted-foreground">Status</th>
-            <th className="text-left px-3 py-3 text-label-12 text-muted-foreground">Confidence</th>
-            <th className="text-left px-3 py-3 text-label-12 text-muted-foreground">Started</th>
-          </tr>
-        </thead>
-        <tbody>
-          {tasks.map((task) => (
-            <TaskRow
-              key={task.id}
-              task={task}
-              isExpanded={expanded === task.id}
-              onToggle={() => setExpanded(expanded === task.id ? null : task.id)}
-            />
-          ))}
-        </tbody>
-      </table>
+    <div className="space-y-4">
+      {/* Status filter tabs */}
+      <div className="flex flex-wrap gap-1 rounded-md border border-border bg-muted/25 p-1 w-fit">
+        {STATUS_FILTERS.map((opt) => {
+          const isSelected = statusFilter === opt.value;
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => { setStatusFilter(opt.value); setExpanded(null); }}
+              className={`inline-flex min-h-8 items-center gap-1.5 rounded-md px-3.5 text-label-12 font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer ${
+                isSelected
+                  ? 'bg-card text-foreground shadow-sm border border-border/40'
+                  : 'text-muted-foreground hover:bg-card/60 hover:text-foreground'
+              }`}
+            >
+              {opt.label}
+              <span className={`text-label-11 ${isSelected ? 'text-muted-foreground' : 'text-muted-foreground/60'}`}>
+                ({counts[opt.value]})
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="overflow-x-auto rounded-xl border border-border">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-border bg-muted/20">
+              <th className="w-8 px-2 py-3" />
+              <th className="text-left px-3 py-3 text-label-12 text-muted-foreground">Prospect</th>
+              <th className="text-left px-3 py-3 text-label-12 text-muted-foreground">Task</th>
+              <th className="text-left px-3 py-3 text-label-12 text-muted-foreground">Status</th>
+              <th className="text-left px-3 py-3 text-label-12 text-muted-foreground">Confidence</th>
+              <th className="text-left px-3 py-3 text-label-12 text-muted-foreground">Started</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-3 py-10 text-center text-copy-13 text-muted-foreground">
+                  No tasks match this status filter.
+                </td>
+              </tr>
+            ) : (
+              filtered.map((task) => (
+                <TaskRowView
+                  key={task.id}
+                  task={task}
+                  isExpanded={expanded === task.id}
+                  onToggle={() => setExpanded(expanded === task.id ? null : task.id)}
+                  onChanged={handleChanged}
+                />
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

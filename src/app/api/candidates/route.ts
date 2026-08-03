@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const scopeId = searchParams.get('scopeId');
     if (!scopeId) {
-      return NextResponse.json({ success: false, error: 'scopeId parameter is required' }, { status: 400 });
+      return NextResponse.json({ success: true, data: [] });
     }
 
     const db = getDb();

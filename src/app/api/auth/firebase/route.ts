@@ -13,20 +13,26 @@ const FirebaseAuthSchema = z.object({
   idToken: z.string().min(1),
 });
 
-function getFirebaseApiKey(): string {
+function getFirebaseApiKey(): string | null {
   try {
     const { getCloudflareContext } = require('@opennextjs/cloudflare');
     const cfEnv = getCloudflareContext().env;
     if (cfEnv?.NEXT_PUBLIC_FIREBASE_API_KEY) return cfEnv.NEXT_PUBLIC_FIREBASE_API_KEY;
     if (cfEnv?.FIREBASE_API_KEY) return cfEnv.FIREBASE_API_KEY;
   } catch {}
-  const key = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY;
-  if (!key) throw new Error('FIREBASE_API_KEY is not configured. Set NEXT_PUBLIC_FIREBASE_API_KEY or FIREBASE_API_KEY.');
-  return key;
+  const envKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY;
+  if (envKey) return envKey;
+  // Matches the hardcoded key in src/lib/firebase.ts used by the client SDK
+  return 'AIzaSyCaf1FHg56-HIa-39FkPEY3146guGiZCX8';
 }
 
 export async function POST(request: NextRequest) {
   try {
+    const apiKey = getFirebaseApiKey();
+    if (!apiKey) {
+      return NextResponse.json({ error: 'Firebase authentication is not configured' }, { status: 501 });
+    }
+
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
     const rateCheck = await checkRateLimit(`firebase:${ip}`, 20, 60_000);
     if (!rateCheck.allowed) {
@@ -42,8 +48,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing idToken' }, { status: 400 });
     }
     const { idToken } = parsed.data;
-
-    const apiKey = getFirebaseApiKey();
 
     // Verify the Firebase ID token using Google's Identity Toolkit API v1
     const verifyResp = await fetch(

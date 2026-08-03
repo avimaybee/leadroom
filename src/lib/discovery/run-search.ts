@@ -3,6 +3,7 @@ import { startGoogleMapsSearch } from './apify';
 import { type Db } from '@/db';
 import { jobRuns } from '@/db/schema/research';
 import { triggerDiscoverySearchWorkflow } from '@/lib/workflow-client';
+import { DiscoveryService } from '@/services/discovery';
 
 const log = getLogger('RunDiscoverySearch');
 
@@ -21,7 +22,7 @@ export async function runSearchForScope(
     niche: string;
     location: string;
     limit: number;
-    scopeId: string;
+    scopeId: string | null;
     userId: string;
   }
 ): Promise<RunSearchResult> {
@@ -47,7 +48,7 @@ export async function runSearchForScope(
   try {
     const { getCloudflareContext } = await import('@opennextjs/cloudflare');
     workflowBinding = getCloudflareContext().env?.DISCOVERY_SEARCH_WORKFLOW;
-  } catch (e) {
+  } catch {
     log.info('getCloudflareContext unavailable — falling back to process.env for workflow binding');
   }
   if (!workflowBinding) {
@@ -67,4 +68,48 @@ export async function runSearchForScope(
   );
 
   return { jobId, runId };
+}
+
+/**
+ * Creates a discovery scope linked to a market and immediately starts a
+ * Google Maps search for it. Used by the market wizard (automatic lead
+ * generation) and the market "Discover Leads" modal.
+ */
+export async function runMarketDiscoverySearch(
+  db: Db,
+  params: {
+    marketId: string;
+    marketName: string;
+    workspaceId: string;
+    userId: string;
+    niche: string;
+    location: string;
+    limit: number;
+  }
+): Promise<{ jobId: string; scopeId: string }> {
+  const { marketId, marketName, workspaceId, userId, niche, location, limit } = params;
+
+  const scopeId = crypto.randomUUID();
+  const discoveryService = new DiscoveryService(db);
+  await discoveryService.createScope(scopeId, {
+    name: `${marketName} Discovery`,
+    description: `Auto-discovery for market "${marketName}" searching "${niche}" in "${location}"`,
+    industryFilter: niche,
+    geographyFilter: location,
+    autoResearchPromotedLeads: true,
+    createdByUserId: userId,
+    workspaceId,
+    marketId,
+  });
+
+  const result = await runSearchForScope(db, {
+    niche,
+    location,
+    limit,
+    scopeId,
+    userId,
+  });
+
+  log.info('Market discovery search started', { marketId, scopeId, jobId: result.jobId });
+  return { jobId: result.jobId, scopeId };
 }

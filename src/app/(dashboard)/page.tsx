@@ -4,10 +4,11 @@ import { getDb } from '@/db';
 import { prospects, stageThresholds } from '@/db/schema/core';
 import { outreachDrafts } from '@/db/schema/outreach';
 import { markets } from '@/db/schema/strategy';
+import { candidateLeads, discoveryScopes } from '@/db/schema/discovery';
 import { getUserId } from '@/lib/auth';
 import { LeadService } from '@/services/lead';
-import { eq, sql, count, and } from 'drizzle-orm';
-import { TriangleAlert, Target, Clock, CheckSquare, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { eq, sql, count, and, inArray } from 'drizzle-orm';
+import { TriangleAlert, Target, Clock, CheckSquare, ArrowRight, CheckCircle2, Radar } from 'lucide-react';
 import Link from 'next/link';
 import { MetricsBar } from '@/components/command-center/MetricsBar';
 import { ProspectTableWithSignals } from '@/components/command-center/ProspectTableWithSignals';
@@ -25,13 +26,21 @@ export default async function DashboardPage() {
   const leadService = new LeadService(db);
 
   // Fetch all core data in parallel
-  const [allProspects, activeMarkets, pendingApprovalRow, thresholds, funnel, myTasks] = await Promise.all([
+  const [allProspects, activeMarkets, pendingApprovalRow, thresholds, funnel, myTasks, pendingTriagesRow] = await Promise.all([
     db.select().from(prospects).where(and(eq(prospects.status, 'Active'), eq(prospects.ownerId, userId))).orderBy(sql`COALESCE(${prospects.fitScore}, 0) DESC`).limit(500),
     db.select().from(markets).where(and(eq(markets.workspaceId, userId), eq(markets.status, 'active'))),
     db.select({ count: count() }).from(outreachDrafts).innerJoin(prospects, eq(outreachDrafts.leadId, prospects.id)).where(and(eq(outreachDrafts.status, 'DRAFT'), eq(prospects.ownerId, userId))),
     db.select().from(stageThresholds),
     leadService.getStageFunnel(userId),
     leadService.getMyTasks(userId),
+    db
+      .select({ count: count() })
+      .from(candidateLeads)
+      .innerJoin(discoveryScopes, eq(candidateLeads.discoveryScopeId, discoveryScopes.id))
+      .where(and(
+        inArray(candidateLeads.status, ['NEW', 'REVIEWED']),
+        eq(discoveryScopes.createdByUserId, userId),
+      )),
   ]);
 
   const scoredProspects = allProspects.filter(p => p.fitScore !== null && p.fitScore !== undefined);
@@ -46,6 +55,7 @@ export default async function DashboardPage() {
     : 0;
 
   const pendingApprovals = pendingApprovalRow[0]?.count ?? 0;
+  const pendingTriages = pendingTriagesRow[0]?.count ?? 0;
   const lowConfidenceCount = scoredProspects.filter(p => (p.confidenceScore ?? 0) < 50).length;
 
   // Stale Prospects by Stage calculation
@@ -104,6 +114,9 @@ export default async function DashboardPage() {
 
   // Dynamic status summary text
   const summaryParts = [];
+  if (pendingTriages > 0) {
+    summaryParts.push(`${pendingTriages} candidate${pendingTriages === 1 ? '' : 's'} awaiting triage`);
+  }
   if (overdueMyTasks > 0) {
     summaryParts.push(`${overdueMyTasks} follow-up${overdueMyTasks === 1 ? '' : 's'} overdue`);
   }
@@ -134,7 +147,11 @@ export default async function DashboardPage() {
           </div>
 
           <div className="flex shrink-0 items-center gap-3 lg:mt-1">
-            <Link href="/markets" className={buttonVariants({ variant: 'default' })}>
+            <Link href="/scopes/new" className={buttonVariants({ variant: 'default' })}>
+              <Radar className="w-4 h-4 mr-1.5" />
+              Start Discovery
+            </Link>
+            <Link href="/markets" className={buttonVariants({ variant: 'outline' })}>
               Manage Markets
             </Link>
             <Link href="/prospects" className={buttonVariants({ variant: 'outline' })}>
@@ -152,6 +169,7 @@ export default async function DashboardPage() {
           pendingApprovals,
           avgConfidence,
           needsResearch,
+          pendingTriages,
         }}
       />
 
@@ -365,6 +383,13 @@ export default async function DashboardPage() {
                 Quick Shortcuts
               </h3>
               <div className="space-y-2">
+                <Link
+                  href="/scopes?filter=pending"
+                  className="flex items-center justify-between p-3 bg-muted/40 hover:bg-muted/70 rounded-md transition text-foreground text-label-12 group border border-transparent hover:border-border"
+                >
+                  <span>Discovery Review Queue ({pendingTriages})</span>
+                  <ArrowRight className="w-3.5 h-3.5 text-muted-foreground group-hover:translate-x-0.5 group-hover:text-primary transition" />
+                </Link>
                 <Link
                   href="/markets"
                   className="flex items-center justify-between p-3 bg-muted/40 hover:bg-muted/70 rounded-md transition text-foreground text-label-12 group border border-transparent hover:border-border"

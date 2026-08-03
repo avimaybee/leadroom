@@ -320,8 +320,7 @@ export class DiscoveryService {
         ({ jobRuns } = await import('../db/schema/research'));
         ({ triggerResearchWorkflow } = await import('../lib/workflow-client'));
       } catch (e) {
-        log.error('Failed to auto-trigger research', e);
-        return;
+        log.error('Failed to auto-trigger research, continuing without research', e);
       }
       await this.db.insert(jobRuns).values({
         id: jobId,

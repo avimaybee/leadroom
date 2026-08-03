@@ -20,6 +20,7 @@ import {
   Archive,
   Sliders,
   X,
+  TriangleAlert,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNotifications } from '@/components/NotificationProvider';
@@ -50,10 +51,12 @@ import { ClientStageDropdown } from '@/components/ClientStageDropdown';
 import { SetReminderDialog } from '@/components/SetReminderDialog';
 import { StageAgingBar } from '@/components/lead/StageAgingBar';
 import { NextBestActionsList } from '@/components/lead/NextBestActionsList';
+import { OutcomeLogger } from '@/components/prospects/outreach/OutcomeLogger';
 import { createTaskAction, toggleTaskStatusAction } from '@/app/actions/tasks';
 import { saveResearchSnapshotAction, addContactAction, updateContactAction, deleteContactAction } from '@/app/actions/research';
 import { manualOverrideScoreAction, triggerAuditAction } from '@/app/actions/audits';
 import { generateOutreachDraftAction } from '@/app/actions/outreach';
+import { logOutcomeAction } from '@/app/actions/outcomes';
 
 type WorkspaceView = 'overview' | 'research' | 'outreach' | 'activity';
 
@@ -144,6 +147,23 @@ export default function ProspectDetailsWorkspace({
   const [executingAction, setExecutingAction] = useState<string | null>(null);
 
   const nbaTop = nbaResults && nbaResults.length > 0 ? nbaResults[0] : null;
+
+  const approvedDraftId = useMemo(() => {
+    const approved = outreachDrafts.find(
+      (d: any) => d.status === 'APPROVED' || d.status === 'SENT' || d.status === 'OUTREACH_SENT'
+    );
+    return approved ? (approved.id as string) : null;
+  }, [outreachDrafts]);
+
+  const hasFailedTasks = useMemo(
+    () => (researchTasks || []).some((t: any) => t.status === 'FAILED'),
+    [researchTasks]
+  );
+
+  const isLowConfidence = useMemo(
+    () => lead.confidenceScore !== null && lead.confidenceScore !== undefined && lead.confidenceScore < 50,
+    [lead.confidenceScore]
+  );
 
   const intervalRef = useRef<ReturnType<typeof setInterval>>(undefined);
 
@@ -454,6 +474,31 @@ export default function ProspectDetailsWorkspace({
       </nav>
 
       <main>
+        {/* Cross-view data quality banners */}
+        {isLowConfidence && (
+          <div className="flex items-start gap-3 p-4 rounded-xl bg-chart-5/10 text-chart-5 border border-chart-5/20 mb-6">
+            <TriangleAlert className="w-5 h-5 mt-0.5 shrink-0" />
+            <div>
+              <p className="font-semibold text-label-14">Low data confidence</p>
+              <p className="text-copy-14 text-muted-foreground mt-0.5">
+                Research data may be sparse or unreliable (confidence {lead.confidenceScore}). Review the cited source
+                evidence carefully before approving outreach.
+              </p>
+            </div>
+          </div>
+        )}
+        {hasFailedTasks && !isLowConfidence && (
+          <div className="flex items-start gap-3 p-4 rounded-xl bg-destructive/10 text-destructive border border-destructive/20 mb-6">
+            <TriangleAlert className="w-5 h-5 mt-0.5 shrink-0" />
+            <div>
+              <p className="font-semibold text-label-14">Some research tasks failed</p>
+              <p className="text-copy-14 text-muted-foreground mt-0.5">
+                Results may be incomplete. Retry failed tasks from the Research Queue.
+              </p>
+            </div>
+          </div>
+        )}
+
         {activeView === 'overview' ? (
           <div className="grid gap-6 lg:gap-8 xl:grid-cols-12">
             {/* Main Column (8 spans) */}
@@ -744,7 +789,7 @@ export default function ProspectDetailsWorkspace({
         ) : null}
 
         {activeView === 'outreach' ? (
-          !latestSnapshot ? (
+          !latestSnapshot && outreachDrafts.length === 0 ? (
             <div className="rounded-xl border border-border bg-card p-10 text-center space-y-3">
               <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-muted mb-2">
                 <FileSearch className="w-5 h-5 text-muted-foreground" />
@@ -766,14 +811,33 @@ export default function ProspectDetailsWorkspace({
               )}
             </div>
           ) : (
-            <OutreachAssistant
-              leadId={lead.id}
-              initialDrafts={outreachDrafts.map((draft: any) => ({ ...draft, createdAt: draft.createdAt ? new Date(draft.createdAt) : null, updatedAt: draft.updatedAt ? new Date(draft.updatedAt) : null }))}
-              researchSnapshot={latestSnapshot}
-              auditSnapshot={latestAudit}
-              contacts={contactsList}
-              initialChannel={initialChannel}
-            />
+            <div className="space-y-6">
+              <OutreachAssistant
+                leadId={lead.id}
+                initialDrafts={outreachDrafts.map((draft: any) => ({ ...draft, createdAt: draft.createdAt ? new Date(draft.createdAt) : null, updatedAt: draft.updatedAt ? new Date(draft.updatedAt) : null }))}
+                researchSnapshot={latestSnapshot}
+                auditSnapshot={latestAudit}
+                contacts={contactsList}
+                initialChannel={initialChannel}
+              />
+
+              {/* Learning loop: capture outcomes (replies, bounces, wins) */}
+              <Section title="Log Outcome" description="Record what happened with this outreach to improve scoring over time." icon={ClipboardList}>
+                <OutcomeLogger
+                  draftId={approvedDraftId}
+                  prospectId={lead.id}
+                  onLog={async ({ outcomeType, notes }) => {
+                    const result = await logOutcomeAction({
+                      prospectId: lead.id,
+                      draftId: approvedDraftId,
+                      outcomeType,
+                      notes,
+                    });
+                    if (result.error) throw new Error(result.error);
+                  }}
+                />
+              </Section>
+            </div>
           )
         ) : null}
 

@@ -4,10 +4,12 @@ import { getDb } from '@/db';
 import { revalidatePath } from 'next/cache';
 import { getUserId } from '@/lib/auth';
 import { workspaces, offers, icpProfiles, markets } from '@/db/schema/strategy';
-import { eq, sql, and } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { withLogging } from '@/lib/actions/with-logging';
 import { generateOfferAndICPFromDescription } from '@/lib/ai';
+import { runMarketDiscoverySearch } from '@/lib/discovery/run-search';
+import { discoverySearchLimiter } from '@/lib/rate-limit';
 
 const SignalDefSchema = z.object({
   name: z.string().min(1),
@@ -295,6 +297,25 @@ async function deleteMarketActionImpl(marketId: string) {
 
 export const deleteMarketAction = withLogging('deleteMarketAction', deleteMarketActionImpl);
 
+const US_STATES = [
+  'Texas, USA',
+  'California, USA',
+  'Florida, USA',
+  'New York, USA',
+  'Illinois, USA',
+  'Ohio, USA',
+  'Georgia, USA',
+  'North Carolina, USA',
+  'Michigan, USA',
+  'Colorado, USA',
+  'Washington, USA',
+  'Arizona, USA',
+];
+
+function pickRandomUsState(): string {
+  return US_STATES[Math.floor(Math.random() * US_STATES.length)];
+}
+
 export const createMarketWithWizardAction = withLogging(
   'createMarketWithWizardAction',
   async (prev: any, form: FormData) => {
@@ -312,6 +333,12 @@ export const createMarketWithWizardAction = withLogging(
     if (!marketName || !offerDescription || !icpDescription) {
       return { error: 'All fields are required.' };
     }
+
+    // Optional automatic lead discovery (sent from the wizard's final step)
+    const runDiscovery = String(form.get('runDiscovery') ?? '') === 'on';
+    const discoveryNiche = String(form.get('discoveryNiche') ?? '').trim();
+    const discoveryLocation = String(form.get('discoveryLocation') ?? '').trim();
+    const discoveryLimit = Math.min(Math.max(parseInt(String(form.get('discoveryLimit') ?? '25'), 10) || 25, 1), 200);
 
     try {
       // 1. Generate Offer and ICP structures via AI
@@ -365,8 +392,31 @@ export const createMarketWithWizardAction = withLogging(
         updatedAt: now,
       });
 
+      // 5. Automatically run lead discovery when requested
+      let jobId: string | null = null;
+      let scopeId: string | null = null;
+      let discoverySkipped: string | null = null;
+      if (runDiscovery && discoveryNiche) {
+        if (discoverySearchLimiter.check(userId)) {
+          const location = discoveryLocation || pickRandomUsState();
+          const discovery = await runMarketDiscoverySearch(db, {
+            marketId,
+            marketName,
+            workspaceId: ws.workspace.id,
+            userId,
+            niche: discoveryNiche,
+            location,
+            limit: discoveryLimit,
+          });
+          jobId = discovery.jobId;
+          scopeId = discovery.scopeId;
+        } else {
+          discoverySkipped = 'rate-limited';
+        }
+      }
+
       revalidatePath('/markets');
-      return { success: true, marketId };
+      return { success: true, marketId, jobId, scopeId, discoverySkipped };
     } catch (err: unknown) {
       return { error: `Failed to create market: ${err instanceof Error ? err.message : String(err)}` };
     }

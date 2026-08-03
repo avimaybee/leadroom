@@ -9,8 +9,7 @@ import { workspaces, markets } from '@/db/schema/strategy';
 
 const log = getLogger('DiscoveryMarketActions');
 import { eq, and } from 'drizzle-orm';
-import { DiscoveryService } from '@/services/discovery';
-import { runSearchForScope } from '@/lib/discovery/run-search';
+import { runMarketDiscoverySearch } from '@/lib/discovery/run-search';
 import { discoverySearchLimiter } from '@/lib/rate-limit';
 import { withLogging } from '@/lib/actions/with-logging';
 
@@ -61,31 +60,18 @@ async function triggerDiscoveryForMarketActionImpl(
   const leadLimit = Math.min(Math.max(parseInt(rawLimit) || 20, 1), 200);
 
   try {
-    // Create a discovery scope linked to this market
-    const scopeId = crypto.randomUUID();
-    const discoveryService = new DiscoveryService(db);
-    await discoveryService.createScope(scopeId, {
-      name: `${market.name} Discovery`,
-      description: `Auto-discovery for market "${market.name}" searching "${niche}" in "${location}"`,
-      industryFilter: niche,
-      geographyFilter: location,
-      autoResearchPromotedLeads: true,
-      createdByUserId: userId,
-      workspaceId: market.workspaceId,
+    const { jobId, scopeId } = await runMarketDiscoverySearch(db, {
       marketId: market.id,
-    });
-
-    // Start the Apify search
-    const result = await runSearchForScope(db, {
+      marketName: market.name,
+      workspaceId: ws.id,
+      userId,
       niche,
       location,
       limit: leadLimit,
-      scopeId,
-      userId,
     });
 
     revalidatePath(`/markets/${marketId}/prospects`);
-    return { success: true, scopeId, jobId: result.jobId };
+    return { success: true, scopeId, jobId };
   } catch (error: unknown) {
     log.error('Discovery market failed', error);
     const msg = getSafeErrorMessage(error, 'Failed to start discovery search');

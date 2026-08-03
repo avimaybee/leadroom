@@ -14,7 +14,7 @@ const SearchRequestSchema = z.object({
   niche: z.string().min(1).max(500),
   location: z.string().min(1).max(500),
   limit: z.number().int().min(1).max(200).optional(),
-  scopeId: z.string().min(1),
+  scopeId: z.string().min(1).optional(),
 });
 
 export async function POST(request: Request) {
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
       niche,
       location,
       limit: leadLimit,
-      scopeId,
+      scopeId: scopeId ?? null,
       userId,
     });
 

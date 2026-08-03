@@ -3,7 +3,8 @@
 import { getDb } from '@/db';
 import { LeadService } from '@/services/lead';
 import { stageThresholds, pipelineConfig, playbooks, playbookTasks, prospects } from '@/db/schema/core';
-import { eq, desc } from 'drizzle-orm';
+import { outcomes, learningSuggestions } from '@/db/schema/outreach';
+import { eq, desc, and, count, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { getUserId } from '@/lib/auth';
 import { CANONICAL_STAGE_MAP } from '@/services/lead';
@@ -38,7 +39,7 @@ export async function getPipelineProspectsAction() {
         fitReasoning: prospects.fitReasoning,
       })
       .from(prospects)
-      .where(eq(prospects.ownerId, userId))
+      .where(and(eq(prospects.ownerId, userId), eq(prospects.status, 'Active')))
       .orderBy(desc(prospects.fitScore))
       .limit(200);
 
@@ -51,6 +52,82 @@ export async function getPipelineProspectsAction() {
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'Failed to fetch pipeline';
     return { error: msg, prospects: [] };
+  }
+}
+
+/**
+ * Moves a prospect to a new pipeline stage (drag-and-drop / inline select).
+ * Delegates to LeadService.updateStage so stage-order enforcement and
+ * per-stage requirements are still honored.
+ */
+export async function updateProspectStageAction(prospectId: string, newStage: string) {
+  const userId = await getUserId();
+  if (!userId) return { error: 'Unauthorized' };
+
+  const db = getDb();
+  try {
+    await new LeadService(db).updateStage(prospectId, newStage);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Failed to update stage';
+    return { error: msg };
+  }
+
+  revalidatePath('/prospects');
+  revalidatePath('/');
+  return { success: true };
+}
+
+// ── Pipeline Analytics ──
+
+export async function getPipelineAnalyticsAction() {
+  const db = getDb();
+  const userId = await getUserId();
+  if (!userId) return { error: 'Unauthorized' };
+
+  try {
+    const [stageCountRows, outcomeRows, pendingSuggestions, wonCount] = await Promise.all([
+      db
+        .select({ stage: prospects.stage, count: count() })
+        .from(prospects)
+        .where(and(eq(prospects.status, 'Active'), eq(prospects.ownerId, userId)))
+        .groupBy(prospects.stage),
+      db
+        .select({
+          total: count(),
+          replied: sql<number>`SUM(CASE WHEN ${outcomes.outcomeType} IN ('REPLIED', 'MEETING_BOOKED', 'WON') THEN 1 ELSE 0 END)`,
+          bounced: sql<number>`SUM(CASE WHEN ${outcomes.outcomeType} IN ('BOUNCED', 'NOT_INTERESTED', 'LOST') THEN 1 ELSE 0 END)`,
+        })
+        .from(outcomes)
+        .innerJoin(prospects, eq(outcomes.prospectId, prospects.id))
+        .where(eq(prospects.ownerId, userId)),
+      db
+        .select({ count: count() })
+        .from(learningSuggestions)
+        .where(and(eq(learningSuggestions.workspaceId, userId), eq(learningSuggestions.status, 'PENDING'))),
+      db
+        .select({ count: count() })
+        .from(prospects)
+        .where(and(eq(prospects.status, 'Active'), eq(prospects.ownerId, userId), eq(prospects.stage, 'Won'))),
+    ]);
+
+    const totalActive = stageCountRows.reduce((s, r) => s + r.count, 0);
+    const outcomeStats = outcomeRows[0];
+
+    return {
+      success: true,
+      stageCounts: Object.fromEntries(stageCountRows.map((r) => [r.stage, r.count])),
+      totalActive,
+      won: wonCount[0]?.count ?? 0,
+      outcomeStats: {
+        total: outcomeStats?.total ?? 0,
+        replied: Number(outcomeStats?.replied ?? 0),
+        bounced: Number(outcomeStats?.bounced ?? 0),
+      },
+      pendingSuggestions: pendingSuggestions[0]?.count ?? 0,
+    };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Failed to fetch pipeline analytics';
+    return { error: msg };
   }
 }
 

@@ -31,6 +31,7 @@ const navItems: NavItem[] = [
   { name: 'Command Center', href: '/', icon: LayoutDashboard },
   { name: 'Markets', href: '/markets', icon: Target },
   { name: 'Prospects', href: '/prospects', icon: Users },
+  { name: 'Research Queue', href: '/research', icon: FlaskConical },
   { name: 'Outreach Drafts', href: '/approvals', icon: ClipboardCheck, badge: true, badgeType: 'approvals' },
   { name: 'My Setup', href: '/personalisation', icon: Sparkles },
   { name: 'Settings', href: '/settings/pipeline', icon: Settings },

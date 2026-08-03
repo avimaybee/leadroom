@@ -2,9 +2,10 @@
 
 import { useRef, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { LayoutDashboard, Loader2, ShieldAlert } from 'lucide-react';
-import { getPipelineProspectsAction } from '@/app/actions/pipeline';
-import type { PIPELINE_STAGES } from '@/services/lead';
+import { LayoutDashboard, ShieldAlert, GripVertical } from 'lucide-react';
+import { getPipelineProspectsAction, updateProspectStageAction } from '@/app/actions/pipeline';
+import { PIPELINE_STAGES } from '@/services/lead';
+import { toast } from 'sonner';
 
 interface ProspectCardData {
   id: string;
@@ -19,31 +20,20 @@ interface ProspectCardData {
   fitReasoning: string | null;
 }
 
-type PipelineStage = (typeof PIPELINE_STAGES)[number];
-
-const stageLabels: Record<string, string> = {
-  'New': 'New',
-  'In Research': 'In Research',
-  'Researched': 'Researched',
-  'Outreach Drafted': 'Outreach Drafted',
-  'Awaiting Approval': 'Awaiting Approval',
-  'Contacted': 'Contacted',
-  'Meeting Booked': 'Meeting Booked',
-  'Won': 'Won',
-  'Lost': 'Lost',
-};
-
 export function PipelineBoard() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [prospects, setProspects] = useState<ProspectCardData[]>([]);
   const [hasShadow, setHasShadow] = useState(false);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverStage, setDragOverStage] = useState<string | null>(null);
 
   useEffect(() => {
     getPipelineProspectsAction().then(r => {
       if (r.success) {
         setProspects(r.prospects);
+        setError(null);
       } else {
         setError(r.error ?? 'Failed to load');
       }
@@ -60,14 +50,44 @@ export function PipelineBoard() {
     return () => el.removeEventListener('scroll', check);
   }, [loading]);
 
+  const handleDragStart = (id: string) => {
+    setDraggingId(id);
+  };
+
+  const handleDragEnd = () => {
+    setDraggingId(null);
+    setDragOverStage(null);
+  };
+
+  const handleDrop = async (targetStage: string) => {
+    const id = draggingId;
+    setDraggingId(null);
+    setDragOverStage(null);
+    if (!id) return;
+
+    const prospect = prospects.find(p => p.id === id);
+    if (!prospect || prospect.stage === targetStage) return;
+
+    // Optimistic update
+    const previous = prospects;
+    setProspects(prospects.map(p => p.id === id ? { ...p, stage: targetStage } : p));
+
+    const result = await updateProspectStageAction(id, targetStage);
+    if (result.error) {
+      setProspects(previous);
+      toast.error(`Stage change blocked: ${result.error}`);
+    } else {
+      toast.success(`${prospect.company || prospect.name} moved to ${targetStage}`);
+    }
+  };
+
   const grouped: Record<string, ProspectCardData[]> = {};
-  for (const s of ['New', 'In Research', 'Researched', 'Outreach Drafted', 'Awaiting Approval', 'Contacted', 'Meeting Booked', 'Won', 'Lost']) {
+  for (const s of PIPELINE_STAGES) {
     grouped[s] = [];
   }
   for (const p of prospects) {
-    const s = p.stage || 'New';
-    if (grouped[s]) grouped[s].push(p);
-    else grouped[s] = [p];
+    const s = PIPELINE_STAGES.includes(p.stage as (typeof PIPELINE_STAGES)[number]) ? p.stage : 'New';
+    grouped[s].push(p);
   }
 
   if (loading) {
@@ -125,21 +145,43 @@ export function PipelineBoard() {
         ref={scrollRef}
         className="flex gap-4 overflow-x-auto pb-4 min-h-[60vh]"
       >
-        {Object.entries(grouped).map(([stage, cards]) => {
+        {PIPELINE_STAGES.map((stage) => {
+          const cards = grouped[stage];
           const sorted = [...cards].sort((a, b) => (b.fitScore ?? 0) - (a.fitScore ?? 0));
+          const isOver = dragOverStage === stage;
           return (
-            <div key={stage} className="min-w-[220px] w-[220px] flex-shrink-0">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-label-14 text-foreground font-semibold">{stageLabels[stage] || stage}</span>
-                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-muted text-label-12 text-muted-foreground">
+            <div
+              key={stage}
+              onDragOver={(e) => { e.preventDefault(); setDragOverStage(stage); }}
+              onDragLeave={() => setDragOverStage(cur => (cur === stage ? null : cur))}
+              onDrop={(e) => { e.preventDefault(); handleDrop(stage); }}
+              className={`min-w-[220px] w-[220px] flex-shrink-0 rounded-xl transition-colors duration-150 ${
+                isOver ? 'bg-primary/5 ring-1 ring-primary/40' : ''
+              }`}
+            >
+              <div className="flex items-center justify-between mb-3 px-1">
+                <span className="text-label-14 text-foreground font-semibold">{stage}</span>
+                <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full bg-muted text-label-12 text-muted-foreground transition-colors ${
+                  isOver ? 'bg-primary/20 text-primary' : ''
+                }`}>
                   {sorted.length}
                 </span>
               </div>
-              <div className="space-y-3">
+              <div className="space-y-3 min-h-[120px] rounded-lg">
                 {sorted.length === 0 && (
-                  <p className="text-copy-13 text-muted-foreground text-center py-8">No prospects</p>
+                  <p className="text-copy-13 text-muted-foreground text-center py-8 border border-dashed border-border/60 rounded-lg">
+                    Drop here
+                  </p>
                 )}
-                {sorted.map(p => <ProspectCard key={p.id} prospect={p} />)}
+                {sorted.map(p => (
+                  <ProspectCard
+                    key={p.id}
+                    prospect={p}
+                    isDragging={draggingId === p.id}
+                    onDragStart={handleDragStart}
+                    onDragEnd={handleDragEnd}
+                  />
+                ))}
               </div>
             </div>
           );
@@ -149,14 +191,42 @@ export function PipelineBoard() {
   );
 }
 
-function ProspectCard({ prospect }: { prospect: ProspectCardData }) {
+function ProspectCard({
+  prospect,
+  isDragging,
+  onDragStart,
+  onDragEnd,
+}: {
+  prospect: ProspectCardData;
+  isDragging: boolean;
+  onDragStart: (_id: string) => void;
+  onDragEnd: () => void;
+}) {
   const topSignal = extractTopSignal(prospect);
   return (
     <Link
       href={`/prospects/${prospect.id}`}
-      className="block rounded-xl border border-border bg-card p-4 hover:shadow-sm transition-shadow duration-150 cursor-pointer"
+      draggable
+      onDragStart={(e) => {
+        e.stopPropagation();
+        onDragStart(prospect.id);
+      }}
+      onDragEnd={(e) => {
+        e.stopPropagation();
+        onDragEnd();
+      }}
+      onClick={(e) => {
+        if (isDragging) e.preventDefault();
+      }}
+      className={`block rounded-xl border border-border bg-card p-4 hover:shadow-sm transition-shadow duration-150 cursor-grab active:cursor-grabbing ${
+        isDragging ? 'opacity-40 ring-2 ring-primary/40' : ''
+      }`}
+      title="Drag to move between stages"
     >
-      <p className="text-copy-14 font-medium text-foreground truncate">{prospect.company || prospect.name}</p>
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-copy-14 font-medium text-foreground truncate flex-1">{prospect.company || prospect.name}</p>
+        <GripVertical className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0 mt-0.5" />
+      </div>
       <div className="flex items-center gap-2 mt-2">
         {prospect.fitScore != null && (
           <span className={`text-label-12 font-semibold ${

@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Search, Info, ArrowUpDown, ChevronUp, ChevronDown, List, LayoutGrid } from 'lucide-react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { PipelineBoard } from '@/components/pipeline/PipelineBoard';
+import { PipelineAnalytics } from '@/components/pipeline/PipelineAnalytics';
 
 const TIER_BADGE: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; label: string }> = {
   tier1: { variant: 'default', label: 'T1' },
@@ -38,14 +40,48 @@ interface ProspectsClientProps {
 
 type SortKey = 'company' | 'fitScore' | 'confidenceScore' | 'stage';
 
+function SortIcon({ column, sortKey, sortDir }: { column: SortKey; sortKey: SortKey; sortDir: 'asc' | 'desc' }) {
+  if (sortKey !== column) return <ArrowUpDown className="w-3 h-3 ml-1 opacity-30" />;
+  return sortDir === 'asc'
+    ? <ChevronUp className="w-3 h-3 ml-1" />
+    : <ChevronDown className="w-3 h-3 ml-1" />;
+}
+
 export function ProspectsClient({ initialProspects, markets }: ProspectsClientProps) {
-  const [search, setSearch] = useState('');
-  const [marketFilter, setMarketFilter] = useState('all');
-  const [tierFilter, setTierFilter] = useState('all');
-  const [stageFilter, setStageFilter] = useState('all');
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  // Deep-linkable state: filters are initialized from URL params and kept in sync
+  const [search, setSearch] = useState(() => searchParams.get('search') || '');
+  const [marketFilter, setMarketFilter] = useState(() => searchParams.get('market') || 'all');
+  const [tierFilter, setTierFilter] = useState(() => {
+    const raw = (searchParams.get('tier') || '').toLowerCase();
+    if (raw === 't1') return 'tier1';
+    if (raw === 't2') return 'tier2';
+    if (raw === 't3') return 'tier3';
+    if (raw === 'dq') return 'disqualified';
+    return raw || 'all';
+  });
+  const [stageFilter, setStageFilter] = useState(() => searchParams.get('stage') || 'all');
   const [sortKey, setSortKey] = useState<SortKey>('fitScore');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
-  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'kanban'>(() => (searchParams.get('view') === 'kanban' ? 'kanban' : 'list'));
+
+  const pushUrl = useCallback((next: Record<string, string>) => {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [key, value] of Object.entries(next)) {
+      if (value && value !== 'all') params.set(key, value);
+      else params.delete(key);
+    }
+    const query = params.toString();
+    router.replace(query ? `/prospects?${query}` : '/prospects', { scroll: false });
+  }, [router, searchParams]);
+
+  useEffect(() => { pushUrl({ search }); }, [search, pushUrl]);
+  useEffect(() => { pushUrl({ market: marketFilter }); }, [marketFilter, pushUrl]);
+  useEffect(() => { pushUrl({ tier: tierFilter }); }, [tierFilter, pushUrl]);
+  useEffect(() => { pushUrl({ stage: stageFilter }); }, [stageFilter, pushUrl]);
+  useEffect(() => { pushUrl({ view: viewMode }); }, [viewMode, pushUrl]);
 
   const marketMap = useMemo(() => new Map(markets.map(m => [m.id, m.name])), [markets]);
 
@@ -108,13 +144,6 @@ export function ProspectsClient({ initialProspects, markets }: ProspectsClientPr
     }
   };
 
-  const SortIcon = ({ column }: { column: SortKey }) => {
-    if (sortKey !== column) return <ArrowUpDown className="w-3 h-3 ml-1 opacity-30" />;
-    return sortDir === 'asc'
-      ? <ChevronUp className="w-3 h-3 ml-1" />
-      : <ChevronDown className="w-3 h-3 ml-1" />;
-  };
-
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 border-b border-border pb-4">
@@ -156,7 +185,10 @@ export function ProspectsClient({ initialProspects, markets }: ProspectsClientPr
       </div>
 
       {viewMode === 'kanban' ? (
-        <PipelineBoard />
+        <>
+          <PipelineAnalytics />
+          <PipelineBoard />
+        </>
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-3 mb-4">
@@ -230,27 +262,27 @@ export function ProspectsClient({ initialProspects, markets }: ProspectsClientPr
                   className="text-left px-4 py-3 text-label-12 text-muted-foreground cursor-pointer hover:text-foreground select-none"
                   onClick={() => handleSort('company')}
                 >
-                  <span className="inline-flex items-center">Company <SortIcon column="company" /></span>
+                  <span className="inline-flex items-center">Company <SortIcon column="company" sortKey={sortKey} sortDir={sortDir} /></span>
                 </th>
                 <th className="text-left px-4 py-3 text-label-12 text-muted-foreground">Market</th>
                 <th
                   className="text-right px-4 py-3 text-label-12 text-muted-foreground cursor-pointer hover:text-foreground select-none"
                   onClick={() => handleSort('fitScore')}
                 >
-                  <span className="inline-flex items-center justify-end">Fit <SortIcon column="fitScore" /></span>
+                  <span className="inline-flex items-center justify-end">Fit <SortIcon column="fitScore" sortKey={sortKey} sortDir={sortDir} /></span>
                 </th>
                 <th
                   className="text-right px-4 py-3 text-label-12 text-muted-foreground cursor-pointer hover:text-foreground select-none"
                   onClick={() => handleSort('confidenceScore')}
                 >
-                  <span className="inline-flex items-center justify-end">Confidence <SortIcon column="confidenceScore" /></span>
+                  <span className="inline-flex items-center justify-end">Confidence <SortIcon column="confidenceScore" sortKey={sortKey} sortDir={sortDir} /></span>
                 </th>
                 <th className="text-center px-4 py-3 text-label-12 text-muted-foreground">Tier</th>
                 <th
                   className="text-left px-4 py-3 text-label-12 text-muted-foreground cursor-pointer hover:text-foreground select-none"
                   onClick={() => handleSort('stage')}
                 >
-                  <span className="inline-flex items-center">Stage <SortIcon column="stage" /></span>
+                  <span className="inline-flex items-center">Stage <SortIcon column="stage" sortKey={sortKey} sortDir={sortDir} /></span>
                 </th>
                 <th className="text-center px-4 py-3 text-label-12 text-muted-foreground">Action</th>
               </tr>

@@ -2,13 +2,14 @@
 
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
-import { ExternalLink, Users, ShieldAlert, Clock } from 'lucide-react';
+import { ExternalLink, Users, ShieldAlert, Clock, Loader2 } from 'lucide-react';
 import { buttonVariants } from '@/components/ui/button';
 import { formatUTC } from '@/lib/date';
 import { CampaignFilter } from '@/app/(dashboard)/leads/CampaignFilter';
 import LeadRowActions from '@/app/(dashboard)/leads/LeadRowActions';
 import { BulkSelectProvider, LeadCheckbox, useBulkSelect } from './BulkSelectProvider';
 import { BulkActionBar } from './BulkActionBar';
+import { loadMoreLeadsAction } from '@/app/actions/leads';
 
 interface LeadData {
   id: string;
@@ -242,6 +243,7 @@ export default function LeadsTableClient({
   campaignIdFilter,
   description,
   enrichedCount,
+  totalCount,
 }: {
   leads: LeadData[];
   allScopes: { id: string; name: string }[];
@@ -250,7 +252,44 @@ export default function LeadsTableClient({
   campaignIdFilter?: string;
   description: string;
   enrichedCount: number;
+  totalCount?: number;
 }) {
+  const [allLeads, setAllLeads] = useState<LeadData[]>(leads);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadedTotal, setLoadedTotal] = useState(enrichedCount);
+
+  useEffect(() => {
+    setAllLeads(leads);
+    setLoadedTotal(enrichedCount);
+  }, [leads, enrichedCount]);
+
+  const hasMore = (totalCount ?? enrichedCount) > allLeads.length;
+
+  const handleLoadMore = async () => {
+    setLoadingMore(true);
+    try {
+      const result = await loadMoreLeadsAction(allLeads.length, {
+        campaignIdFilter,
+        activeFilter,
+        stageFilter,
+      });
+      if (result.success && result.leads.length > 0) {
+        setAllLeads(prev => {
+          const existing = new Set(prev.map(l => l.id));
+          const fresh = (result.leads as LeadData[]).filter(l => !existing.has(l.id));
+          return [...prev, ...fresh];
+        });
+        setLoadedTotal(result.total);
+      } else if (result.success) {
+        setLoadedTotal(allLeads.length);
+      }
+    } catch (err) {
+      console.error('Failed to load more leads:', err);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
   const getStageBadgeClass = (stage: string) => {
     switch (stage) {
       case 'In Research': return 'bg-chart-5/10 text-chart-5 border border-chart-5/20';
@@ -323,7 +362,7 @@ export default function LeadsTableClient({
         </div>
 
         {/* Leads Content */}
-        {leads.length === 0 ? (
+        {allLeads.length === 0 ? (
           <div className="bg-card rounded-xl border border-border p-12 text-center max-w-xl mx-auto mt-8 space-y-6">
             <div className="w-12 h-12 bg-primary/10 rounded-md flex items-center justify-center text-primary mx-auto"><Users className="w-6 h-6" /></div>
             <div className="space-y-1.5">
@@ -336,7 +375,21 @@ export default function LeadsTableClient({
             </div>
           </div>
         ) : (
-          <DualLayoutRenderer leads={leads} getStageBadgeClass={getStageBadgeClass} />
+          <>
+            <DualLayoutRenderer leads={allLeads} getStageBadgeClass={getStageBadgeClass} />
+            {hasMore && (
+              <div className="flex flex-col items-center gap-2 pt-6">
+                <button
+                  onClick={() => void handleLoadMore()}
+                  disabled={loadingMore}
+                  className="inline-flex items-center gap-2 h-10 px-5 rounded-md border border-border bg-card text-label-14 font-semibold text-foreground hover:bg-muted/50 hover:border-primary/40 transition-colors disabled:opacity-60"
+                >
+                  {loadingMore && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {loadingMore ? 'Loading more...' : `Load more leads (${allLeads.length} of ${totalCount ?? loadedTotal} loaded)`}
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
       <BulkActionBar />

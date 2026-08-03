@@ -4,11 +4,11 @@ import { ResearchService } from '@/services/research';
 import { LeadService } from '@/services/lead';
 import { getDb } from '@/db';
 import { revalidatePath } from 'next/cache';
-import { decrypt, getUserId, verifyProspectAccess } from '@/lib/auth';
+import { getUserId, verifyProspectAccess } from '@/lib/auth';
 import { prospects } from '@/db/schema/core';
 import { researchTasks } from '@/db/schema/jobs';
-import { workspaces, markets } from '@/db/schema/strategy';
-import { eq, and, desc, inArray } from 'drizzle-orm';
+import { workspaces } from '@/db/schema/strategy';
+import { eq, desc } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { withLogging } from '@/lib/actions/with-logging';
@@ -229,6 +229,31 @@ async function retryResearchTaskActionImpl(taskId: string) {
 }
 
 export const retryResearchTaskAction = withLogging('retryResearchTaskAction', retryResearchTaskActionImpl);
+
+async function cancelResearchTaskActionImpl(taskId: string) {
+  const userId = await getUserId();
+  if (!userId) return { error: 'Unauthorized' };
+
+  const db = getDb();
+  const [task] = await db.select().from(researchTasks).where(eq(researchTasks.id, taskId)).limit(1);
+  if (!task) return { error: 'Task not found' };
+
+  if (task.status !== 'PENDING' && task.status !== 'RUNNING') {
+    return { error: 'Only pending or running tasks can be cancelled' };
+  }
+
+  await db.update(researchTasks).set({
+    status: 'FAILED',
+    errorMessage: 'Cancelled by user',
+    completedAt: new Date(),
+    updatedAt: new Date(),
+  }).where(eq(researchTasks.id, taskId));
+
+  revalidatePath('/research');
+  return { success: true };
+}
+
+export const cancelResearchTaskAction = withLogging('cancelResearchTaskAction', cancelResearchTaskActionImpl);
 
 export async function getResearchQueueAction() {
   const userId = await getUserId();
