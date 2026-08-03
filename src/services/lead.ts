@@ -459,18 +459,21 @@ export class LeadService {
     };
     if (newStage !== 'New') stageUpdates.isRead = true;
 
-    await this.db.transaction(async (tx) => {
-      await tx.update(leadStageHistory)
+    // NOTE: D1 does not support BEGIN/COMMIT via the standard binding API, so
+    // db.transaction() throws on production. db.batch() is atomic on D1 and
+    // also works on the local mock — this is the portable path.
+    await this.db.batch([
+      this.db.update(leadStageHistory)
         .set({ exitedAt: now })
-        .where(and(eq(leadStageHistory.leadId, id), isNull(leadStageHistory.exitedAt)));
-      await tx.insert(leadStageHistory).values({
+        .where(and(eq(leadStageHistory.leadId, id), isNull(leadStageHistory.exitedAt))),
+      this.db.insert(leadStageHistory).values({
         id: crypto.randomUUID(),
         leadId: id,
         stage: newStage,
         enteredAt: now,
-      });
-      await tx.update(leads).set(stageUpdates).where(eq(leads.id, id));
-    });
+      }),
+      this.db.update(leads).set(stageUpdates).where(eq(leads.id, id)),
+    ]);
 
     await new LoggingService(this.db).log({
       leadId: id,

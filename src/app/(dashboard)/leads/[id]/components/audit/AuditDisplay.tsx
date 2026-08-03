@@ -14,7 +14,7 @@ interface AuditDisplayProps {
   leadId: string;
   audit: AuditSnapshot | null;
   score: LeadScore | null;
-  manualOverrideScoreAction: (prevState: ActionState, formData: FormData) => Promise<ActionState>;
+  manualOverrideScoreAction: (_prevState: ActionState, _formData: FormData) => Promise<ActionState>;
   fitScore: number | null;
   confidenceScore: number | null;
   priorityTier: string | null;
@@ -169,8 +169,8 @@ export function AuditDisplay({
                   <p className="text-copy-14 text-foreground font-medium">
                     {TASK_TYPE_LABELS[task.taskType] || task.taskType || 'Research Task'}
                   </p>
-                  {task.errorSummary && (
-                    <p className="text-label-12 text-destructive mt-0.5 truncate">{task.errorSummary}</p>
+                  {task.errorMessage && (
+                    <p className="text-label-12 text-destructive mt-0.5 truncate">{task.errorMessage}</p>
                   )}
                 </div>
                 {task.status === 'COMPLETED' ? (
@@ -303,7 +303,7 @@ export function AuditDisplay({
                                 </li>
                               ));
                             }
-                          } catch (e) {
+                          } catch {
                             return null;
                           }
                           return null;

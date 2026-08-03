@@ -4,7 +4,6 @@ import { z } from 'zod';
 import { getDb } from '@/db';
 import { DiscoveryService } from '@/services/discovery';
 import { CreateCandidateLeadSchema } from '@/db/models/discovery';
-import { fetchSiteContent } from '@/lib/scraper';
 
 import { getUserId } from '@/lib/auth';
 import { getSafeErrorMessage } from '@/lib/errors';
@@ -95,7 +94,7 @@ export async function PATCH(request: NextRequest) {
   } catch (error: unknown) {
     log.error('Candidate route failed', error);
     const msg = getSafeErrorMessage(error, 'An internal error occurred');
-    const status = msg.toLowerCase().includes('forbidden') ? 403 : 400;
+    const status = msg.toLowerCase().includes('forbidden') ? 403 : 500;
     return NextResponse.json({ success: false, error: msg }, { status });
   }
 }

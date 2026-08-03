@@ -207,13 +207,16 @@ export class ScoringService {
       updatedAt: now,
     };
 
-    await this.db.transaction(async (tx) => {
-      await tx.update(leadScores)
+    // NOTE: D1 does not support BEGIN/COMMIT via the standard binding API, so
+    // db.transaction() throws on production. db.batch() is atomic on D1 and
+    // also works on the local mock — this is the portable path.
+    await this.db.batch([
+      this.db.update(leadScores)
         .set({ isCurrent: 0, updatedAt: now })
-        .where(and(eq(leadScores.leadId, leadId), eq(leadScores.isCurrent, 1)));
-      await tx.insert(leadScores).values(newScore);
-      await tx.update(leads).set({ scoreDirty: false, fitReasoning }).where(eq(leads.id, leadId));
-    });
+        .where(and(eq(leadScores.leadId, leadId), eq(leadScores.isCurrent, 1))),
+      this.db.insert(leadScores).values(newScore),
+      this.db.update(leads).set({ scoreDirty: false, fitReasoning }).where(eq(leads.id, leadId)),
+    ]);
 
     // Insert activity log
     await new LoggingService(this.db).log({

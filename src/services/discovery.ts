@@ -5,7 +5,7 @@ import { eq, sql, desc, and } from 'drizzle-orm';
 
 const log = getLogger('DiscoveryService');
 import { discoveryScopes, candidateLeads } from '../db/schema/discovery';
-import { prospects as leads, activities } from '../db/schema/core';
+import { prospects as leads } from '../db/schema/core';
 import { researchTasks } from '../db/schema/jobs';
 import { CreateDiscoveryScopeInput, CreateCandidateLeadInput } from '../db/models/discovery';
 import { ScoringService } from './scoring';
@@ -177,6 +177,16 @@ export class DiscoveryService {
     }
 
     if (candidate.status === 'PROMOTED') {
+      // Idempotent re-promote: a previous attempt may have partially succeeded
+      // (e.g. the lead was created but a later step failed). Return the existing
+      // lead instead of erroring so retries behave predictably.
+      if (candidate.promotedLeadId) {
+        const [existingLead] = await this.db.select().from(leads).where(eq(leads.id, candidate.promotedLeadId)).limit(1);
+        if (existingLead) {
+          log.info('Candidate already promoted — returning existing lead', { candidateId, leadId: existingLead.id });
+          return existingLead;
+        }
+      }
       throw new Error(`Candidate with ID ${candidateId} has already been promoted`);
     }
 
@@ -283,22 +293,32 @@ export class DiscoveryService {
       },
     });
 
-    // 6. Create 4 research tasks for the new pipeline
-    const taskTypes = ['WEBSITE_ANALYST', 'ICP_FIT', 'PAIN_EXTRACTOR', 'DISQUALIFIER_CHECK'] as const;
-    await this.db.insert(researchTasks).values(
-      taskTypes.map(taskType => ({
-        id: crypto.randomUUID(),
-        prospectId: leadId,
-        taskType,
-        status: 'PENDING' as const,
-        createdAt: now,
-        updatedAt: now,
-      }))
-    );
+    // 6. Create 4 research tasks for the new pipeline (non-fatal on failure —
+    //    the research trigger below and the sweep will backfill)
+    try {
+      const taskTypes = ['WEBSITE_ANALYST', 'ICP_FIT', 'PAIN_EXTRACTOR', 'DISQUALIFIER_CHECK'] as const;
+      await this.db.insert(researchTasks).values(
+        taskTypes.map(taskType => ({
+          id: crypto.randomUUID(),
+          prospectId: leadId,
+          taskType,
+          status: 'PENDING' as const,
+          createdAt: now,
+          updatedAt: now,
+        }))
+      );
+    } catch (e) {
+      log.error('Failed to create research tasks on promote (continuing)', e, { leadId });
+    }
 
-    // 7. Recalculate baseline priority score
-    const scoringService = new ScoringService(this.db);
-    await scoringService.recalculateScore(leadId);
+    // 7. Recalculate baseline priority score (non-fatal on failure — the score
+    //    sweep will recalculate dirty leads later)
+    try {
+      const scoringService = new ScoringService(this.db);
+      await scoringService.recalculateScore(leadId);
+    } catch (e) {
+      log.error('Failed to recalculate score on promote (continuing)', e, { leadId });
+    }
 
     // 8. Auto-trigger research if candidate has a website and scope allows it
     let shouldAutoResearch = !!candidate.rawWebsiteUrl;
@@ -313,37 +333,43 @@ export class DiscoveryService {
     }
 
     if (shouldAutoResearch) {
-      const jobId = crypto.randomUUID();
-      let jobRuns: any;
-      let triggerResearchWorkflow: any;
       try {
-        ({ jobRuns } = await import('../db/schema/research'));
-        ({ triggerResearchWorkflow } = await import('../lib/workflow-client'));
+        const jobId = crypto.randomUUID();
+        let jobRuns: any;
+        let triggerResearchWorkflow: any;
+        try {
+          ({ jobRuns } = await import('../db/schema/research'));
+          ({ triggerResearchWorkflow } = await import('../lib/workflow-client'));
+        } catch (e) {
+          log.error('Failed to auto-trigger research, continuing without research', e);
+        }
+        if (jobRuns && triggerResearchWorkflow) {
+          await this.db.insert(jobRuns).values({
+            id: jobId,
+            jobType: 'RESEARCH_GENERATION',
+            status: 'QUEUED',
+            targetLeadId: leadId,
+            triggeredByUserId: ownerId,
+            externalRunId: 'AUTO_TRIGGERED',
+            startedAt: null,
+            finishedAt: null,
+            createdAt: now,
+          });
+          let workflowBinding: any = undefined;
+          try {
+            const { getCloudflareContext } = await import('@opennextjs/cloudflare');
+            workflowBinding = getCloudflareContext().env?.RESEARCH_SNAPSHOT_WORKFLOW;
+          } catch {
+            log.info('getCloudflareContext unavailable — falling back to process.env for workflow binding');
+          }
+          if (!workflowBinding) {
+            workflowBinding = process.env.RESEARCH_SNAPSHOT_WORKFLOW;
+          }
+          await triggerResearchWorkflow(this.db, workflowBinding, leadId, jobId, ownerId);
+        }
       } catch (e) {
-        log.error('Failed to auto-trigger research, continuing without research', e);
+        log.error('Auto-research trigger failed after promote (continuing)', e, { leadId });
       }
-      await this.db.insert(jobRuns).values({
-        id: jobId,
-        jobType: 'RESEARCH_GENERATION',
-        status: 'QUEUED',
-        targetLeadId: leadId,
-        triggeredByUserId: ownerId,
-        externalRunId: 'AUTO_TRIGGERED',
-        startedAt: null,
-        finishedAt: null,
-        createdAt: now,
-      });
-      let workflowBinding: any = undefined;
-      try {
-        const { getCloudflareContext } = await import('@opennextjs/cloudflare');
-        workflowBinding = getCloudflareContext().env?.RESEARCH_SNAPSHOT_WORKFLOW;
-      } catch (e) {
-        log.info('getCloudflareContext unavailable — falling back to process.env for workflow binding');
-      }
-      if (!workflowBinding) {
-        workflowBinding = process.env.RESEARCH_SNAPSHOT_WORKFLOW;
-      }
-      await triggerResearchWorkflow(this.db, workflowBinding, leadId, jobId, ownerId);
     }
 
     const [promotedLead] = await this.db.select().from(leads).where(eq(leads.id, leadId)).limit(1);

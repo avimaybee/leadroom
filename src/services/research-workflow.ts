@@ -99,6 +99,8 @@ export class ResearchWorkflowService {
       .set({ status: 'RUNNING', startedAt: now, updatedAt: now })
       .where(eq(researchTasks.prospectId, lead.id));
 
+    let persisted = false;
+
     try {
       const { merged, hash } = await this.checkCacheAndGenerateAI(lead, websiteMarkdown, location, userId, jobId);
 
@@ -107,7 +109,14 @@ export class ResearchWorkflowService {
       }
 
       await this.persistSnapshots(lead, scraped, merged, hash, userId, jobId, now);
-      await this.saveContactsFromAI(lead.id, merged, userId);
+      persisted = true;
+
+      // Everything below is post-processing: a failure here must never turn a
+      // successful research run into a failed job. Each step is guarded and
+      // logged so the snapshot/audit the user can already see stays valid.
+      await this.saveContactsFromAI(lead.id, merged, userId).catch((err) => {
+        logger.error('Saving AI-extracted contacts failed (continuing)', err, { leadId: lead.id });
+      });
 
       // Run SDR parallel analyses alongside legacy flow
       const SDR_TIMEOUT_MS = 8000;
@@ -165,21 +174,33 @@ export class ResearchWorkflowService {
         }
       }
 
-      await this.updateResearchTasks(lead.id, merged, matchedPositive, matchedNegative, matchedDisqualifiers, icpProfile, now, sdrWebsiteResult, sdrIcpFitResult);
-      await this.recalculateAndAdvance(lead.id, jobId, userId);
+      await this.updateResearchTasks(lead.id, merged, matchedPositive, matchedNegative, matchedDisqualifiers, icpProfile, now, sdrWebsiteResult, sdrIcpFitResult)
+        .catch((err) => {
+          logger.error('Marking research tasks completed failed (will retry via sweep)', err, { leadId: lead.id });
+        });
+      await this.recalculateAndAdvance(lead.id, jobId, userId).catch((err) => {
+        logger.error('Score recalculation after research failed (continuing)', err, { leadId: lead.id });
+      });
 
     } catch (error: unknown) {
       logger.error('Research workflow service failed', error);
       const errMsg = error instanceof Error ? error.message : String(error);
-      try {
-        await this.db
-          .update(researchTasks)
-          .set({ status: 'FAILED', errorMessage: errMsg, updatedAt: new Date() })
-          .where(eq(researchTasks.prospectId, lead.id));
-      } catch (dbError: unknown) {
-        logger.error('Failed to mark research tasks as FAILED after error', dbError, { leadId: lead.id });
+      if (!persisted) {
+        // Nothing usable was saved — fail the tasks and rethrow so the job
+        // is marked FAILED and the user can retry.
+        try {
+          await this.db
+            .update(researchTasks)
+            .set({ status: 'FAILED', errorMessage: errMsg, updatedAt: new Date() })
+            .where(eq(researchTasks.prospectId, lead.id));
+        } catch (dbError: unknown) {
+          logger.error('Failed to mark research tasks as FAILED after error', dbError, { leadId: lead.id });
+        }
+        throw error;
       }
-      throw error;
+      // Data was persisted but a post-processing step failed: keep the job
+      // successful, surface the partial state, and let the sweep retry tasks.
+      logger.warn('Research data persisted but post-processing step failed', { leadId: lead.id, errMsg });
     }
   }
 
