@@ -7,7 +7,7 @@ import { eq } from 'drizzle-orm';
 
 const log = getLogger('UsersAPI');
 
-export const revalidate = 30;
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {

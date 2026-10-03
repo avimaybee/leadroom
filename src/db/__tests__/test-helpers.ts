@@ -6,7 +6,7 @@ import fs from 'fs';
 if (!process.env.DB_ENCRYPTION_KEY) {
   process.env.DB_ENCRYPTION_KEY = 'test-encryption-key-for-local-dev-32chars!';
 }
-process.env.NODE_ENV = 'test';
+(process.env as Record<string, string | undefined>).NODE_ENV = 'test';
 
 export function setupTestDb() {
   const sqlite = new Database(':memory:');

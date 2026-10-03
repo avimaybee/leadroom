@@ -7,7 +7,7 @@ import { users } from '@/db/schema/core';
 
 const log = getLogger('AuthMeAPI');
 
-export const revalidate = 30;
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {

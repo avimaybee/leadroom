@@ -218,6 +218,13 @@
       "when": 1742169600000,
       "tag": "0030_add_missing_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1742256000000,
+      "tag": "0031_optimize_d1_reads",
+      "breakpoints": true
     }
   ]
 }

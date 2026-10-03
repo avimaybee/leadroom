@@ -21,6 +21,8 @@ export const jobRuns = sqliteTable('job_runs', {
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
 }, (table) => ({
   targetLeadIdJobTypeStatusIndex: index('job_runs_target_lead_id_job_type_status_idx').on(table.targetLeadId, table.jobType, table.status),
+  statusStartedAtIndex: index('job_runs_status_started_at_idx').on(table.status, table.startedAt),
+  statusCreatedAtIndex: index('job_runs_status_created_at_idx').on(table.status, table.createdAt),
 }));
 
 export const researchSnapshots = sqliteTable('research_snapshots', {

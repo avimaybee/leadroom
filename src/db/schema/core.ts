@@ -115,6 +115,7 @@ export const leadStageHistory = sqliteTable('lead_stage_history', {
 }, (table) => ({
   leadIdStageIdx: index('lead_stage_history_lead_id_stage_idx').on(table.leadId, table.stage),
   leadIdExitedAtIdx: index('lead_stage_history_lead_id_exited_at_idx').on(table.leadId, table.exitedAt),
+  enteredAtIndex: index('lead_stage_history_entered_at_idx').on(table.enteredAt),
 }));
 
 export const activityMetadata = sqliteTable('activity_metadata', {
@@ -173,8 +174,8 @@ export const reminders = sqliteTable('reminders', {
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   link: text('link'),
 }, (table) => ({
-  remindAtFiredIndex: index('reminders_remind_at_fired_idx').on(table.remindAt, table.isFired),
-  userIdRemindAtFiredIndex: index('reminders_user_id_remind_at_fired_idx').on(table.userId, table.remindAt, table.isFired),
+  isFiredRemindAtIndex: index('reminders_is_fired_remind_at_idx').on(table.isFired, table.remindAt),
+  userIdIsFiredRemindAtIndex: index('reminders_user_id_is_fired_remind_at_idx').on(table.userId, table.isFired, table.remindAt),
 }));
 
 export const nbaActionLogs = sqliteTable('nba_action_logs', {
@@ -188,6 +189,7 @@ export const nbaActionLogs = sqliteTable('nba_action_logs', {
 }, (table) => ({
   leadIdSignalIdx: index('nba_action_logs_lead_id_signal_idx').on(table.leadId, table.signal, table.resultStageTarget),
   leadIdActionTakenAtIdx: index('nba_action_logs_lead_id_action_taken_at_idx').on(table.leadId, table.actionTakenAt),
+  actionTakenAtIndex: index('nba_action_logs_action_taken_at_idx').on(table.actionTakenAt),
 }));
 
 export const playbooks = sqliteTable('playbooks', {
@@ -236,5 +238,6 @@ export const notifications = sqliteTable('notifications', {
 }, (table) => ({
   userIdCreatedAtIndex: index('notifications_user_id_created_at_idx').on(table.userId, table.createdAt),
   jobRunIdCreatedAtIndex: index('notifications_job_run_id_created_at_idx').on(table.jobRunId, table.createdAt),
-  createdAtIsReadIndex: index('notifications_created_at_is_read_idx').on(table.createdAt, table.isRead),
+  isReadCreatedAtIndex: index('notifications_is_read_created_at_idx').on(table.isRead, table.createdAt),
+  createdAtIndex: index('notifications_created_at_idx').on(table.createdAt),
 }));

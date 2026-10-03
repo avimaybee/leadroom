@@ -163,8 +163,17 @@ export function setupLocalDatabaseMock() {
       link text,
       created_at integer DEFAULT (strftime('%s', 'now'))
     )`);
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS rate_limits (
+      key text PRIMARY KEY,
+      count integer NOT NULL,
+      window_start integer NOT NULL
+    )`);
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS sweep_locks (
+      id text PRIMARY KEY,
+      expires_at integer NOT NULL
+    )`);
   } catch (e) {
-    log.error('Failed to create notifications table in mock DB', e);
+    log.error('Failed to create tables in mock DB', e);
   }
   const runMigrations = sqlite.transaction(() => {
     for (const stmt of migrationStmts) {

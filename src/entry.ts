@@ -27,8 +27,16 @@ export default {
 
   async scheduled(event: ScheduledEvent, env: any, ctx: any) {
     const { getDb } = await import('./db');
-    const { runAllSweeps } = await import('./services/sweeps');
+    const { runDailySweeps, runAllSweeps } = await import('./services/sweeps');
     const db = getDb(env);
+
+    if (event?.cron === '0 2 * * *') {
+      log.info('Running scheduled daily maintenance sweeps...');
+      const result = await runDailySweeps(db, { force: true });
+      log.info('Daily maintenance sweep complete', { result: JSON.stringify(result) });
+      return;
+    }
+
     const result = await runAllSweeps(db);
     log.info('Sweep run complete', { result: JSON.stringify(result) });
   }

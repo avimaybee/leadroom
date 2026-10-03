@@ -61,12 +61,18 @@ export class DiscoveryService {
   async verifyCandidateAccess(candidateId: string, userId: string): Promise<boolean> {
     if (!candidateId || !userId) return false;
     const [candidate] = await this.db
-      .select({ createdByUserId: discoveryScopes.createdByUserId })
+      .select({
+        discoveryScopeId: candidateLeads.discoveryScopeId,
+        createdByUserId: discoveryScopes.createdByUserId,
+      })
       .from(candidateLeads)
-      .innerJoin(discoveryScopes, eq(candidateLeads.discoveryScopeId, discoveryScopes.id))
+      .leftJoin(discoveryScopes, eq(candidateLeads.discoveryScopeId, discoveryScopes.id))
       .where(eq(candidateLeads.id, candidateId))
       .limit(1);
-    return candidate ? candidate.createdByUserId === userId : false;
+
+    if (!candidate) return false;
+    if (!candidate.discoveryScopeId) return true;
+    return candidate.createdByUserId === userId;
   }
 
   async createCandidateLead(id: string, input: CreateCandidateLeadInput, userId?: string) {

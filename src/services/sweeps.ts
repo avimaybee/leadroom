@@ -319,21 +319,132 @@ export async function releaseSweepLock(db: Db): Promise<void> {
   }
 }
 
-export async function runAllSweeps(db: Db): Promise<SweepResult & { scoresRecalculated: number; stuckTasksReset: number; stuckJobsReset: number } & Awaited<ReturnType<typeof runTablePruningSweep>>> {
+const DAILY_SWEEP_LOCK_ID = 'daily_maintenance_sweep';
+const DAILY_SWEEP_INTERVAL_MS = 20 * 60 * 60 * 1000; // 20 hours
+
+export async function runFastSweeps(db: Db): Promise<{
+  remindersFired: number;
+  scoresRecalculated: number;
+  stuckTasksReset: number;
+  stuckJobsReset: number;
+}> {
+  const remindersFired = await runReminderSweep(db).catch((err) => { log.error('Reminder sweep failed', err); return 0; });
+  const scoresRecalculated = await runScoreSweep(db).catch((err) => { log.error('Score sweep failed', err); return 0; });
+  const stuckTasksReset = await runStuckResearchTaskSweep(db).catch((err) => { log.error('Stuck tasks sweep failed', err); return 0; });
+  const stuckJobsReset = await runStuckJobRunSweep(db).catch((err) => { log.error('Stuck jobs sweep failed', err); return 0; });
+
+  return { remindersFired, scoresRecalculated, stuckTasksReset, stuckJobsReset };
+}
+
+export async function runDailySweeps(db: Db, options?: { force?: boolean }): Promise<{
+  staleAlerts: number;
+  overdueNotifications: number;
+  deletedNotifications: number;
+  deletedScores: number;
+  deletedHistory: number;
+  deletedLogs: number;
+  deletedJobs: number;
+  deletedAudits: number;
+}> {
+  const emptyResult = {
+    staleAlerts: 0,
+    overdueNotifications: 0,
+    deletedNotifications: 0,
+    deletedScores: 0,
+    deletedHistory: 0,
+    deletedLogs: 0,
+    deletedJobs: 0,
+    deletedAudits: 0,
+  };
+
+  const now = Date.now();
+  if (!options?.force) {
+    try {
+      const [existing] = await db
+        .select({ expiresAt: sweepLocks.expiresAt })
+        .from(sweepLocks)
+        .where(eq(sweepLocks.id, DAILY_SWEEP_LOCK_ID))
+        .limit(1);
+
+      if (existing && existing.expiresAt.getTime() > now) {
+        log.info('Daily maintenance sweep skipped (last run within 20h)');
+        return emptyResult;
+      }
+    } catch (err) {
+      log.error('Failed to check daily sweep lock', err);
+    }
+  }
+
+  log.info('Starting daily maintenance sweep (stale leads, overdue tasks, table pruning)...');
+  const staleAlerts = await runStaleLeadSweep(db).catch((err) => { log.error('Stale lead sweep failed', err); return 0; });
+  const overdueNotifications = await runOverdueTaskSweep(db).catch((err) => { log.error('Overdue task sweep failed', err); return 0; });
+  const pruned = await runTablePruningSweep(db).catch((err) => {
+    log.error('Table pruning sweep failed', err);
+    return { deletedNotifications: 0, deletedScores: 0, deletedHistory: 0, deletedLogs: 0, deletedJobs: 0, deletedAudits: 0 };
+  });
+
+  try {
+    const nextAllowable = new Date(now + DAILY_SWEEP_INTERVAL_MS);
+    const [existing] = await db
+      .select({ id: sweepLocks.id })
+      .from(sweepLocks)
+      .where(eq(sweepLocks.id, DAILY_SWEEP_LOCK_ID))
+      .limit(1);
+
+    if (existing) {
+      await db
+        .update(sweepLocks)
+        .set({ expiresAt: nextAllowable })
+        .where(eq(sweepLocks.id, DAILY_SWEEP_LOCK_ID));
+    } else {
+      await db.insert(sweepLocks).values({ id: DAILY_SWEEP_LOCK_ID, expiresAt: nextAllowable });
+    }
+  } catch (err) {
+    log.error('Failed to update daily sweep lock timestamp', err);
+  }
+
+  return { staleAlerts, overdueNotifications, ...pruned };
+}
+
+export async function runAllSweeps(
+  db: Db,
+  options?: { forceDaily?: boolean }
+): Promise<SweepResult & { scoresRecalculated: number; stuckTasksReset: number; stuckJobsReset: number } & Awaited<ReturnType<typeof runTablePruningSweep>>> {
   if (!(await acquireSweepLock(db))) {
-    return { remindersFired: 0, staleAlerts: 0, overdueNotifications: 0, scoresRecalculated: 0, stuckTasksReset: 0, stuckJobsReset: 0, deletedNotifications: 0, deletedScores: 0, deletedHistory: 0, deletedLogs: 0, deletedJobs: 0, deletedAudits: 0 };
+    return {
+      remindersFired: 0,
+      staleAlerts: 0,
+      overdueNotifications: 0,
+      scoresRecalculated: 0,
+      stuckTasksReset: 0,
+      stuckJobsReset: 0,
+      deletedNotifications: 0,
+      deletedScores: 0,
+      deletedHistory: 0,
+      deletedLogs: 0,
+      deletedJobs: 0,
+      deletedAudits: 0,
+    };
   }
 
   try {
-    const remindersFired = await runReminderSweep(db).catch((err) => { log.error('Sweep failed', err); return 0; });
-    const staleAlerts = await runStaleLeadSweep(db).catch((err) => { log.error('Sweep failed', err); return 0; });
-    const overdueNotifications = await runOverdueTaskSweep(db).catch((err) => { log.error('Sweep failed', err); return 0; });
-    const scoresRecalculated = await runScoreSweep(db).catch((err) => { log.error('Sweep failed', err); return 0; });
-    const stuckTasksReset = await runStuckResearchTaskSweep(db).catch((err) => { log.error('Sweep failed', err); return 0; });
-    const stuckJobsReset = await runStuckJobRunSweep(db).catch((err) => { log.error('Sweep failed', err); return 0; });
-    const pruned = await runTablePruningSweep(db).catch((err) => { log.error('Sweep failed', err); return { deletedNotifications: 0, deletedScores: 0, deletedHistory: 0, deletedLogs: 0, deletedJobs: 0, deletedAudits: 0 }; });
+    const fast = await runFastSweeps(db);
+    const daily = await runDailySweeps(db, { force: options?.forceDaily });
 
-    return { remindersFired, staleAlerts, overdueNotifications, scoresRecalculated, stuckTasksReset, stuckJobsReset, ...pruned };
+    return {
+      remindersFired: fast.remindersFired,
+      scoresRecalculated: fast.scoresRecalculated,
+      stuckTasksReset: fast.stuckTasksReset,
+      stuckJobsReset: fast.stuckJobsReset,
+      staleAlerts: daily.staleAlerts,
+      overdueNotifications: daily.overdueNotifications,
+      deletedNotifications: daily.deletedNotifications,
+      deletedScores: daily.deletedScores,
+      deletedHistory: daily.deletedHistory,
+      deletedLogs: daily.deletedLogs,
+      deletedJobs: daily.deletedJobs,
+      deletedAudits: daily.deletedAudits,
+    };
   } finally {
     // Don't clear lock on failure (fix #22): let it expire naturally via TTL
     // to prevent overlap from a killed-but-reborn isolate

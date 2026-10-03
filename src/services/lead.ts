@@ -829,6 +829,9 @@ export class LeadService {
       .from(leads)
       .where(and(...conditions))
       .limit(500);
+
+    if (activeLeads.length === 0) return 0;
+
     const [firstUser] = await this.db.select({ id: leads.ownerId }).from(leads).where(isNotNull(leads.ownerId)).limit(1);
     const fallbackUserId = firstUser?.id || null;
     let alertCount = 0;

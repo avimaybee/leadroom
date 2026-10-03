@@ -30,14 +30,24 @@ function getSecretKey(env?: any): Uint8Array {
     }
   }
   if (!secret) {
+    try {
+      const cfContext = (globalThis as any)[Symbol.for('__cloudflare-context__')];
+      secret = cfContext?.env?.AUTH_SECRET;
+    } catch {}
+  }
+  if (!secret) {
     secret = (typeof process !== 'undefined' ? process.env : undefined)?.AUTH_SECRET;
   }
   if (!secret) {
-    throw new Error(
-      'AUTH_SECRET environment variable is required but not set. ' +
-      'Set it in .env.local (local dev) or as a Cloudflare secret (production). ' +
-      'Generate one with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
-    );
+    if (process.env.NODE_ENV !== 'production') {
+      secret = 'leadroom-dev-auth-secret-key-32chars-min!';
+    } else {
+      throw new Error(
+        'AUTH_SECRET environment variable is required but not set. ' +
+        'Set it in .env.local (local dev) or as a Cloudflare secret (production). ' +
+        'Generate one with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
+      );
+    }
   }
   return new TextEncoder().encode(secret);
 }

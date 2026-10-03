@@ -1,4 +1,4 @@
-export const revalidate = 30;
+export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { getDb } from '@/db';

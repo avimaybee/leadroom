@@ -8,7 +8,7 @@ import { eq, and } from 'drizzle-orm';
 
 const log = getLogger('LearningCountAPI');
 
-export const revalidate = 30;
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {

@@ -133,11 +133,29 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       }
     }
 
-    // Set up polling intervals
-    const notificationInterval = setInterval(() => pollNotificationsRef.current(), 10000);
+    // Set up polling interval with visibility awareness (saves D1 row reads)
+    const pollIfVisible = () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      pollNotificationsRef.current();
+    };
+
+    const notificationInterval = setInterval(pollIfVisible, 45_000);
+
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        pollNotificationsRef.current();
+      }
+    };
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
 
     return () => {
       clearInterval(notificationInterval);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
     };
   }, [fetchInitial]);
 

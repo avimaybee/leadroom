@@ -1,4 +1,4 @@
-export const revalidate = 30;
+export const dynamic = 'force-dynamic';
 
 import { getLogger } from '@/lib/logger';
 import { NextResponse } from 'next/server';

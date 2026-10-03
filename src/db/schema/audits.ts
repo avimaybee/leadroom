@@ -19,6 +19,7 @@ export const audits = sqliteTable('audits', {
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
 }, (table) => ({
   leadIdIndex: index('audits_lead_id_idx').on(table.leadId),
+  createdAtIndex: index('audits_created_at_idx').on(table.createdAt),
 }));
 
 export const leadScores = sqliteTable('lead_scores', {
@@ -36,5 +37,5 @@ export const leadScores = sqliteTable('lead_scores', {
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
 }, (table) => ({
   leadIdIsCurrentIndex: index('lead_scores_lead_id_is_current_idx').on(table.leadId, table.isCurrent),
-  createdAtIsCurrentIndex: index('lead_scores_created_at_is_current_idx').on(table.createdAt, table.isCurrent),
+  isCurrentCreatedAtIndex: index('lead_scores_is_current_created_at_idx').on(table.isCurrent, table.createdAt),
 }));

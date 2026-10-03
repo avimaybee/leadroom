@@ -19,4 +19,5 @@ export const researchTasks = sqliteTable('research_tasks', {
 }, (table) => ({
   prospectTaskTypeIndex: index('research_tasks_prospect_id_task_type_idx').on(table.prospectId, table.taskType),
   statusIndex: index('research_tasks_status_idx').on(table.status),
+  statusStartedAtIndex: index('research_tasks_status_started_at_idx').on(table.status, table.startedAt),
 }));

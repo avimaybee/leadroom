@@ -2,7 +2,7 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"main": "src/entry.ts",
 	"name": "leadroom",
-	"compatibility_date": "2026-07-12",
+	"compatibility_date": "2026-06-18",
 	"compatibility_flags": [
 		"nodejs_compat",
 		"global_fetch_strictly_public"
@@ -19,7 +19,10 @@
 		}
 	],
 	"triggers": {
-		"crons": ["*/5 * * * *"]
+		"crons": [
+			"*/5 * * * *",
+			"0 2 * * *"
+		]
 	},
 	"browser": {
 		// BROWSER binding requires `--remote` for local dev (browser bindings only work remotely)
