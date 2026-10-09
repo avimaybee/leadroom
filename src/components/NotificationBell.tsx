@@ -21,7 +21,7 @@ export function NotificationBell() {
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [ref]);
+  }, []);
 
   return (
     <div className="relative" ref={ref}>

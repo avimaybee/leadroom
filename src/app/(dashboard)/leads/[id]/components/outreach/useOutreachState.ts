@@ -145,14 +145,30 @@ export function useOutreachState(
     return () => window.removeEventListener('click', handleClose);
   }, [menuOpen]);
 
-  useEffect(() => {
-    setSelectedChannel(normalizeChannel(initialChannel));
-  }, [initialChannel]);
+  // No useEffect sync for initialChannel (rerender-derived-state-no-effect):
+  // parent passes key={initialChannel} so back/forward remounts correctly.
+  // User channel switches are handled in handleChannelChange event.
 
+  // Merge server drafts instead of replacing (preserves optimistic creates,
+  // never clobbers user edits — runs only when server data actually changes).
   useEffect(() => {
     const normalized = initialDrafts.map(normalizeDraft);
-    setDrafts(normalized);
-    // If a new draft was just created, auto-select it as soon as it appears in the refreshed data
+    _setDrafts((prev) => {
+      if (prev.length === 0) return normalized.slice(0, MAX_DRAFTS);
+      const prevById = new Map(prev.map((d) => [d.id, d]));
+      const merged: OutreachDraft[] = [];
+      for (const s of normalized) {
+        const existing = prevById.get(s.id);
+        // Preserve locally-created drafts newer than server snapshot by id;
+        // update status/body for known ids.
+        merged.push(existing ? { ...existing, status: s.status, updatedAt: s.updatedAt } : s);
+        prevById.delete(s.id);
+      }
+      // Keep optimistic drafts not yet on server (created/duplicated this session).
+      for (const [, d] of prevById) merged.unshift(d);
+      return merged.slice(0, MAX_DRAFTS);
+    });
+    // If a new draft was just created, auto-select it as soon as it appears
     if (pendingSelectRef.current) {
       const exists = normalized.some((d) => d.id === pendingSelectRef.current);
       if (exists) {
@@ -180,7 +196,14 @@ export function useOutreachState(
     () => drafts.filter((draft) => normalizeChannel(draft.channel) === selectedChannel),
     [drafts, selectedChannel]
   );
-  const activeDraft = channelDrafts.find((draft) => draft.id === activeDraftId) ?? channelDrafts[0] ?? null;
+  // Derived selection — no fix-up effect (rerender-derived-state-no-effect).
+  // Explicit user choice wins; otherwise first draft in channel; null when empty.
+  // setActiveDraftId is only called from event handlers (channel change,
+  // version select, create/duplicate/delete).
+  const activeDraft = activeDraftId
+    ? (channelDrafts.find((draft) => draft.id === activeDraftId) ?? channelDrafts[0] ?? null)
+    : (channelDrafts[0] ?? null);
+  const resolvedActiveDraftId = activeDraft?.id ?? null;
   
   const draftCounts = CHANNEL_ORDER.reduce((acc, channel) => {
     acc[channel] = drafts.filter((draft) => normalizeChannel(draft.channel) === channel).length;
@@ -201,23 +224,9 @@ export function useOutreachState(
   const versionIndex = activeDraft ? channelDrafts.findIndex((draft) => draft.id === activeDraft.id) : -1;
   const versionLabel = activeDraft && versionIndex >= 0 ? `v${channelDrafts.length - versionIndex}` : null;
 
-  useEffect(() => {
-    if (channelDrafts.length === 0) {
-      setActiveDraftId(null);
-      setSubjectInput('');
-      setBodyInput('');
-      setFeedbackInput('');
-      setCopied(false);
-      return;
-    }
-
-    const hasActive = activeDraftId ? channelDrafts.some((draft) => draft.id === activeDraftId) : false;
-    const nextActiveId = hasActive ? activeDraftId : channelDrafts[0].id;
-    if (nextActiveId !== activeDraftId) {
-      setActiveDraftId(nextActiveId);
-    }
-  }, [activeDraftId, channelDrafts]);
-
+  // Form reset on draft switch: intentional reset keyed by stable id string.
+  // (Key-based remount preferred; this effect only fires on actual id change.)
+  const activeDraftKey = activeDraft?.id ?? '';
   useEffect(() => {
     if (!activeDraft) {
       setSubjectInput('');
@@ -231,24 +240,25 @@ export function useOutreachState(
     setBodyInput(activeDraft.body);
     setFeedbackInput('');
     setCopied(false);
-  }, [activeDraft?.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeDraftKey]);
 
-  useEffect(() => {
-    if (!isDirty) {
-      setDrafts(initialDrafts.map(normalizeDraft));
-    }
-  }, [initialDrafts, isDirty]);
+  // Deleted: churn sync `if (!isDirty) setDrafts(...)` on every keystroke —
+  // merge effect above already handles server updates without clobbering edits.
 
+  // beforeunload via ref — subscribe once, no re-subscribe on every keystroke.
+  const isDirtyRef = useRef(isDirty);
+  isDirtyRef.current = isDirty;
   useEffect(() => {
     const beforeUnload = (event: BeforeUnloadEvent) => {
-      if (!isDirty) return;
+      if (!isDirtyRef.current) return;
       event.preventDefault();
       event.returnValue = '';
     };
 
     window.addEventListener('beforeunload', beforeUnload);
     return () => window.removeEventListener('beforeunload', beforeUnload);
-  }, [isDirty]);
+  }, []);
 
   const updateUrl = useCallback((channel: Channel) => {
     const next = new URLSearchParams(searchParams.toString());
@@ -600,7 +610,7 @@ export function useOutreachState(
     // States
     drafts,
     selectedChannel,
-    activeDraftId,
+    activeDraftId: resolvedActiveDraftId,
     subjectInput,
     bodyInput,
     customPrompt,

@@ -25,14 +25,36 @@ interface IcpFormProps {
 export function IcpForm({ initialData }: IcpFormProps) {
   const router = useRouter();
   const [name, setName] = useState(initialData?.name || '');
-  const [positiveSignals, setPositiveSignals] = useState<IcpSignalDef[]>(
-    initialData?.positiveSignals ? JSON.parse(initialData.positiveSignals) : []
+  const parseSignals = (v: string | null | unknown): IcpSignalDef[] => {
+    if (!v) return [];
+    if (Array.isArray(v)) return v as IcpSignalDef[];
+    if (typeof v !== 'string') return [];
+    try {
+      const parsed = JSON.parse(v);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  };
+  const parseStrings = (v: string | null | unknown): string[] => {
+    if (!v) return [];
+    if (Array.isArray(v)) return v.filter((x) => typeof x === 'string') as string[];
+    if (typeof v !== 'string') return [];
+    try {
+      const parsed = JSON.parse(v);
+      return Array.isArray(parsed) ? parsed.filter((x) => typeof x === 'string') : [];
+    } catch {
+      return [];
+    }
+  };
+  const [positiveSignals, setPositiveSignals] = useState<IcpSignalDef[]>(() =>
+    parseSignals(initialData?.positiveSignals)
   );
-  const [negativeSignals, setNegativeSignals] = useState<IcpSignalDef[]>(
-    initialData?.negativeSignals ? JSON.parse(initialData.negativeSignals) : []
+  const [negativeSignals, setNegativeSignals] = useState<IcpSignalDef[]>(() =>
+    parseSignals(initialData?.negativeSignals)
   );
-  const [disqualifiers, setDisqualifiers] = useState<string[]>(
-    initialData?.disqualifiers ? JSON.parse(initialData.disqualifiers) : []
+  const [disqualifiers, setDisqualifiers] = useState<string[]>(() =>
+    parseStrings(initialData?.disqualifiers)
   );
   const [newDisq, setNewDisq] = useState('');
   const [saving, setSaving] = useState(false);

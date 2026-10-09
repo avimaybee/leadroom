@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { LayoutDashboard, Users, Target, Settings, FileText, ClipboardCheck, LayoutList, Lightbulb, ChevronRight, FlaskConical, Sparkles } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, ClipboardCheck, FlaskConical, Radar } from 'lucide-react';
 import { NotificationProvider } from '@/components/NotificationProvider';
 import { NotificationBell } from '@/components/NotificationBell';
 import { HowToUse } from '@/components/HowToUse';
@@ -29,17 +29,11 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { name: 'Command Center', href: '/', icon: LayoutDashboard },
-  { name: 'Markets', href: '/markets', icon: Target },
   { name: 'Prospects', href: '/prospects', icon: Users },
+  { name: 'Discovery', href: '/scopes', icon: Radar },
   { name: 'Research Queue', href: '/research', icon: FlaskConical },
   { name: 'Outreach Drafts', href: '/approvals', icon: ClipboardCheck, badge: true, badgeType: 'approvals' },
-  { name: 'My Setup', href: '/personalisation', icon: Sparkles },
   { name: 'Settings', href: '/settings/pipeline', icon: Settings },
-];
-
-const legacyItems: NavItem[] = [
-  { name: 'Leads (legacy)', href: '/leads', icon: Users },
-  { name: 'Campaigns (legacy)', href: '/scopes', icon: Target },
 ];
 
 
@@ -47,7 +41,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
-  const [legacyOpen, setLegacyOpen] = useState(false);
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
   const sidebarRef = useRef<HTMLElement>(null);
   const dragRef = useRef(false);
@@ -170,36 +163,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             );
           })}
 
-          {/* Legacy section */}
-          {!collapsed && (
-            <div className="pt-2 mt-2 border-t border-sidebar-border">
-              <button
-                type="button"
-                onClick={() => setLegacyOpen(!legacyOpen)}
-                className="flex items-center gap-2 w-full px-2 py-1.5 text-label-12 text-muted-foreground/60 hover:text-foreground transition-colors"
-              >
-                <ChevronRight className={`w-3 h-3 transition-transform ${legacyOpen ? 'rotate-90' : ''}`} />
-                Legacy
-              </button>
-              {legacyOpen && (
-                <div className="ml-4 space-y-0.5 mt-0.5">
-                  {legacyItems.map((item) => {
-                    const Icon = item.icon;
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        className="flex items-center gap-2 px-2 py-1.5 rounded-md text-label-12 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all duration-200"
-                      >
-                        <Icon className="w-4 h-4 shrink-0" />
-                        <span className="truncate">{item.name}</span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
         </nav>
 
         {/* Footer */}

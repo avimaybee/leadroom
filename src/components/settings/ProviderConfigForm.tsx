@@ -265,7 +265,8 @@ export function ProviderConfigForm({ provider, displayName, defaultModel, config
         setCustomModelName(config.modelName);
       }
     }
-  }, [config?.apiKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config?.apiKey, provider, defaultModel]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -275,7 +276,8 @@ export function ProviderConfigForm({ provider, displayName, defaultModel, config
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [apiKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiKey, config?.apiKey]);
 
   async function handleTestConnection(keyToTest: string, modelToTest: string) {
     setTestingConnection(true);

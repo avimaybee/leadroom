@@ -1,8 +1,6 @@
 'use client';
 
-// TODO: install rehype-sanitize (npm install rehype-sanitize) and add import rehypeSanitize from 'rehype-sanitize',
-// then pass rehypePlugins={[rehypeSanitize]} to ReactMarkdown below
-import ReactMarkdown from 'react-markdown';
+import { SafeMarkdown } from '@/components/SafeMarkdown';
 import { AlertTriangle, Loader2, ExternalLink, FileText } from 'lucide-react';
 import { ResearchSnapshot } from './types';
 import { formatUTC } from '@/lib/date';
@@ -156,7 +154,7 @@ export function ResearchDisplay({
               <span className="text-label-12 font-semibold text-card-foreground block">Potential Pain Points</span>
               <div className="text-copy-13 text-foreground font-medium leading-relaxed bg-muted/50 p-4 rounded-md prose-markdown">
                 {initialSnapshot.painPointsHypotheses ? (
-                  <ReactMarkdown rehypePlugins={[]}>{initialSnapshot.painPointsHypotheses}</ReactMarkdown>
+                  <SafeMarkdown>{initialSnapshot.painPointsHypotheses}</SafeMarkdown>
                 ) : (
                   'No hypotheses compiled.'
                 )}
@@ -166,7 +164,7 @@ export function ResearchDisplay({
               <span className="text-label-12 font-semibold text-card-foreground block">Agency Opportunities</span>
               <div className="text-copy-13 text-foreground font-medium leading-relaxed bg-muted/50 p-4 rounded-md prose-markdown">
                 {initialSnapshot.opportunityHypotheses ? (
-                  <ReactMarkdown rehypePlugins={[]}>{initialSnapshot.opportunityHypotheses}</ReactMarkdown>
+                  <SafeMarkdown>{initialSnapshot.opportunityHypotheses}</SafeMarkdown>
                 ) : (
                   'No hypotheses compiled.'
                 )}

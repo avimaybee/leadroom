@@ -190,3 +190,50 @@ export async function getUnmetStageRequirementsAction(leadId: string, email: str
   const service = await getService();
   return service.getUnmetStageRequirements(leadId, email);
 }
+
+/**
+ * Loads the next page of prospects for the prospects list.
+ * Mirrors loadMoreLeadsAction so rows beyond the initial page stay reachable.
+ */
+export async function loadMoreProspectsAction(
+  offset: number,
+  filters: { tier?: string; stage?: string; search?: string; market?: string } = {},
+  limit = 100
+) {
+  const userId = await getUserId();
+  if (!userId) return { error: 'Unauthorized', prospects: [] };
+
+  const { getDb } = await import('@/db');
+  const { prospects } = await import('@/db/schema/core');
+  const { eq, sql, and, or, like } = await import('drizzle-orm');
+
+  const conditions = [eq(prospects.status, 'Active'), eq(prospects.ownerId, userId)];
+  const tier = (filters.tier || 'all').toLowerCase();
+  if (tier !== 'all') conditions.push(eq(prospects.priorityTier, tier));
+  if (filters.stage) conditions.push(eq(prospects.stage, filters.stage));
+  if (filters.market && filters.market !== 'all') conditions.push(eq(prospects.marketId, filters.market));
+  const q = (filters.search || '').trim();
+  if (q) conditions.push(or(like(prospects.company, `%${q}%`), like(prospects.name, `%${q}%`))!);
+
+  const db = getDb();
+  const rows = await db
+    .select({
+      id: prospects.id,
+      name: prospects.name,
+      company: prospects.company,
+      website: prospects.website,
+      stage: prospects.stage,
+      fitScore: prospects.fitScore,
+      confidenceScore: prospects.confidenceScore,
+      priorityTier: prospects.priorityTier,
+      marketId: prospects.marketId,
+      disqualifiedReason: prospects.disqualifiedReason,
+    })
+    .from(prospects)
+    .where(and(...conditions))
+    .orderBy(sql`COALESCE(${prospects.fitScore}, 0) DESC`)
+    .limit(limit)
+    .offset(offset);
+
+  return { success: true, prospects: rows };
+}

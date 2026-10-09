@@ -46,7 +46,7 @@ export default async function ScopesPage({ searchParams }: { searchParams: Promi
   }
 
   const FILTER_OPTIONS = [
-    { value: 'all', label: 'All Campaigns' },
+    { value: 'all', label: 'All Discovery' },
     { value: 'pending', label: 'Pending Review' },
     { value: 'completed', label: 'Completed' },
   ];
@@ -56,14 +56,14 @@ export default async function ScopesPage({ searchParams }: { searchParams: Promi
       {/* Page Header */}
       <header className="space-y-4 border-b border-border/70 pb-6">
         <nav className="flex items-center gap-2 text-label-14 text-muted-foreground">
-          <span className="font-medium text-foreground">Campaigns</span>
+          <span className="font-medium text-foreground">Discovery</span>
         </nav>
 
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 flex-1">
-            <h1 className="text-heading-3xl text-card-foreground">Outreach Campaigns</h1>
+            <h1 className="text-heading-3xl text-card-foreground">Discovery</h1>
             <p className="text-copy-14 text-muted-foreground mt-1.5 leading-relaxed">
-              Define discovery parameters, run crawler scans, and qualify prospect candidates for outreach.
+              Find new companies, review candidates, and promote good fits to prospects.
             </p>
           </div>
 
@@ -73,13 +73,7 @@ export default async function ScopesPage({ searchParams }: { searchParams: Promi
               className={buttonVariants({ variant: 'default' })}
             >
               <Radar className="w-4 h-4 mr-1.5" />
-              Create Campaign
-            </Link>
-            <Link
-              href="/markets"
-              className={buttonVariants({ variant: 'outline' })}
-            >
-              Go to Markets
+              New Search
             </Link>
           </div>
         </div>

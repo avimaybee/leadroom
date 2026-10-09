@@ -23,12 +23,15 @@ export default async function ApprovalsPage() {
   }
 
   const drafts = result.drafts;
-  const riskFlagged = drafts.filter(d => {
-    try {
-      const flags = (d.riskFlags ?? []) as any[];
-      return flags.length > 0;
-    } catch { return false; }
-  }).length;
+  const pending = drafts.filter(d => d.status === 'DRAFT');
+  const approved = drafts.filter(d => d.status === 'APPROVED');
+  const parseFlags = (v: unknown): string[] => {
+    if (!v) return [];
+    if (Array.isArray(v)) return v as string[];
+    if (typeof v !== 'string') return [];
+    try { const p = JSON.parse(v); return Array.isArray(p) ? p : []; } catch { return []; }
+  };
+  const riskFlagged = drafts.filter(d => parseFlags(d.riskFlags).length > 0 && d.status === 'DRAFT').length;
 
   return (
     <div>
@@ -42,11 +45,11 @@ export default async function ApprovalsPage() {
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
         <div className="rounded-lg border border-border p-4 flex flex-col justify-between h-28">
           <span className="text-label-12 text-muted-foreground uppercase">Pending</span>
-          <span className="text-heading-2xl text-foreground">{drafts.length}</span>
+          <span className="text-heading-2xl text-foreground">{pending.length}</span>
         </div>
         <div className="rounded-lg border border-border p-4 flex flex-col justify-between h-28">
-          <span className="text-label-12 text-muted-foreground uppercase">Approved Today</span>
-          <span className="text-heading-2xl text-chart-2">--</span>
+          <span className="text-label-12 text-muted-foreground uppercase">Approved</span>
+          <span className="text-heading-2xl text-chart-2">{approved.length}</span>
         </div>
         <div className={`rounded-lg border border-border p-4 flex flex-col justify-between h-28 ${riskFlagged > 0 ? 'bg-chart-5/10' : 'bg-muted/30'}`}>
           <span className="text-label-12 text-muted-foreground uppercase">Needs Attention</span>

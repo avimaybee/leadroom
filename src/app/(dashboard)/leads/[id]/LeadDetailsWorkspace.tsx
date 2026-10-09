@@ -174,10 +174,6 @@ export default function LeadDetailsWorkspace({
   const [editState, editFormAction] = useActionState(updateLeadAction, undefined);
 
   useEffect(() => {
-    setActiveView(initialView);
-  }, [initialView]);
-
-  useEffect(() => {
     if (editState && !editState.error && editState.success) {
       setIsEditLeadOpen(false);
       toast.success('Lead updated');
@@ -564,7 +560,7 @@ export default function LeadDetailsWorkspace({
                             if (data.jobId) setPollingJobId(data.jobId);
                             navigateTo('research');
                           } catch {
-                            window.location.href = `/leads/${lead.id}?tab=research`;
+                            navigateTo('research');
                           } finally {
                             setExecutingAction(null);
                           }
@@ -574,7 +570,7 @@ export default function LeadDetailsWorkspace({
                             await triggerAuditAction(lead.id);
                             navigateTo('research');
                           } catch {
-                            window.location.href = `/leads/${lead.id}?tab=research`;
+                            navigateTo('research');
                           } finally {
                             setExecutingAction(null);
                           }
@@ -584,7 +580,7 @@ export default function LeadDetailsWorkspace({
                             await generateOutreachDraftAction(lead.id, 'EMAIL');
                             navigateTo('outreach');
                           } catch {
-                            window.location.href = `/leads/${lead.id}?tab=outreach`;
+                            navigateTo('outreach');
                           } finally {
                             setExecutingAction(null);
                           }
@@ -815,6 +811,7 @@ export default function LeadDetailsWorkspace({
           ) : (
             <div className="space-y-6">
               <OutreachAssistant
+                key={initialChannel || 'EMAIL'}
                 leadId={lead.id}
                 initialDrafts={memoizedDrafts}
                 researchSnapshot={latestSnapshot}

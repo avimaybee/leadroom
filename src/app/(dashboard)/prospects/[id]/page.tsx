@@ -14,6 +14,8 @@ import ProspectDetailsWorkspace from './ProspectDetailsWorkspace';
 
 type WorkspaceView = 'overview' | 'research' | 'outreach' | 'activity';
 
+const WORKSPACE_VIEWS: Set<string> = new Set(['overview', 'research', 'outreach', 'activity']);
+
 export default async function ProspectDetailPage({
   params,
   searchParams,
@@ -152,6 +154,7 @@ export default async function ProspectDetailPage({
 
   return (
     <ProspectDetailsWorkspace
+      key={`${id}-${WORKSPACE_VIEWS.has(view || '') ? view : 'overview'}-${channel || ''}`}
       lead={prospect}
       notes={notes}
       tasks={tasksData}
@@ -164,7 +167,7 @@ export default async function ProspectDetailPage({
       activeResearchJob={activeResearchJob}
       displayStage={displayStage}
       stages={stages}
-      initialView={(view as WorkspaceView) || 'overview'}
+      initialView={(WORKSPACE_VIEWS.has(view || '') ? view : 'overview') as WorkspaceView}
       initialChannel={channel}
       stageThreshold={stageThreshold}
       nbaResults={nbaResults}

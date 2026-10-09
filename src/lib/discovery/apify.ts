@@ -101,7 +101,7 @@ export async function startGoogleMapsSearch(
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(25_000),
       body: JSON.stringify(input),
     },
   );
@@ -137,7 +137,7 @@ export async function checkApifyRunStatus(runId: string): Promise<ApifyRunStatus
   const res = await fetch(statusUrl,
     {
       headers: { 'Authorization': `Bearer ${token}` },
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(25_000),
     },
   );
   if (!res.ok) {
@@ -183,7 +183,7 @@ export async function fetchApifyResults(
     const itemsRes = await fetch(paginatedUrl,
       {
         headers: { 'Authorization': `Bearer ${token}` },
-        signal: AbortSignal.timeout(30_000),
+        signal: AbortSignal.timeout(25_000),
       },
     );
     if (!itemsRes.ok) {

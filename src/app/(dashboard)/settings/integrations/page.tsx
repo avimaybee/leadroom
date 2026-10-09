@@ -67,10 +67,24 @@ export default async function IntegrationsPage() {
     log.error('Failed to load integration configs', err);
   }
 
+  // Key remounts the picker when server configs change — replaces useEffect prop sync.
+  const routingKey = [
+    geminiConfig?.isResearchActive ? 'r' : '',
+    geminiConfig?.isScoringActive ? 's' : '',
+    geminiConfig?.isDraftingActive ? 'd' : '',
+    nvidiaConfig?.isResearchActive ? 'R' : '',
+    openrouterConfig ? 'o' : '',
+    groqConfig ? 'g' : '',
+    aimlConfig ? 'a' : '',
+    openaiConfig ? 'p' : '',
+    anthropicConfig ? 'n' : '',
+  ].join('');
+
   return (
     <div className="space-y-8 max-w-4xl">
       {/* Routing Controller */}
       <ActiveProviderPicker
+        key={routingKey}
         configs={{
           gemini: geminiConfig,
           nvidia: nvidiaConfig,

@@ -27,6 +27,21 @@ const nextConfig = {
         destination: '/scopes',
         permanent: true,
       },
+      {
+        source: '/leads',
+        destination: '/prospects',
+        permanent: false,
+      },
+      {
+        source: '/markets',
+        destination: '/scopes',
+        permanent: false,
+      },
+      {
+        source: '/personalisation',
+        destination: '/settings/pipeline',
+        permanent: false,
+      },
     ];
   },
 };

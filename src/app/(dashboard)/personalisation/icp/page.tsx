@@ -60,9 +60,10 @@ export default async function IcpListPage() {
             </thead>
             <tbody>
               {result.profiles.map((profile) => {
-                const pos = (profile.positiveSignals ?? []) as any[];
-                const neg = (profile.negativeSignals ?? []) as any[];
-                const disq = (profile.disqualifiers ?? []) as any[];
+                const asArr = (v: unknown): any[] => (Array.isArray(v) ? v : []);
+                const pos = asArr(profile.positiveSignals);
+                const neg = asArr(profile.negativeSignals);
+                const disq = asArr(profile.disqualifiers);
                 return (
                   <tr
                     key={profile.id}

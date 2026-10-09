@@ -26,11 +26,22 @@ export function OfferForm({ initialData }: OfferFormProps) {
   const [name, setName] = useState(initialData?.name || '');
   const [targetPain, setTargetPain] = useState(initialData?.targetPain || '');
   const [desiredOutcome, setDesiredOutcome] = useState(initialData?.desiredOutcome || '');
-  const [proofPoints, setProofPoints] = useState<string[]>(
-    initialData?.proofPoints ? JSON.parse(initialData.proofPoints) : []
+  const parseStringArray = (v: string | null | unknown): string[] => {
+    if (!v) return [];
+    if (Array.isArray(v)) return v.filter((x) => typeof x === 'string') as string[];
+    if (typeof v !== 'string') return [];
+    try {
+      const parsed = JSON.parse(v);
+      return Array.isArray(parsed) ? parsed.filter((x) => typeof x === 'string') : [];
+    } catch {
+      return [];
+    }
+  };
+  const [proofPoints, setProofPoints] = useState<string[]>(() =>
+    parseStringArray(initialData?.proofPoints)
   );
-  const [forbiddenClaims, setForbiddenClaims] = useState<string[]>(
-    initialData?.forbiddenClaims ? JSON.parse(initialData.forbiddenClaims) : []
+  const [forbiddenClaims, setForbiddenClaims] = useState<string[]>(() =>
+    parseStringArray(initialData?.forbiddenClaims)
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);

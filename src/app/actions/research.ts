@@ -25,7 +25,7 @@ const CreateProspectSchema = z.object({
   company: z.string().optional(),
   domain: z.string().min(1, 'Domain is required'),
   notes: z.string().optional(),
-  marketId: z.string().min(1, 'Market is required'),
+  marketId: z.string().optional().nullable(),
 });
 
 const TASK_TYPES = ['WEBSITE_ANALYST', 'ICP_FIT', 'PAIN_EXTRACTOR', 'DISQUALIFIER_CHECK'] as const;
@@ -43,7 +43,7 @@ async function createProspectActionImpl(prev: any, form: FormData) {
     company: String(form.get('company') ?? ''),
     domain: String(form.get('domain') ?? form.get('website') ?? ''),
     notes: String(form.get('notes') ?? ''),
-    marketId: String(form.get('marketId') ?? ''),
+    marketId: String(form.get('marketId') ?? '') || null,
   };
 
   const validated = CreateProspectSchema.safeParse(raw);
@@ -90,7 +90,7 @@ async function createProspectActionImpl(prev: any, form: FormData) {
       });
     }
 
-    revalidatePath(`/markets/${validated.data.marketId}/prospects`);
+    revalidatePath('/prospects');
     revalidatePath('/research');
     return { success: true, prospectId: id };
   } catch (e: unknown) {
@@ -110,8 +110,8 @@ async function importProspectsCSVActionImpl(formData: FormData) {
   if (wsRows.length === 0) return { error: 'No workspace found' };
 
   const csvRaw = String(formData.get('csv') ?? '');
-  const marketId = String(formData.get('marketId') ?? '');
-  if (!csvRaw || !marketId) return { error: 'CSV data and market ID required' };
+  const marketId = String(formData.get('marketId') ?? '') || null;
+  if (!csvRaw) return { error: 'CSV data required' };
 
   const MAX_CSV_ROWS = 10000;
   const lines = csvRaw.split('\n').map(l => l.trim()).filter(Boolean);
@@ -206,7 +206,7 @@ async function importProspectsCSVActionImpl(formData: FormData) {
     }
   }
 
-  revalidatePath(`/markets/${marketId}/prospects`);
+  revalidatePath('/prospects');
   revalidatePath('/research');
   return { success: true, created: created.length, total: lines.length - 1, errors };
 }
@@ -243,7 +243,7 @@ async function cancelResearchTaskActionImpl(taskId: string) {
   }
 
   await db.update(researchTasks).set({
-    status: 'FAILED',
+    status: 'CANCELLED',
     errorMessage: 'Cancelled by user',
     completedAt: new Date(),
     updatedAt: new Date(),

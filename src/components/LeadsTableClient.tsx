@@ -258,10 +258,9 @@ export default function LeadsTableClient({
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadedTotal, setLoadedTotal] = useState(enrichedCount);
 
-  useEffect(() => {
-    setAllLeads(leads);
-    setLoadedTotal(enrichedCount);
-  }, [leads, enrichedCount]);
+  // No prop-sync effect (rerender-derived-state-no-effect): parent passes
+  // key={filters} so navigation remounts with fresh data. Local appends
+  // from Load More are never clobbered by parent re-renders.
 
   const hasMore = (totalCount ?? enrichedCount) > allLeads.length;
 

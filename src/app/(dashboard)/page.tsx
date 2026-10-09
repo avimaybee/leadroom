@@ -3,7 +3,6 @@ export const dynamic = 'force-dynamic';
 import { getDb } from '@/db';
 import { prospects, stageThresholds } from '@/db/schema/core';
 import { outreachDrafts } from '@/db/schema/outreach';
-import { markets } from '@/db/schema/strategy';
 import { candidateLeads, discoveryScopes } from '@/db/schema/discovery';
 import { getUserId } from '@/lib/auth';
 import { LeadService } from '@/services/lead';
@@ -26,9 +25,8 @@ export default async function DashboardPage() {
   const leadService = new LeadService(db);
 
   // Fetch all core data in parallel
-  const [allProspects, activeMarkets, pendingApprovalRow, thresholds, funnel, myTasks, pendingTriagesRow] = await Promise.all([
+  const [allProspects, pendingApprovalRow, thresholds, funnel, myTasks, pendingTriagesRow] = await Promise.all([
     db.select().from(prospects).where(and(eq(prospects.status, 'Active'), eq(prospects.ownerId, userId))).orderBy(sql`COALESCE(${prospects.fitScore}, 0) DESC`).limit(500),
-    db.select().from(markets).where(and(eq(markets.workspaceId, userId), eq(markets.status, 'active'))),
     db.select({ count: count() }).from(outreachDrafts).innerJoin(prospects, eq(outreachDrafts.leadId, prospects.id)).where(and(eq(outreachDrafts.status, 'DRAFT'), eq(prospects.ownerId, userId))),
     db.select().from(stageThresholds),
     leadService.getStageFunnel(userId),
@@ -151,9 +149,6 @@ export default async function DashboardPage() {
               <Radar className="w-4 h-4 mr-1.5" />
               Start Discovery
             </Link>
-            <Link href="/markets" className={buttonVariants({ variant: 'outline' })}>
-              Manage Markets
-            </Link>
             <Link href="/prospects" className={buttonVariants({ variant: 'outline' })}>
               View All Prospects
             </Link>
@@ -209,13 +204,13 @@ export default async function DashboardPage() {
                   <Target className="w-6 h-6 text-muted-foreground" />
                 </div>
                 <p className="text-copy-14 text-muted-foreground">
-                  Add prospects to a market and run research to see them here.
+                  Add prospects via Discovery or import to see them here.
                 </p>
                 <Link
-                  href="/markets"
+                  href="/scopes"
                   className="inline-flex items-center gap-2 mt-4 h-10 px-4 rounded-md bg-primary text-primary-foreground text-label-14 hover:bg-primary/90 transition-colors"
                 >
-                  Configure Markets
+                  Start Discovery
                 </Link>
               </div>
             ) : (
@@ -388,13 +383,6 @@ export default async function DashboardPage() {
                   className="flex items-center justify-between p-3 bg-muted/40 hover:bg-muted/70 rounded-md transition text-foreground text-label-12 group border border-transparent hover:border-border"
                 >
                   <span>Discovery Review Queue ({pendingTriages})</span>
-                  <ArrowRight className="w-3.5 h-3.5 text-muted-foreground group-hover:translate-x-0.5 group-hover:text-primary transition" />
-                </Link>
-                <Link
-                  href="/markets"
-                  className="flex items-center justify-between p-3 bg-muted/40 hover:bg-muted/70 rounded-md transition text-foreground text-label-12 group border border-transparent hover:border-border"
-                >
-                  <span>Active Target Markets ({activeMarkets.length})</span>
                   <ArrowRight className="w-3.5 h-3.5 text-muted-foreground group-hover:translate-x-0.5 group-hover:text-primary transition" />
                 </Link>
                 <Link

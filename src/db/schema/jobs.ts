@@ -6,7 +6,7 @@ export const researchTasks = sqliteTable('research_tasks', {
   id: text('id').primaryKey(),
   prospectId: text('prospect_id').notNull().references(() => prospects.id),
   taskType: text('task_type', { enum: ['WEBSITE_ANALYST', 'ICP_FIT', 'PAIN_EXTRACTOR', 'DISQUALIFIER_CHECK'] }).notNull(),
-  status: text('status', { enum: ['PENDING', 'RUNNING', 'COMPLETED', 'FAILED'] }).notNull().default('PENDING'),
+  status: text('status', { enum: ['PENDING', 'RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED'] }).notNull().default('PENDING'),
   rawArtifacts: text('raw_artifacts', { mode: 'json' }),
   extractedSignals: text('extracted_signals', { mode: 'json' }),
   confidence: integer('confidence'),

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useActionState } from 'react';
-import ReactMarkdown from 'react-markdown';
+import { SafeMarkdown } from '@/components/SafeMarkdown';
 import { FileText, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { AuditSnapshot, LeadScore } from './types';
 import { ActionState } from '@/app/actions/audits';
@@ -213,7 +213,7 @@ export function AuditDisplay({
                   <span className="text-label-12 font-semibold text-chart-2 block">Key Strengths</span>
                   <div className="text-copy-13 text-card-foreground font-medium leading-relaxed bg-muted/30 p-3 rounded-md prose-markdown">
                     {audit.keyStrengths ? (
-                      <ReactMarkdown rehypePlugins={[]}>{audit.keyStrengths}</ReactMarkdown>
+                      <SafeMarkdown>{audit.keyStrengths}</SafeMarkdown>
                     ) : (
                       'No strengths noted.'
                     )}
@@ -224,7 +224,7 @@ export function AuditDisplay({
                   <span className="text-label-12 font-semibold text-destructive block">Key Weaknesses</span>
                   <div className="text-copy-13 text-card-foreground font-medium leading-relaxed bg-muted/30 p-3 rounded-md prose-markdown">
                     {audit.keyWeaknesses ? (
-                      <ReactMarkdown rehypePlugins={[]}>{audit.keyWeaknesses}</ReactMarkdown>
+                      <SafeMarkdown>{audit.keyWeaknesses}</SafeMarkdown>
                     ) : (
                       'No weaknesses noted.'
                     )}
@@ -236,7 +236,7 @@ export function AuditDisplay({
                 <span className="text-label-12 font-semibold text-primary block">Recommended Creative Improvements</span>
                 <div className="text-copy-13 text-muted-foreground font-medium leading-relaxed bg-primary/5 p-4 rounded-md prose-markdown">
                   {audit.recommendedImprovements ? (
-                    <ReactMarkdown rehypePlugins={[]}>{audit.recommendedImprovements}</ReactMarkdown>
+                    <SafeMarkdown>{audit.recommendedImprovements}</SafeMarkdown>
                   ) : (
                     'No creative recommendations generated.'
                   )}

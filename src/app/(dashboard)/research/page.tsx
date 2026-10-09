@@ -22,16 +22,18 @@ export default async function ResearchQueuePage() {
   }
 
   const tasks = result.tasks;
+  const prospectIds = new Set(tasks.map((t: any) => t.prospectId));
   const pendingCount = tasks.filter(t => t.status === 'PENDING').length;
   const runningCount = tasks.filter(t => t.status === 'RUNNING').length;
   const failedCount = tasks.filter(t => t.status === 'FAILED').length;
+  const cancelledCount = tasks.filter(t => t.status === 'CANCELLED').length;
 
   return (
     <div>
       <div className="mb-6">
-        <h2 className="text-heading-2xl">Research Jobs</h2>
+        <h2 className="text-heading-2xl">Research Queue</h2>
         <p className="text-copy-14 text-muted-foreground mt-1">
-          Background jobs researching each prospect's website, signals, and fit. Running automatically when you start research.
+          One row per prospect — expand to see its 4 research tasks (website, pain signals, ICP fit, disqualifier check).
         </p>
       </div>
 
@@ -51,9 +53,14 @@ export default async function ResearchQueuePage() {
             {failedCount} Failed
           </span>
         )}
+        {cancelledCount > 0 && (
+          <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-muted/40 text-muted-foreground text-label-12 font-semibold">
+            {cancelledCount} Cancelled
+          </span>
+        )}
         {tasks.length > 0 && (
           <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-muted/30 text-muted-foreground text-label-12 font-semibold">
-            {tasks.length} Total
+            {prospectIds.size} prospects · {tasks.length} tasks
           </span>
         )}
       </div>
@@ -65,13 +72,13 @@ export default async function ResearchQueuePage() {
           </div>
           <h3 className="text-heading-lg text-foreground">No research tasks</h3>
           <p className="text-copy-14 text-muted-foreground mt-1 max-w-md mx-auto">
-            Add prospects to a market to start research.
+            Find companies via Discovery, then promote good fits to start research.
           </p>
           <Link
-            href="/markets"
+            href="/scopes"
             className="inline-flex items-center gap-2 mt-4 h-10 px-4 rounded-md bg-primary text-primary-foreground text-label-14 hover:bg-primary/90 transition-colors"
           >
-            Go to Markets
+            Go to Discovery
           </Link>
         </div>
       ) : (

@@ -28,6 +28,7 @@ const STATUS_COLORS: Record<string, string> = {
   RUNNING: 'bg-primary/10 text-primary',
   COMPLETED: 'bg-chart-2/10 text-chart-2',
   FAILED: 'bg-destructive/10 text-destructive',
+  CANCELLED: 'bg-muted/40 text-muted-foreground',
 };
 
 const TASK_LABELS: Record<string, string> = {
@@ -43,6 +44,7 @@ const STATUS_FILTERS = [
   { value: 'RUNNING', label: 'Running' },
   { value: 'COMPLETED', label: 'Completed' },
   { value: 'FAILED', label: 'Failed' },
+  { value: 'CANCELLED', label: 'Cancelled' },
 ];
 
 function timeAgo(date: number | null): string {
@@ -67,7 +69,7 @@ function parseSignals(raw: string | null): { signalName: string; matchStrength: 
 }
 
 function TaskExpandedContent({ task, onChanged }: { task: TaskRow; onChanged: () => void }) {
-  if (task.status === 'FAILED') {
+  if (task.status === 'FAILED' || task.status === 'CANCELLED') {
     return (
       <div className="space-y-2">
         <p className="text-copy-13 text-destructive">{task.errorMessage || 'Unknown error'}</p>
@@ -210,9 +212,37 @@ export function ResearchQueueTable({ tasks }: { tasks: TaskRow[] }) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('all');
 
-  const filtered = statusFilter === 'all' ? tasks : tasks.filter(t => t.status === statusFilter);
+  // Group 4 tasks per prospect into a single row — one company, one row.
+  const groups = (() => {
+    const map = new Map<string, { prospectId: string; prospectName: string; prospectCompany: string | null; tasks: TaskRow[] }>();
+    for (const t of tasks) {
+      const g = map.get(t.prospectId) || { prospectId: t.prospectId, prospectName: t.prospectName, prospectCompany: t.prospectCompany, tasks: [] as TaskRow[] };
+      g.tasks.push(t);
+      map.set(t.prospectId, g);
+    }
+    return [...map.values()].map((g) => {
+      const done = g.tasks.filter((t) => t.status === 'COMPLETED').length;
+      const failed = g.tasks.filter((t) => t.status === 'FAILED').length;
+      const cancelled = g.tasks.filter((t) => t.status === 'CANCELLED').length;
+      const running = g.tasks.filter((t) => t.status === 'RUNNING').length;
+      const terminal = done + failed + cancelled === g.tasks.length;
+      const overall = failed > 0 && terminal ? 'FAILED'
+        : running > 0 ? 'RUNNING'
+        : done === g.tasks.length ? 'COMPLETED'
+        : terminal && cancelled > 0 ? 'CANCELLED'
+        : failed > 0 ? 'FAILED'
+        : cancelled > 0 && done + cancelled === g.tasks.length ? 'CANCELLED'
+        : 'PENDING';
+      const confs = g.tasks.map((t) => t.confidence).filter((c): c is number => typeof c === 'number');
+      const confidence = confs.length ? Math.round(confs.reduce((a, b) => a + b, 0) / confs.length) : null;
+      const earliest = Math.min(...g.tasks.map((t) => t.createdAt || t.startedAt || Date.now()));
+      return { ...g, done, total: g.tasks.length, overall, confidence, earliest };
+    }).sort((a, b) => b.earliest - a.earliest);
+  })();
+
+  const filtered = statusFilter === 'all' ? groups : groups.filter((g) => g.overall === statusFilter || g.tasks.some((t) => t.status === statusFilter));
   const counts = STATUS_FILTERS.reduce<Record<string, number>>((acc, f) => {
-    acc[f.value] = f.value === 'all' ? tasks.length : tasks.filter(t => t.status === f.value).length;
+    acc[f.value] = f.value === 'all' ? groups.length : groups.filter((g) => g.overall === f.value).length;
     return acc;
   }, {});
 
@@ -252,7 +282,8 @@ export function ResearchQueueTable({ tasks }: { tasks: TaskRow[] }) {
             <tr className="border-b border-border bg-muted/20">
               <th className="w-8 px-2 py-3" />
               <th className="text-left px-3 py-3 text-label-12 text-muted-foreground">Prospect</th>
-              <th className="text-left px-3 py-3 text-label-12 text-muted-foreground">Task</th>
+              <th className="text-left px-3 py-3 text-label-12 text-muted-foreground">Progress</th>
+              <th className="text-left px-3 py-3 text-label-12 text-muted-foreground">Tasks</th>
               <th className="text-left px-3 py-3 text-label-12 text-muted-foreground">Status</th>
               <th className="text-left px-3 py-3 text-label-12 text-muted-foreground">Confidence</th>
               <th className="text-left px-3 py-3 text-label-12 text-muted-foreground">Started</th>
@@ -261,20 +292,78 @@ export function ResearchQueueTable({ tasks }: { tasks: TaskRow[] }) {
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-3 py-10 text-center text-copy-13 text-muted-foreground">
-                  No tasks match this status filter.
+                <td colSpan={7} className="px-3 py-10 text-center text-copy-13 text-muted-foreground">
+                  No prospects match this status filter.
                 </td>
               </tr>
             ) : (
-              filtered.map((task) => (
-                <TaskRowView
-                  key={task.id}
-                  task={task}
-                  isExpanded={expanded === task.id}
-                  onToggle={() => setExpanded(expanded === task.id ? null : task.id)}
-                  onChanged={handleChanged}
-                />
-              ))
+              filtered.map((g) => {
+                const isExpanded = expanded === g.prospectId;
+                return (
+                  <>
+                    <tr key={g.prospectId} className="border-b border-border/40 last:border-0 hover:bg-muted/30 transition-colors">
+                      <td className="px-2 py-3 w-8">
+                        <button
+                          type="button"
+                          onClick={() => setExpanded(isExpanded ? null : g.prospectId)}
+                          className="p-0.5 rounded text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                        </button>
+                      </td>
+                      <td className="px-3 py-3">
+                        <a href={`/prospects/${g.prospectId}`} className="text-copy-14 font-medium hover:text-primary hover:underline">
+                          {g.prospectCompany || g.prospectName}
+                        </a>
+                      </td>
+                      <td className="px-3 py-3">
+                        <span className="text-label-12 text-muted-foreground">{g.done}/{g.total} done</span>
+                      </td>
+                      <td className="px-3 py-3">
+                        <span className="flex flex-wrap gap-1">
+                          {g.tasks.map((t) => (
+                            <span key={t.id} title={`${TASK_LABELS[t.taskType] || t.taskType}: ${t.status}`} className={`inline-flex items-center px-1.5 py-0.5 rounded text-label-11 font-semibold ${STATUS_COLORS[t.status] || 'bg-muted/10 text-muted-foreground'}`}>
+                              {(TASK_LABELS[t.taskType] || t.taskType).split(' ')[0]}
+                            </span>
+                          ))}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-label-12 font-semibold ${STATUS_COLORS[g.overall] || 'bg-muted/10 text-muted-foreground'}`}>
+                          {g.overall === 'COMPLETED' ? 'Done' : g.overall === 'RUNNING' ? 'Running' : g.overall === 'FAILED' ? 'Failed' : g.overall === 'CANCELLED' ? 'Cancelled' : 'Pending'}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3">
+                        {g.confidence !== null ? (
+                          <span className="text-label-12 text-muted-foreground">{g.confidence}%</span>
+                        ) : (
+                          <span className="text-copy-13 text-muted-foreground">--</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3">
+                        <span className="text-copy-13 text-muted-foreground">{timeAgo(g.earliest)}</span>
+                      </td>
+                    </tr>
+                    {isExpanded && (
+                      <tr key={`${g.prospectId}-expanded`}>
+                        <td colSpan={7} className="px-3 py-3 bg-muted/10 border-b border-border/40">
+                          <div className="ml-8 space-y-3">
+                            {g.tasks.map((task) => (
+                              <div key={task.id} className="border-l-2 border-border pl-3">
+                                <p className="text-copy-13 font-medium">
+                                  {TASK_LABELS[task.taskType] || task.taskType}
+                                  <span className={`ml-2 text-label-12 ${STATUS_COLORS[task.status] || ''} px-1.5 py-0.5 rounded`}>{task.status}</span>
+                                </p>
+                                <TaskExpandedContent task={task} onChanged={handleChanged} />
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                );
+              })
             )}
           </tbody>
         </table>

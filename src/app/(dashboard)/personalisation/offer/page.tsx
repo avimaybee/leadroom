@@ -70,11 +70,11 @@ export default async function OfferListPage() {
                     {offer.targetPain || '-'}
                   </td>
                   <td className="px-4 py-3">
-                    {offer.proofPoints ? (
-                      <Badge variant="secondary">{(offer.proofPoints as any[])?.length ?? 0}</Badge>
-                    ) : (
-                      <span className="text-copy-13 text-muted-foreground">0</span>
-                    )}
+                    {(() => {
+                      const pp = offer.proofPoints as unknown;
+                      const len = Array.isArray(pp) ? pp.length : 0;
+                      return <Badge variant="secondary">{len}</Badge>;
+                    })()}
                   </td>
                   <td className="px-4 py-3 text-copy-13 text-muted-foreground">
                     {offer.createdAt ? new Date(offer.createdAt).toLocaleDateString() : '-'}

@@ -222,6 +222,12 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
       fetchRecentRuns();
     }, 10000);
 
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [pollingJobId, fetchRecentRuns]);
+
+  // Notification shortcut — separate effect so toast updates don't reset the poll interval.
+  useEffect(() => {
+    if (!pollingJobId) return;
     const status = recentJobUpdates[pollingJobId];
     if (status === 'SUCCESS' || status === 'ERROR') {
       setPollingJobId(null);
@@ -229,8 +235,6 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
       fetchRecentRuns();
       fetchData();
     }
-
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [pollingJobId, recentJobUpdates, fetchRecentRuns, fetchData]);
 
   const handleUpdateStatus = async (candidateId: string, status: 'PROMOTED' | 'DISCARDED') => {

@@ -138,6 +138,8 @@ export default function ProspectDetailsWorkspace({
 }: ProspectDetailsWorkspaceProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  // No useEffect sync for initialView (rerender-derived-state-no-effect):
+  // parent passes key={initialView}, so back/forward remounts with correct tab.
   const [activeView, setActiveView] = useState<WorkspaceView>(initialView);
   const [pollingJobId, setPollingJobId] = useState<string | null>(activeResearchJob?.id ?? null);
   const [jobStatus, setJobStatus] = useState<string | null>(activeResearchJob ? activeResearchJob.status : null);
@@ -170,10 +172,6 @@ export default function ProspectDetailsWorkspace({
   const [isEditLeadOpen, setIsEditLeadOpen] = useState(false);
   const [showAllTasks, setShowAllTasks] = useState(false);
   const [editState, editFormAction] = useActionState(updateLeadAction, undefined);
-
-  useEffect(() => {
-    setActiveView(initialView);
-  }, [initialView]);
 
   useEffect(() => {
     if (editState && !editState.error && editState.success) {
@@ -562,7 +560,7 @@ export default function ProspectDetailsWorkspace({
                             if (data.jobId) setPollingJobId(data.jobId);
                             navigateTo('research');
                           } catch {
-                            window.location.href = `/prospects/${lead.id}?tab=research`;
+                            navigateTo('research');
                           } finally {
                             setExecutingAction(null);
                           }
@@ -572,7 +570,7 @@ export default function ProspectDetailsWorkspace({
                             await triggerAuditAction(lead.id);
                             navigateTo('research');
                           } catch {
-                            window.location.href = `/prospects/${lead.id}?tab=research`;
+                            navigateTo('research');
                           } finally {
                             setExecutingAction(null);
                           }
@@ -582,7 +580,7 @@ export default function ProspectDetailsWorkspace({
                             await generateOutreachDraftAction(lead.id, 'EMAIL');
                             navigateTo('outreach');
                           } catch {
-                            window.location.href = `/prospects/${lead.id}?tab=outreach`;
+                            navigateTo('outreach');
                           } finally {
                             setExecutingAction(null);
                           }
@@ -813,6 +811,7 @@ export default function ProspectDetailsWorkspace({
           ) : (
             <div className="space-y-6">
               <OutreachAssistant
+                key={initialChannel || 'EMAIL'}
                 leadId={lead.id}
                 initialDrafts={outreachDrafts.map((draft: any) => ({ ...draft, createdAt: draft.createdAt ? new Date(draft.createdAt) : null, updatedAt: draft.updatedAt ? new Date(draft.updatedAt) : null }))}
                 researchSnapshot={latestSnapshot}

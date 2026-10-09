@@ -51,6 +51,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
 
   return (
     <LeadsTableClient
+      key={`${activeFilter}-${stageFilter || 'all'}-${campaignIdFilter || 'all'}`}
       leads={filteredLeads as any}
       allScopes={allScopes}
       activeFilter={activeFilter}

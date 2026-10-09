@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { setActiveProviderForTaskAction } from '@/app/(dashboard)/settings/integrations/actions';
 import type { TaskType } from '@/services/integrations';
 import { Button } from '@/components/ui/button';
@@ -107,21 +107,17 @@ function getActiveProviderForTask(
 }
 
 export function ActiveProviderPicker({ configs }: ActiveProviderPickerProps) {
-  const [researchProvider, setResearchProvider] = useState<string>('');
-  const [scoringProvider, setScoringProvider] = useState<string>('');
-  const [draftingProvider, setDraftingProvider] = useState<string>('');
+  // Derived during render via lazy init — no useEffect sync (rerender-derived-state-no-effect).
+  // Parent remounts via key when configs change, so user edits are never clobbered.
+  const [researchProvider, setResearchProvider] = useState<string>(() => getActiveProviderForTask(configs, 'isResearchActive') || '');
+  const [scoringProvider, setScoringProvider] = useState<string>(() => getActiveProviderForTask(configs, 'isScoringActive') || '');
+  const [draftingProvider, setDraftingProvider] = useState<string>(() => getActiveProviderForTask(configs, 'isDraftingActive') || '');
   const [loading, setLoading] = useState<boolean>(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const configuredProviders = Object.entries(configs)
     .filter(([_, config]) => config && config.apiKey)
     .map(([provider]) => provider);
-
-  useEffect(() => {
-    setResearchProvider(getActiveProviderForTask(configs, 'isResearchActive') || '');
-    setScoringProvider(getActiveProviderForTask(configs, 'isScoringActive') || '');
-    setDraftingProvider(getActiveProviderForTask(configs, 'isDraftingActive') || '');
-  }, [configs]);
 
   async function handleSaveRouting() {
     setLoading(true);

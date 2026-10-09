@@ -309,7 +309,7 @@ export async function getPendingApprovalsAction() {
       .from(outreachDrafts)
       .innerJoin(prospects, eq(outreachDrafts.leadId, prospects.id))
       .leftJoin(markets, eq(prospects.marketId, markets.id))
-      .where(and(eq(outreachDrafts.status, 'DRAFT'), eq(prospects.ownerId, userId)))
+      .where(eq(prospects.ownerId, userId))
       .orderBy(sql`COALESCE(${prospects.fitScore}, 0) DESC`, outreachDrafts.createdAt)
       .limit(50);
 

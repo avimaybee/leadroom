@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ProspectTable } from './ProspectTable';
 
 interface ProspectBase {
@@ -17,8 +17,11 @@ export function ProspectTableWithSignals({ prospects }: { prospects: ProspectBas
   const [signals, setSignals] = useState<Record<string, string | null>>({});
   const [loading, setLoading] = useState(true);
 
+  // Stable key — avoids refetch loop when parent re-creates the array each render.
+  const idsKey = useMemo(() => prospects.map(p => p.id).sort().join(','), [prospects]);
+
   useEffect(() => {
-    const ids = prospects.map(p => p.id);
+    const ids = idsKey ? idsKey.split(',').filter(Boolean) : [];
     if (ids.length === 0) {
       setLoading(false);
       return;
@@ -35,7 +38,7 @@ export function ProspectTableWithSignals({ prospects }: { prospects: ProspectBas
       })
       .catch((err) => console.warn('Failed to fetch signals', err))
       .finally(() => setLoading(false));
-  }, [prospects]);
+  }, [idsKey]);
 
   const prospectsWithSignals = prospects.map(p => ({
     ...p,

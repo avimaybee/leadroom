@@ -106,14 +106,16 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
           return sorted.slice(0, MAX_NOTIFICATIONS);
         });
 
-        // Throttle router.refresh — at most once every 10 seconds
-        if (!refreshScheduled.current) {
+        // Throttle router.refresh — at most once every 30 seconds, only for job updates.
+        // Full refresh re-renders server tables and kills scroll position.
+        const hasJobUpdate = newNotifs.some(n => n.jobRunId);
+        if (hasJobUpdate && !refreshScheduled.current) {
           refreshScheduled.current = true;
           setTimeout(() => {
             if (!mountedRef.current) return;
             refreshScheduled.current = false;
             router.refresh();
-          }, 10_000);
+          }, 30_000);
         }
       }
     } catch (e) {
