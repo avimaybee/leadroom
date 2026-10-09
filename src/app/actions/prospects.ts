@@ -197,7 +197,7 @@ export async function getUnmetStageRequirementsAction(leadId: string, email: str
  */
 export async function loadMoreProspectsAction(
   offset: number,
-  filters: { tier?: string; stage?: string; search?: string; market?: string } = {},
+  filters: { tier?: string; stage?: string; search?: string; market?: string; sort?: string } = {},
   limit = 100
 ) {
   const userId = await getUserId();
@@ -216,6 +216,7 @@ export async function loadMoreProspectsAction(
   if (q) conditions.push(or(like(prospects.company, `%${q}%`), like(prospects.name, `%${q}%`))!);
 
   const db = getDb();
+  const sort = filters.sort === 'fit' ? 'fit' : 'newest';
   const rows = await db
     .select({
       id: prospects.id,
@@ -228,12 +229,19 @@ export async function loadMoreProspectsAction(
       priorityTier: prospects.priorityTier,
       marketId: prospects.marketId,
       disqualifiedReason: prospects.disqualifiedReason,
+      createdAt: prospects.createdAt,
     })
     .from(prospects)
     .where(and(...conditions))
-    .orderBy(sql`COALESCE(${prospects.fitScore}, 0) DESC`)
+    .orderBy(sort === 'fit' ? sql`COALESCE(${prospects.fitScore}, 0) DESC` : sql`${prospects.createdAt} DESC`)
     .limit(limit)
     .offset(offset);
 
-  return { success: true, prospects: rows };
+  return {
+    success: true,
+    prospects: rows.map((r) => ({
+      ...r,
+      createdAt: r.createdAt ? r.createdAt.toISOString() : null,
+    })),
+  };
 }

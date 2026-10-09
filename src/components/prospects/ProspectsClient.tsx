@@ -35,6 +35,7 @@ interface ProspectRow {
   priorityTier: string | null;
   marketId: string | null;
   disqualifiedReason: string | null;
+  createdAt: string | null;
 }
 
 interface MarketInfo {
@@ -49,20 +50,36 @@ interface ProspectsClientProps {
   activeStage: string;
   activeSearch: string;
   activeMarket: string;
+  activeSort: string;
   description: string;
   totalCount: number;
 }
 
-function hrefWith(next: Record<string, string>, current: { tier: string; stage: string; search: string; market: string; layout: string }) {
+function hrefWith(next: Record<string, string>, current: { tier: string; stage: string; search: string; market: string; sort: string; layout: string }) {
   const params = new URLSearchParams();
   const merged = { ...current, ...next };
   if (merged.search) params.set('search', merged.search);
   if (merged.tier && merged.tier !== 'all') params.set('tier', merged.tier);
   if (merged.stage) params.set('stage', merged.stage);
   if (merged.market && merged.market !== 'all') params.set('market', merged.market);
+  if (merged.sort && merged.sort !== 'newest') params.set('sort', merged.sort);
   if (merged.layout === 'kanban') params.set('layout', 'kanban');
   const q = params.toString();
   return q ? `/prospects?${q}` : '/prospects';
+}
+
+function timeAgo(iso: string | null): string {
+  if (!iso) return '-';
+  const ms = Date.now() - new Date(iso).getTime();
+  if (Number.isNaN(ms) || ms < 0) return '-';
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString();
 }
 
 export function ProspectsClient({
@@ -72,17 +89,18 @@ export function ProspectsClient({
   activeStage,
   activeSearch,
   activeMarket,
+  activeSort,
   description,
   totalCount,
 }: ProspectsClientProps) {
   const router = useRouter();
-  // Local-only UI state: pagination and layout. Filters live in the URL
+  // Local-only UI state: pagination and layout. Filters + sort live in the URL
   // (server-driven via Links below) — no useEffect URL sync.
   const [rows, setRows] = useState<ProspectRow[]>(initialProspects);
   const [loadingMore, setLoadingMore] = useState(false);
   const [layout, setLayout] = useState<'list' | 'kanban'>('list');
 
-  const current = { tier: activeTier, stage: activeStage, search: activeSearch, market: activeMarket, layout: '' };
+  const current = { tier: activeTier, stage: activeStage, search: activeSearch, market: activeMarket, sort: activeSort, layout: '' };
   const hasMore = totalCount > rows.length;
 
   const handleLoadMore = async () => {
@@ -93,6 +111,7 @@ export function ProspectsClient({
         stage: activeStage,
         search: activeSearch,
         market: activeMarket,
+        sort: activeSort,
       });
       if (result.success && (result.prospects as ProspectRow[]).length > 0) {
         setRows((prev) => {
@@ -170,6 +189,7 @@ export function ProspectsClient({
             {activeTier !== 'all' && <input type="hidden" name="tier" value={activeTier} />}
             {activeStage && <input type="hidden" name="stage" value={activeStage} />}
             {activeMarket !== 'all' && <input type="hidden" name="market" value={activeMarket} />}
+            {activeSort === 'fit' && <input type="hidden" name="sort" value="fit" />}
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input
@@ -205,6 +225,29 @@ export function ProspectsClient({
                 <Link
                   key={opt.value}
                   href={hrefWith({ tier: opt.value }, current)}
+                  className={`inline-flex min-h-8 items-center justify-center rounded-md px-3.5 text-label-12 font-semibold transition-all ${
+                    selected
+                      ? 'bg-card text-foreground shadow-sm border border-border/40'
+                      : 'text-muted-foreground hover:bg-card/60 hover:text-foreground'
+                  }`}
+                >
+                  {opt.label}
+                </Link>
+              );
+            })}
+          </div>
+
+          {/* Sort pills: Newest first (default) vs Top Fit */}
+          <div className="flex flex-wrap items-center gap-1 rounded-md border border-border bg-muted/25 p-1 w-fit mb-4">
+            {[
+              { value: 'newest', label: 'Newest First' },
+              { value: 'fit', label: 'Top Fit' },
+            ].map((opt) => {
+              const selected = activeSort === opt.value;
+              return (
+                <Link
+                  key={opt.value}
+                  href={hrefWith({ sort: opt.value }, current)}
                   className={`inline-flex min-h-8 items-center justify-center rounded-md px-3.5 text-label-12 font-semibold transition-all ${
                     selected
                       ? 'bg-card text-foreground shadow-sm border border-border/40'
@@ -288,6 +331,7 @@ export function ProspectsClient({
                       <th className="text-right px-4 py-3 text-label-12 text-muted-foreground">Confidence</th>
                       <th className="text-center px-4 py-3 text-label-12 text-muted-foreground">Tier</th>
                       <th className="text-left px-4 py-3 text-label-12 text-muted-foreground">Stage</th>
+                      <th className="text-right px-4 py-3 text-label-12 text-muted-foreground">Added</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -326,6 +370,7 @@ export function ProspectsClient({
                             <Badge variant={tier.variant}>{tier.label}</Badge>
                           </td>
                           <td className="px-4 py-3 text-copy-13 text-muted-foreground">{p.stage || 'New'}</td>
+                          <td className="text-right px-4 py-3 text-copy-13 text-muted-foreground whitespace-nowrap">{timeAgo(p.createdAt)}</td>
                         </tr>
                       );
                     })}

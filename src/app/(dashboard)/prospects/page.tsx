@@ -17,7 +17,7 @@ const PAGE_LIMIT = 200;
 export default async function ProspectsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tier?: string; stage?: string; search?: string; market?: string }>;
+  searchParams: Promise<{ tier?: string; stage?: string; search?: string; market?: string; sort?: string }>;
 }) {
   const db = getDb();
   const userId = await getUserId();
@@ -36,6 +36,7 @@ export default async function ProspectsPage({
   const stageFilter = resolved.stage || '';
   const search = (resolved.search || '').trim();
   const marketFilter = resolved.market || 'all';
+  const sort = resolved.sort === 'fit' ? 'fit' : 'newest';
 
   const conditions = [eq(prospects.status, 'Active'), eq(prospects.ownerId, userId)];
   if (tierFilter !== 'all') {
@@ -85,7 +86,7 @@ export default async function ProspectsPage({
       })
       .from(prospects)
       .where(and(...conditions))
-      .orderBy(sql`COALESCE(${prospects.fitScore}, 0) DESC`)
+      .orderBy(sort === 'fit' ? sql`COALESCE(${prospects.fitScore}, 0) DESC` : sql`${prospects.createdAt} DESC`)
       .limit(PAGE_LIMIT),
     db
       .select({ count: count() })
@@ -118,6 +119,7 @@ export default async function ProspectsPage({
       activeStage={stageFilter}
       activeSearch={search}
       activeMarket={marketFilter}
+      activeSort={sort}
       description={description}
       totalCount={total}
     />
