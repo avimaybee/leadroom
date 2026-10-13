@@ -43,8 +43,18 @@ const nextConfig = {
         permanent: false,
       },
       {
+        source: '/markets/:path*',
+        destination: '/scopes',
+        permanent: false,
+      },
+      {
         source: '/personalisation',
-        destination: '/settings/pipeline',
+        destination: '/settings/offer',
+        permanent: false,
+      },
+      {
+        source: '/personalisation/:path*',
+        destination: '/settings/:path*',
         permanent: false,
       },
     ];

@@ -3,11 +3,12 @@ export const dynamic = 'force-dynamic';
 import { getDb } from '@/db';
 import { prospects, stageThresholds } from '@/db/schema/core';
 import { outreachDrafts } from '@/db/schema/outreach';
+import { offers, icpProfiles } from '@/db/schema/strategy';
 import { candidateLeads, discoveryScopes } from '@/db/schema/discovery';
 import { getUserId } from '@/lib/auth';
 import { LeadService } from '@/services/lead';
 import { eq, sql, count, and, inArray } from 'drizzle-orm';
-import { TriangleAlert, Target, Clock, CheckSquare, ArrowRight, CheckCircle2, Radar } from 'lucide-react';
+import { TriangleAlert, Target, Clock, CheckSquare, ArrowRight, CheckCircle2, Radar, CircleCheck, Circle } from 'lucide-react';
 import Link from 'next/link';
 import { MetricsBar } from '@/components/command-center/MetricsBar';
 import { ProspectTableWithSignals } from '@/components/command-center/ProspectTableWithSignals';
@@ -25,7 +26,7 @@ export default async function DashboardPage() {
   const leadService = new LeadService(db);
 
   // Fetch all core data in parallel
-  const [allProspects, pendingApprovalRow, thresholds, funnel, myTasks, pendingTriagesRow] = await Promise.all([
+  const [allProspects, pendingApprovalRow, thresholds, funnel, myTasks, pendingTriagesRow, offerRow, icpRow] = await Promise.all([
     db.select().from(prospects).where(and(eq(prospects.status, 'Active'), eq(prospects.ownerId, userId))).orderBy(sql`COALESCE(${prospects.fitScore}, 0) DESC`).limit(500),
     db.select({ count: count() }).from(outreachDrafts).innerJoin(prospects, eq(outreachDrafts.leadId, prospects.id)).where(and(eq(outreachDrafts.status, 'DRAFT'), eq(prospects.ownerId, userId))),
     db.select().from(stageThresholds),
@@ -39,6 +40,8 @@ export default async function DashboardPage() {
         inArray(candidateLeads.status, ['NEW', 'REVIEWED']),
         eq(discoveryScopes.createdByUserId, userId),
       )),
+    db.select({ id: offers.id }).from(offers).where(eq(offers.workspaceId, userId)).limit(1),
+    db.select({ id: icpProfiles.id }).from(icpProfiles).where(eq(icpProfiles.workspaceId, userId)).limit(1),
   ]);
 
   const scoredProspects = allProspects.filter(p => p.fitScore !== null && p.fitScore !== undefined);
@@ -186,7 +189,40 @@ export default async function DashboardPage() {
         
         {/* Left 2-Columns: Ready to Review Table & Funnel Analytics & Unified Feed */}
         <div className="lg:col-span-2 space-y-8">
-          
+
+          {totalQueue === 0 && (
+            <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+              <div>
+                <h2 className="text-label-14 text-foreground font-semibold uppercase">Get set up</h2>
+                <p className="text-copy-14 text-muted-foreground mt-1">
+                  Three steps and the system starts scoring. Scoring works without steps 1–2, but it scores blind.
+                </p>
+              </div>
+              <ol className="space-y-2">
+                {[
+                  { done: offerRow.length > 0, label: 'Define what you sell', href: '/settings/offer' },
+                  { done: icpRow.length > 0, label: 'Define your ideal client', href: '/settings/icp' },
+                  { done: false, label: 'Add prospects or run Discovery', href: '/prospects' },
+                ].map((step, i) => (
+                  <li key={step.label}>
+                    <Link
+                      href={step.href}
+                      className="flex items-center gap-3 p-3 rounded-md border border-border/60 hover:border-primary/40 hover:bg-muted/30 transition-colors"
+                    >
+                      {step.done
+                        ? <CircleCheck className="w-4 h-4 text-chart-2 shrink-0" />
+                        : <Circle className="w-4 h-4 text-muted-foreground shrink-0" />}
+                      <span className="text-copy-14 text-muted-foreground mr-1">{i + 1}.</span>
+                      <span className={`text-copy-14 ${step.done ? 'text-muted-foreground line-through' : 'text-foreground font-medium'}`}>
+                        {step.label}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+
           {/* Prospects Ready to Review Table */}
           <div className="rounded-xl border border-border bg-card overflow-hidden">
             <div className="flex items-center justify-between px-6 py-4 border-b border-border">

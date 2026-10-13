@@ -22,7 +22,7 @@ export default async function OfferListPage() {
           </p>
         </div>
         <Link
-          href="/personalisation/offer/new"
+          href="/settings/offer/new"
           className="inline-flex items-center gap-2 h-10 px-4 rounded-md bg-primary text-primary-foreground text-label-14 hover:bg-primary/90 transition-colors"
         >
           <Plus className="w-4 h-4" />
@@ -40,7 +40,7 @@ export default async function OfferListPage() {
             Define what you sell to enable scoring and personalized outreach.
           </p>
           <Link
-            href="/personalisation/offer/new"
+            href="/settings/offer/new"
             className="inline-flex items-center gap-2 mt-4 h-10 px-4 rounded-md bg-primary text-primary-foreground text-label-14 hover:bg-primary/90 transition-colors"
           >
             <Plus className="w-4 h-4" />
@@ -63,7 +63,7 @@ export default async function OfferListPage() {
                 <tr
                   key={offer.id}
                   className="border-b border-border/40 last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
-                  onClick={() => window.location.href = `/personalisation/offer/${offer.id}`}
+                  onClick={() => window.location.href = `/settings/offer/${offer.id}`}
                 >
                   <td className="px-4 py-3 text-copy-14 font-medium">{offer.name}</td>
                   <td className="px-4 py-3 text-copy-13 text-muted-foreground max-w-[200px] truncate">

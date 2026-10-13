@@ -124,13 +124,13 @@ export function PipelineBoard() {
         </div>
         <h3 className="text-heading-lg text-foreground">No prospects in pipeline</h3>
         <p className="text-copy-14 text-muted-foreground mt-1 max-w-md mx-auto">
-          Add prospects and run research to build your pipeline.
+          Find companies via Discovery, then promote good fits to build your pipeline.
         </p>
         <Link
-          href="/markets"
+          href="/scopes"
           className="inline-flex items-center gap-2 mt-4 h-10 px-4 rounded-md bg-primary text-primary-foreground text-label-14 hover:bg-primary/90 transition-colors"
         >
-          Go to Markets
+          Go to Discovery
         </Link>
       </div>
     );

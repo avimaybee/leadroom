@@ -43,13 +43,12 @@ Login: `admin@agency.com` / `admin123`
 
 ## Product Surfaces
 
-- **Command Center** (`/`): Sortable prospect table with metrics bar
-- **Prospects** (`/prospects`): Evidence panels, fit scoring, outreach state machine
-- **Markets** (`/markets`): Target market configuration linked to offers and ICPs
-- **Pipeline** (`/pipeline`): Kanban board by SDR stage (New → Won/Lost)
-- **Research Queue** (`/research`): Expandable task tracking with retry
-- **Approvals Queue** (`/approvals`): Review and approve/reject outreach drafts
-- **Learning Inbox** (`/learning`): ICP optimization suggestions from outcome analysis
+- **Command Center** (`/`): Metrics bar, ready-to-review prospects, stale/funnel summaries
+- **Prospects** (`/prospects`): Server-filtered list (newest/tier/stage/search) with Load More, evidence panels, fit scoring, outreach state machine
+- **Discovery** (`/scopes`): Candidate search triage — promote good fits to prospects
+- **Research Queue** (`/research`): One row per prospect with 4 grouped tasks, retry/cancel
+- **Outreach Drafts** (`/approvals`): Review and approve/reject outreach drafts, mark sent with outcome nudge
+- **Settings** (`/settings`): Pipeline rules, AI providers, offer (`/settings/offer`), ideal client (`/settings/icp`), learning inbox
 
 ## Design System
 

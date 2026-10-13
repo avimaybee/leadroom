@@ -3,13 +3,10 @@
 import { getDb } from '@/db';
 import { revalidatePath } from 'next/cache';
 import { getUserId } from '@/lib/auth';
-import { workspaces, offers, icpProfiles, markets } from '@/db/schema/strategy';
+import { workspaces, offers, icpProfiles } from '@/db/schema/strategy';
 import { eq, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { withLogging } from '@/lib/actions/with-logging';
-import { generateOfferAndICPFromDescription } from '@/lib/ai';
-import { runMarketDiscoverySearch } from '@/lib/discovery/run-search';
-import { discoverySearchLimiter } from '@/lib/rate-limit';
 
 const SignalDefSchema = z.object({
   name: z.string().min(1),
@@ -30,13 +27,6 @@ const ICPSchema = z.object({
   positiveSignals: z.array(SignalDefSchema).optional(),
   negativeSignals: z.array(SignalDefSchema).optional(),
   disqualifiers: z.array(z.string()).optional(),
-});
-
-const MarketSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  icpProfileId: z.string().optional(),
-  offerId: z.string().optional(),
-  status: z.enum(['active', 'paused']).optional(),
 });
 
 export async function getOrCreateWorkspaceAction() {
@@ -122,7 +112,7 @@ async function saveOfferActionImpl(prev: any, form: FormData) {
     await db.insert(offers).values({ id: offerId, workspaceId: ws.workspace.id, ...data, createdAt: now });
   }
 
-  revalidatePath('/personalisation/offer');
+  revalidatePath('/settings/offer');
   return { success: true, offerId };
 }
 
@@ -193,232 +183,9 @@ async function saveICPProfileActionImpl(prev: any, form: FormData) {
     await db.insert(icpProfiles).values({ id: icpId, workspaceId: ws.workspace.id, ...data, createdAt: now });
   }
 
-  revalidatePath('/personalisation/icp');
+  revalidatePath('/settings/icp');
   return { success: true, icpId };
 }
 
 export const saveICPProfileAction = withLogging('saveICPProfileAction', saveICPProfileActionImpl);
 
-export async function listMarketsAction() {
-  const userId = await getUserId();
-  if (!userId) return { error: 'Unauthorized' };
-
-  const db = getDb();
-  const ws = await getOrCreateWorkspaceAction();
-  if (!ws.success || !ws.workspace) return { error: 'No workspace' };
-
-  const rows = await db
-    .select({
-      id: markets.id,
-      name: markets.name,
-      workspaceId: markets.workspaceId,
-      icpProfileId: markets.icpProfileId,
-      offerId: markets.offerId,
-      status: markets.status,
-      createdAt: markets.createdAt,
-      updatedAt: markets.updatedAt,
-      offerName: offers.name,
-      icpName: icpProfiles.name,
-    })
-    .from(markets)
-    .leftJoin(offers, eq(markets.offerId, offers.id))
-    .leftJoin(icpProfiles, eq(markets.icpProfileId, icpProfiles.id))
-    .where(eq(markets.workspaceId, ws.workspace.id));
-  return { success: true, markets: rows };
-}
-
-export async function getMarketAction(marketId: string) {
-  const userId = await getUserId();
-  if (!userId) return { error: 'Unauthorized' };
-
-  const db = getDb();
-  const ws = await getOrCreateWorkspaceAction();
-  if (!ws.success || !ws.workspace) return { error: 'No workspace' };
-
-  const [row] = await db.select().from(markets).where(and(eq(markets.id, marketId), eq(markets.workspaceId, ws.workspace.id))).limit(1);
-  if (!row) return { error: 'Market not found' };
-  return { success: true, market: row };
-}
-
-async function saveMarketActionImpl(prev: any, form: FormData) {
-  const userId = await getUserId();
-  if (!userId) return { error: 'Unauthorized' };
-
-  const db = getDb();
-  const ws = await getOrCreateWorkspaceAction();
-  if (!ws.success || !ws.workspace) return { error: 'No workspace' };
-
-  const raw: Record<string, unknown> = {
-    name: form.get('name') ?? '',
-    icpProfileId: form.get('icpProfileId') ?? undefined,
-    offerId: form.get('offerId') ?? undefined,
-    status: form.get('status') ?? 'active',
-  };
-
-  const validated = MarketSchema.safeParse(raw);
-  if (!validated.success) {
-    return { error: 'Validation failed', issues: validated.error.format() };
-  }
-
-  const marketId = String(form.get('id') ?? crypto.randomUUID());
-  const now = new Date();
-  const data = {
-    name: validated.data.name,
-    icpProfileId: validated.data.icpProfileId || null,
-    offerId: validated.data.offerId || null,
-    status: validated.data.status || 'active',
-    updatedAt: now,
-  };
-
-  if (form.get('id')) {
-    await db.update(markets).set(data).where(and(eq(markets.id, marketId), eq(markets.workspaceId, ws.workspace.id)));
-  } else {
-    await db.insert(markets).values({ id: marketId, workspaceId: ws.workspace.id, ...data, createdAt: now });
-  }
-
-  revalidatePath('/settings/market');
-  return { success: true, marketId };
-}
-
-export const saveMarketAction = withLogging('saveMarketAction', saveMarketActionImpl);
-
-async function deleteMarketActionImpl(marketId: string) {
-  const userId = await getUserId();
-  if (!userId) return { error: 'Unauthorized' };
-
-  const db = getDb();
-  const ws = await getOrCreateWorkspaceAction();
-  if (!ws.success || !ws.workspace) return { error: 'No workspace' };
-
-  await db.delete(markets).where(and(eq(markets.id, marketId), eq(markets.workspaceId, ws.workspace.id)));
-  revalidatePath('/settings/market');
-  return { success: true };
-}
-
-export const deleteMarketAction = withLogging('deleteMarketAction', deleteMarketActionImpl);
-
-const US_STATES = [
-  'Texas, USA',
-  'California, USA',
-  'Florida, USA',
-  'New York, USA',
-  'Illinois, USA',
-  'Ohio, USA',
-  'Georgia, USA',
-  'North Carolina, USA',
-  'Michigan, USA',
-  'Colorado, USA',
-  'Washington, USA',
-  'Arizona, USA',
-];
-
-function pickRandomUsState(): string {
-  return US_STATES[Math.floor(Math.random() * US_STATES.length)];
-}
-
-export const createMarketWithWizardAction = withLogging(
-  'createMarketWithWizardAction',
-  async (prev: any, form: FormData) => {
-    const userId = await getUserId();
-    if (!userId) return { error: 'Unauthorized' };
-
-    const db = getDb();
-    const ws = await getOrCreateWorkspaceAction();
-    if (!ws.success || !ws.workspace) return { error: 'No workspace' };
-
-    const marketName = String(form.get('marketName') ?? '');
-    const offerDescription = String(form.get('offerDescription') ?? '');
-    const icpDescription = String(form.get('icpDescription') ?? '');
-
-    if (!marketName || !offerDescription || !icpDescription) {
-      return { error: 'All fields are required.' };
-    }
-
-    // Optional automatic lead discovery (sent from the wizard's final step)
-    const runDiscovery = String(form.get('runDiscovery') ?? '') === 'on';
-    const discoveryNiche = String(form.get('discoveryNiche') ?? '').trim();
-    const discoveryLocation = String(form.get('discoveryLocation') ?? '').trim();
-    const discoveryLimit = Math.min(Math.max(parseInt(String(form.get('discoveryLimit') ?? '25'), 10) || 25, 1), 200);
-
-    try {
-      // 1. Generate Offer and ICP structures via AI
-      const aiResult = await generateOfferAndICPFromDescription(
-        db,
-        marketName,
-        offerDescription,
-        icpDescription,
-        userId
-      );
-
-      const offerId = crypto.randomUUID();
-      const icpId = crypto.randomUUID();
-      const marketId = crypto.randomUUID();
-      const now = new Date();
-
-      // 2. Insert Offer
-      await db.insert(offers).values({
-        id: offerId,
-        workspaceId: ws.workspace.id,
-        name: aiResult.offer.name,
-        targetPain: aiResult.offer.targetPain,
-        desiredOutcome: aiResult.offer.desiredOutcome,
-        proofPoints: JSON.stringify(aiResult.offer.proofPoints),
-        forbiddenClaims: JSON.stringify(aiResult.offer.forbiddenClaims),
-        createdAt: now,
-        updatedAt: now,
-      });
-
-      // 3. Insert ICP Profile
-      await db.insert(icpProfiles).values({
-        id: icpId,
-        workspaceId: ws.workspace.id,
-        name: aiResult.icp.name,
-        positiveSignals: JSON.stringify(aiResult.icp.positiveSignals),
-        negativeSignals: JSON.stringify(aiResult.icp.negativeSignals),
-        disqualifiers: JSON.stringify(aiResult.icp.disqualifiers),
-        createdAt: now,
-        updatedAt: now,
-      });
-
-      // 4. Insert Market linking both
-      await db.insert(markets).values({
-        id: marketId,
-        workspaceId: ws.workspace.id,
-        name: marketName,
-        offerId,
-        icpProfileId: icpId,
-        status: 'active',
-        createdAt: now,
-        updatedAt: now,
-      });
-
-      // 5. Automatically run lead discovery when requested
-      let jobId: string | null = null;
-      let scopeId: string | null = null;
-      let discoverySkipped: string | null = null;
-      if (runDiscovery && discoveryNiche) {
-        if (discoverySearchLimiter.check(userId)) {
-          const location = discoveryLocation || pickRandomUsState();
-          const discovery = await runMarketDiscoverySearch(db, {
-            marketId,
-            marketName,
-            workspaceId: ws.workspace.id,
-            userId,
-            niche: discoveryNiche,
-            location,
-            limit: discoveryLimit,
-          });
-          jobId = discovery.jobId;
-          scopeId = discovery.scopeId;
-        } else {
-          discoverySkipped = 'rate-limited';
-        }
-      }
-
-      revalidatePath('/markets');
-      return { success: true, marketId, jobId, scopeId, discoverySkipped };
-    } catch (err: unknown) {
-      return { error: `Failed to create market: ${err instanceof Error ? err.message : String(err)}` };
-    }
-  }
-);

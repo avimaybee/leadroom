@@ -21,7 +21,7 @@ export default async function IcpListPage() {
           </p>
         </div>
         <Link
-          href="/personalisation/icp/new"
+          href="/settings/icp/new"
           className="inline-flex items-center gap-2 h-10 px-4 rounded-md bg-primary text-primary-foreground text-label-14 hover:bg-primary/90 transition-colors"
         >
           <Plus className="w-4 h-4" />
@@ -39,7 +39,7 @@ export default async function IcpListPage() {
             Define who you want to sell to so the system can score fits and prioritize prospects.
           </p>
           <Link
-            href="/personalisation/icp/new"
+            href="/settings/icp/new"
             className="inline-flex items-center gap-2 mt-4 h-10 px-4 rounded-md bg-primary text-primary-foreground text-label-14 hover:bg-primary/90 transition-colors"
           >
             <Plus className="w-4 h-4" />
@@ -68,7 +68,7 @@ export default async function IcpListPage() {
                   <tr
                     key={profile.id}
                     className="border-b border-border/40 last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
-                    onClick={() => window.location.href = `/personalisation/icp/${profile.id}`}
+                    onClick={() => window.location.href = `/settings/icp/${profile.id}`}
                   >
                     <td className="px-4 py-3 text-copy-14 font-medium">{profile.name}</td>
                     <td className="px-4 py-3 text-copy-13 text-muted-foreground">{pos.length}</td>

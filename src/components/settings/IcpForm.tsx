@@ -111,7 +111,7 @@ export function IcpForm({ initialData }: IcpFormProps) {
     }
 
     toast.success('Ideal client criteria saved');
-    router.push('/personalisation/icp');
+    router.push('/settings/icp');
   };
 
   return (
@@ -243,7 +243,7 @@ export function IcpForm({ initialData }: IcpFormProps) {
         </button>
         <button
           type="button"
-          onClick={() => router.push('/personalisation/icp')}
+          onClick={() => router.push('/settings/icp')}
           className="inline-flex items-center h-10 px-5 rounded-md border border-border text-label-14 hover:bg-muted/50 transition-colors"
         >
           Cancel
