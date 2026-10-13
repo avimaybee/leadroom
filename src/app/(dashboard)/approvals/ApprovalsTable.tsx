@@ -51,7 +51,8 @@ export function ApprovalsTable({ drafts }: ApprovalsTableProps) {
     return true;
   });
 
-  const handleAction = async (draftId: string, action: 'approve' | 'reject' | 'sent') => {
+  const handleAction = async (draft: DraftRow, action: 'approve' | 'reject' | 'sent') => {
+    const draftId = draft.id;
     setActionLoading(draftId);
     let result: any;
     if (action === 'approve') {
@@ -65,8 +66,16 @@ export function ApprovalsTable({ drafts }: ApprovalsTableProps) {
     }
     if (result.error) {
       toast.error(result.error);
+    } else if (action === 'sent') {
+      // Close the learning loop: nudge outcome logging right where the send happened.
+      toast.success('Marked sent — log what happens next', {
+        description: 'Replies, meetings, and bounces teach the scoring engine.',
+        action: { label: 'Log outcome', onClick: () => router.push(`/prospects/${draft.leadId}?view=outreach`) },
+        duration: 10000,
+      });
+      router.refresh();
     } else {
-      toast.success(action === 'approve' ? 'Approved' : action === 'reject' ? 'Rejected' : 'Marked sent');
+      toast.success(action === 'approve' ? 'Approved' : 'Rejected');
       router.refresh();
     }
     setActionLoading(null);
@@ -197,7 +206,7 @@ export function ApprovalsTable({ drafts }: ApprovalsTableProps) {
                       <button
                         type="button"
                         disabled={actionLoading === d.id}
-                        onClick={() => handleAction(d.id, 'approve')}
+                        onClick={() => handleAction(d, 'approve')}
                         className="inline-flex items-center gap-1 h-8 px-3 rounded-md bg-chart-2 text-white text-label-12 hover:bg-chart-2/90 transition-colors disabled:opacity-50"
                       >
                         {actionLoading === d.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
@@ -206,7 +215,7 @@ export function ApprovalsTable({ drafts }: ApprovalsTableProps) {
                       <button
                         type="button"
                         disabled={actionLoading === d.id}
-                        onClick={() => handleAction(d.id, 'reject')}
+                        onClick={() => handleAction(d, 'reject')}
                         className="inline-flex items-center gap-1 h-8 px-3 rounded-md border border-border text-label-12 hover:bg-muted/50 disabled:opacity-50"
                       >
                         <X className="w-3 h-3" />
@@ -218,7 +227,7 @@ export function ApprovalsTable({ drafts }: ApprovalsTableProps) {
                     <button
                       type="button"
                       disabled={actionLoading === d.id}
-                      onClick={() => handleAction(d.id, 'sent')}
+                      onClick={() => handleAction(d, 'sent')}
                       className="inline-flex items-center gap-1 h-8 px-3 rounded-md bg-primary text-primary-foreground text-label-12 hover:bg-primary/90 transition-colors disabled:opacity-50"
                     >
                       {actionLoading === d.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}

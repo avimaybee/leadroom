@@ -2,12 +2,22 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Info, List, LayoutGrid, Loader2 } from 'lucide-react';
+import { Search, Info, List, LayoutGrid, Loader2, Plus } from 'lucide-react';
 import Link from 'next/link';
+import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { PipelineBoard } from '@/components/pipeline/PipelineBoard';
 import { PipelineAnalytics } from '@/components/pipeline/PipelineAnalytics';
 import { loadMoreProspectsAction } from '@/app/actions/prospects';
+import { createProspectAction } from '@/app/actions/research';
 
 const TIER_BADGE: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; label: string }> = {
   tier1: { variant: 'default', label: 'T1' },
@@ -131,6 +141,40 @@ export function ProspectsClient({
     router.push(hrefWith({ stage }, { ...current, layout: layout === 'kanban' ? 'kanban' : '' }));
   };
 
+  // Add-prospect dialog (local form state; submit calls the server action directly).
+  const [addOpen, setAddOpen] = useState(false);
+  const [addSaving, setAddSaving] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [addName, setAddName] = useState('');
+  const [addCompany, setAddCompany] = useState('');
+  const [addDomain, setAddDomain] = useState('');
+
+  const handleAddProspect = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAddSaving(true);
+    setAddError(null);
+    const form = new FormData();
+    form.set('name', addName.trim() || addCompany.trim());
+    form.set('company', addCompany.trim());
+    form.set('domain', addDomain.trim());
+    const result = await createProspectAction(null, form);
+    setAddSaving(false);
+    if (result.error) {
+      setAddError(result.error);
+      return;
+    }
+    toast.success('Prospect added — research tasks queued', {
+      action: result.prospectId
+        ? { label: 'View', onClick: () => router.push(`/prospects/${result.prospectId}`) }
+        : undefined,
+    });
+    setAddOpen(false);
+    setAddName('');
+    setAddCompany('');
+    setAddDomain('');
+    router.refresh();
+  };
+
   const marketMap = new Map(markets.map((m) => [m.id, m.name]));
   const stages = [...new Set(rows.map((p) => p.stage).filter(Boolean))] as string[];
 
@@ -145,33 +189,116 @@ export function ProspectsClient({
           <p className="text-copy-14 text-muted-foreground mt-1">{description}</p>
         </div>
 
-        <div className="flex items-center gap-1 bg-muted p-1 rounded-lg self-start">
+        <div className="flex items-center gap-3 self-start">
           <button
             type="button"
-            onClick={() => setLayout('list')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-label-12 transition-all ${
-              layout === 'list'
-                ? 'bg-card text-foreground shadow-xs font-semibold'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
+            onClick={() => setAddOpen(true)}
+            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md bg-primary text-primary-foreground text-label-14 hover:bg-primary/90 transition-colors font-semibold"
           >
-            <List className="w-3.5 h-3.5" />
-            List View
+            <Plus className="w-4 h-4" />
+            Add Prospect
           </button>
-          <button
-            type="button"
-            onClick={() => setLayout('kanban')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-label-12 transition-all ${
-              layout === 'kanban'
-                ? 'bg-card text-foreground shadow-xs font-semibold'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <LayoutGrid className="w-3.5 h-3.5" />
-            Kanban Board
-          </button>
+          <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
+            <button
+              type="button"
+              onClick={() => setLayout('list')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-label-12 transition-all ${
+                layout === 'list'
+                  ? 'bg-card text-foreground shadow-xs font-semibold'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <List className="w-3.5 h-3.5" />
+              List View
+            </button>
+            <button
+              type="button"
+              onClick={() => setLayout('kanban')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-label-12 transition-all ${
+                layout === 'kanban'
+                  ? 'bg-card text-foreground shadow-xs font-semibold'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              Kanban Board
+            </button>
+          </div>
         </div>
       </div>
+
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="sm:max-w-[480px] rounded-xl bg-card border border-border">
+          <form onSubmit={handleAddProspect} className="space-y-4">
+            <DialogHeader>
+              <DialogTitle className="text-heading-xl text-foreground">Add Prospect</DialogTitle>
+              <DialogDescription className="text-copy-14 text-muted-foreground">
+                Manually add a company. Four research tasks are queued automatically.
+              </DialogDescription>
+            </DialogHeader>
+
+            {addError && (
+              <div className="bg-destructive/10 text-destructive p-3 rounded-md text-label-12 border border-destructive/20 font-semibold">
+                {addError}
+              </div>
+            )}
+
+            <div>
+              <label htmlFor="add-company" className="text-label-12 text-muted-foreground uppercase">Company *</label>
+              <input
+                id="add-company"
+                type="text"
+                value={addCompany}
+                onChange={(e) => setAddCompany(e.target.value)}
+                required
+                placeholder="e.g. Acme Dental"
+                className="mt-1 w-full h-10 rounded-md border border-border bg-background px-3 text-copy-14 placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+            <div>
+              <label htmlFor="add-name" className="text-label-12 text-muted-foreground uppercase">Contact Name</label>
+              <input
+                id="add-name"
+                type="text"
+                value={addName}
+                onChange={(e) => setAddName(e.target.value)}
+                placeholder="Defaults to company name"
+                className="mt-1 w-full h-10 rounded-md border border-border bg-background px-3 text-copy-14 placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+            <div>
+              <label htmlFor="add-domain" className="text-label-12 text-muted-foreground uppercase">Website / Domain *</label>
+              <input
+                id="add-domain"
+                type="text"
+                value={addDomain}
+                onChange={(e) => setAddDomain(e.target.value)}
+                required
+                placeholder="e.g. acmedental.com"
+                className="mt-1 w-full h-10 rounded-md border border-border bg-background px-3 text-copy-14 placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+
+            <DialogFooter className="pt-2 border-t border-border gap-2">
+              <button
+                type="button"
+                onClick={() => setAddOpen(false)}
+                className="inline-flex items-center h-10 px-5 rounded-md border border-border text-label-14 hover:bg-muted/50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={addSaving}
+                className="inline-flex items-center gap-2 h-10 px-5 rounded-md bg-primary text-primary-foreground text-label-14 hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                {addSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+                {addSaving ? 'Adding...' : 'Add Prospect'}
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {layout === 'kanban' ? (
         <>
