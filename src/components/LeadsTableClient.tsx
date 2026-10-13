@@ -90,7 +90,7 @@ function DesktopTable({ leads, getStageBadgeClass }: { leads: LeadData[]; getSta
                 <tr key={lead.id} className="hover:bg-muted/30 transition duration-150">
                   <td className="px-4 py-4"><LeadCheckbox leadId={lead.id} /></td>
                   <td className="px-6 py-4 min-w-[220px]">
-                    <Link href={`/leads/${lead.id}`} className="hover:underline group block">
+                    <Link href={`/prospects/${lead.id}`} className="hover:underline group block">
                       <div className="font-semibold text-card-foreground text-label-14 leading-snug group-hover:text-primary transition-colors max-w-[240px] truncate">{lead.name}</div>
                     </Link>
                     <div className="flex flex-col gap-0.5 mt-1 text-label-12 text-muted-foreground font-semibold">
@@ -176,7 +176,7 @@ function MobileCards({ leads, getStageBadgeClass }: { leads: LeadData[]; getStag
             <div className="flex items-center gap-2 mb-2"><LeadCheckbox leadId={lead.id} /></div>
             <div className="flex justify-between items-start gap-4">
               <div>
-                <Link href={`/leads/${lead.id}`} className="hover:underline block">
+                <Link href={`/prospects/${lead.id}`} className="hover:underline block">
                   <h4 className="font-semibold text-card-foreground text-heading-lg truncate leading-snug">{lead.name}</h4>
                 </Link>
                 {lead.company && <p className="text-label-12 text-muted-foreground font-semibold mt-0.5">{lead.company}</p>}
@@ -327,7 +327,7 @@ export default function LeadsTableClient({
               <p className="text-copy-14 text-muted-foreground mt-1.5 leading-relaxed">{description}</p>
             </div>
             <div className="flex shrink-0 items-center gap-3 lg:mt-1">
-              <Link href="/leads/new" className={buttonVariants({ variant: 'default' })}>+ New Lead</Link>
+              <Link href="/prospects/new" className={buttonVariants({ variant: 'default' })}>+ New Lead</Link>
             </div>
           </div>
         </header>
@@ -341,7 +341,7 @@ export default function LeadsTableClient({
               if (campaignIdFilter) nextParams.set('campaignId', campaignIdFilter);
               if (opt.value !== 'all') nextParams.set('filter', opt.value);
               return (
-                <Link key={opt.value} href={`/leads?${nextParams.toString()}`}
+                <Link key={opt.value} href={`/prospects?${nextParams.toString()}`}
                   className={`inline-flex min-h-8 items-center justify-center rounded-md px-3.5 text-label-12 font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                     isSelected ? 'bg-card text-foreground shadow-sm font-semibold border border-border/40' : 'text-muted-foreground hover:bg-card/60 hover:text-foreground'
                   }`}>
@@ -352,7 +352,7 @@ export default function LeadsTableClient({
           </div>
           <div className="flex items-center gap-3">
             {stageFilter && (
-              <Link href="/leads" className="text-label-12 text-primary font-semibold hover:underline">
+              <Link href="/prospects" className="text-label-12 text-primary font-semibold hover:underline">
                 Clear Stage Filter ({stageFilter})
               </Link>
             )}
@@ -369,8 +369,8 @@ export default function LeadsTableClient({
               <p className="text-copy-14 text-muted-foreground max-w-md mx-auto leading-relaxed">No active leads match the current filters.</p>
             </div>
             <div className="flex justify-center items-center gap-3 pt-2">
-              <Link href="/leads/new" className={buttonVariants({ variant: 'default' })}>+ Add New Lead</Link>
-              <Link href="/leads" className={buttonVariants({ variant: 'outline' })}>Reset Filters</Link>
+              <Link href="/prospects/new" className={buttonVariants({ variant: 'default' })}>+ Add New Lead</Link>
+              <Link href="/prospects" className={buttonVariants({ variant: 'outline' })}>Reset Filters</Link>
             </div>
           </div>
         ) : (

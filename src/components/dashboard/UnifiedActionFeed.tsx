@@ -120,7 +120,7 @@ const UnifiedActionFeed = memo(function UnifiedActionFeed({ items }: { items: Un
                   <p className="text-copy-13 text-muted-foreground leading-normal line-clamp-1">
                     {item.type !== 'lead' && 'For: '}
                     {item.type !== 'lead' && item.leadId ? (
-                      <Link href={`/leads/${item.leadId}`} className="hover:underline text-primary font-medium">{item.subtitle}</Link>
+                      <Link href={`/prospects/${item.leadId}`} className="hover:underline text-primary font-medium">{item.subtitle}</Link>
                     ) : (
                       item.subtitle
                     )}

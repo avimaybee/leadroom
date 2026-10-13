@@ -2,7 +2,6 @@
 
 import { ExternalLink, User, ShieldAlert, Sparkles, Phone, Mail, Link2, Clock } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 import { formatDateTimeUTC } from '@/lib/date';
 
 interface EvidenceInspectorProps {
@@ -14,9 +13,7 @@ interface EvidenceInspectorProps {
 
 export function EvidenceInspector({ researchSnapshot, auditSnapshot, contacts, leadId }: EvidenceInspectorProps) {
   const primaryContact = contacts?.find(c => c.isPrimary) || contacts?.[0];
-  const pathname = usePathname();
-  const isProspect = pathname.includes('/prospects');
-  const basePath = isProspect ? `/prospects/${leadId}` : `/leads/${leadId}`;
+  const basePath = `/prospects/${leadId}`;
 
   return (
     <div className="bg-muted/10 border border-border/80 rounded-2xl p-4 md:p-5 space-y-5 h-full">

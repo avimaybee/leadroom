@@ -845,7 +845,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                       <div className="space-y-2.5 flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           {candidate.status === 'PROMOTED' && candidate.promotedLeadId ? (
-                            <Link href={`/leads/${candidate.promotedLeadId}`} className="hover:underline group block">
+                            <Link href={`/prospects/${candidate.promotedLeadId}`} className="hover:underline group block">
                               <h4 className="font-semibold text-primary text-heading-lg leading-snug mr-1 group-hover:text-primary/80 transition-colors">
                                 {candidate.rawName}
                               </h4>
@@ -929,7 +929,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
                         )}
                         {candidate.status === 'PROMOTED' && candidate.promotedLeadId && (
                           <Link
-                            href={`/leads/${candidate.promotedLeadId}`}
+                            href={`/prospects/${candidate.promotedLeadId}`}
                             className="inline-flex items-center justify-center px-3 py-1.5 rounded-md text-label-12 font-semibold bg-chart-2/10 text-chart-2 border border-chart-2/20 hover:bg-chart-2/15 transition-colors text-center"
                           >
                             Research Lead &rarr;

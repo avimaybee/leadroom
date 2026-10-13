@@ -61,7 +61,7 @@ async function approveDraftActionImpl(draftId: string) {
     }
 
     try {
-      revalidatePath(`/leads/${draft.leadId}`);
+      revalidatePath(`/prospects/${draft.leadId}`);
       revalidatePath('/');
       revalidatePath('/approvals');
       revalidatePath(`/prospects/${draft.leadId}`);
@@ -136,7 +136,7 @@ async function rejectDraftActionImpl(draftId: string, reason: string) {
     }
 
     try {
-      revalidatePath(`/leads/${draft.leadId}`);
+      revalidatePath(`/prospects/${draft.leadId}`);
       revalidatePath('/');
       revalidatePath('/approvals');
       revalidatePath(`/prospects/${draft.leadId}`);
@@ -218,7 +218,7 @@ async function logOutcomeActionImpl(data: {
     }
 
     try {
-      revalidatePath(`/leads/${data.prospectId}`);
+      revalidatePath(`/prospects/${data.prospectId}`);
       revalidatePath('/');
     } catch (e: unknown) {
       log.error('revalidatePath failed', e instanceof Error ? e.message : String(e));

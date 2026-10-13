@@ -18,7 +18,7 @@ export function CampaignFilter({ scopes, defaultValue }: { scopes: { id: string;
         } else {
           next.delete('campaignId');
         }
-        router.push(`/leads?${next.toString()}`);
+        router.push(`/prospects?${next.toString()}`);
       }}
     >
       <option value="">All Campaigns / Sources</option>

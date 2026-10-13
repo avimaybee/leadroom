@@ -114,7 +114,7 @@ async function generateOutreachDraftActionImpl(
     await leadService.advanceStageIfEarlier(leadId, 'Outreach Drafted');
 
     try {
-      revalidatePath(`/leads/${lead.id}`);
+      revalidatePath(`/prospects/${lead.id}`);
       revalidatePath('/');
     } catch (e) { log.error('revalidatePath failed', e); }
 
@@ -164,7 +164,7 @@ async function duplicateDraftActionImpl(draftId: string) {
     });
 
     try {
-      revalidatePath(`/leads/${oldDraft.leadId}`);
+      revalidatePath(`/prospects/${oldDraft.leadId}`);
       revalidatePath('/');
     } catch (e) { log.error('revalidatePath failed', e); }
 
@@ -199,7 +199,7 @@ async function updateDraftActionImpl(draftId: string, subject: string | null, bo
     await outreachService.updateDraftContent(draftId, subject, body);
 
     try {
-      revalidatePath(`/leads/${draft.leadId}`);
+      revalidatePath(`/prospects/${draft.leadId}`);
       revalidatePath('/');
     } catch (e) { log.error('revalidatePath failed', e); }
     return { success: true };
@@ -239,7 +239,7 @@ async function recordApprovalActionImpl(draftId: string, decision: 'APPROVED' | 
     }
 
     try {
-      revalidatePath(`/leads/${draft.leadId}`);
+      revalidatePath(`/prospects/${draft.leadId}`);
       revalidatePath('/');
     } catch (e) { log.error('revalidatePath failed', e); }
     return { success: true };
@@ -277,7 +277,7 @@ async function deleteDraftActionImpl(draftId: string) {
     }
 
     try {
-      revalidatePath('/leads');
+      revalidatePath('/prospects');
       revalidatePath('/');
     } catch (e) { log.error('revalidatePath failed', e); }
 
@@ -374,7 +374,7 @@ async function markAsSentActionImpl(draftId: string) {
     }
 
     try {
-      revalidatePath(`/leads/${draft.leadId}`);
+      revalidatePath(`/prospects/${draft.leadId}`);
       revalidatePath('/');
       revalidatePath('/approvals');
       revalidatePath(`/prospects/${draft.leadId}`);

@@ -50,7 +50,7 @@ export function NotificationBell() {
             {notifications.length === 0 ? (
               <div className="p-6 text-center space-y-3">
                 <p className="text-copy-14 text-muted-foreground">No recent notifications</p>
-                <Link href="/leads" className="inline-flex items-center gap-1.5 text-label-12 text-primary hover:underline">
+                <Link href="/prospects" className="inline-flex items-center gap-1.5 text-label-12 text-primary hover:underline">
                   <ArrowRight className="h-3 w-3" /> View Active Leads
                 </Link>
               </div>

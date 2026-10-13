@@ -35,9 +35,9 @@ export default function LeadDetailErrorBoundary({
         <Button onClick={reset} size="sm">
           Try Again
         </Button>
-        <Link href="/leads">
+        <Link href="/prospects">
           <Button variant="outline" size="sm">
-            Back to Leads
+            Back to Prospects
           </Button>
         </Link>
       </div>

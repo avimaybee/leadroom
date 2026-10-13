@@ -91,7 +91,7 @@ export async function bulkAdvanceStageAction(leadIds: string[]) {
     results.advanced++;
   });
 
-  revalidatePath('/leads');
+  revalidatePath('/prospects');
   revalidatePath('/');
   return results;
 }
@@ -125,7 +125,7 @@ export async function bulkAdvanceStageToAction(leadIds: string[], targetStage: s
     results.advanced++;
   });
 
-  revalidatePath('/leads');
+  revalidatePath('/prospects');
   revalidatePath('/');
   return results;
 }
@@ -188,7 +188,7 @@ export async function bulkResearchTriggerAction(leadIds: string[]) {
     results.triggered++;
   });
 
-  revalidatePath('/leads');
+  revalidatePath('/prospects');
   revalidatePath('/');
   return results;
 }
@@ -216,7 +216,7 @@ export async function bulkArchiveAction(leadIds: string[]) {
     results.archived++;
   });
 
-  revalidatePath('/leads');
+  revalidatePath('/prospects');
   revalidatePath('/');
   return results;
 }
@@ -248,7 +248,7 @@ export async function bulkReassignAction(leadIds: string[], targetOwnerId: strin
     results.reassigned++;
   });
 
-  revalidatePath('/leads');
+  revalidatePath('/prospects');
   revalidatePath('/');
   return results;
 }
@@ -326,7 +326,7 @@ export async function bulkAddTaskAction(leadIds: string[], title: string, dueDat
     results.created++;
   });
 
-  revalidatePath('/leads');
+  revalidatePath('/prospects');
   revalidatePath('/');
   return results;
 }
@@ -350,7 +350,7 @@ export async function bulkSetReminderAction(leadIds: string[], title: string, re
     results.created++;
   });
 
-  revalidatePath('/leads');
+  revalidatePath('/prospects');
   revalidatePath('/');
   return results;
 }

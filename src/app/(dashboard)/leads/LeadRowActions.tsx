@@ -52,7 +52,7 @@ export default function LeadRowActions({ leadId }: { leadId: string }) {
       {isOpen && (
         <div className="absolute right-0 mt-1.5 w-44 rounded-xl bg-card border border-border/80 shadow-lg z-50 py-1 text-left focus:outline-none animate-fade-in">
           <Link
-            href={`/leads/${leadId}`}
+            href={`/prospects/${leadId}`}
             onClick={() => setIsOpen(false)}
             className="flex items-center gap-2 px-3.5 py-2 text-label-12 text-foreground hover:bg-muted/80 transition-colors"
           >
@@ -60,7 +60,7 @@ export default function LeadRowActions({ leadId }: { leadId: string }) {
             <span>Open Lead</span>
           </Link>
           <Link
-            href={`/leads/${leadId}?view=outreach`}
+            href={`/prospects/${leadId}?view=outreach`}
             onClick={() => setIsOpen(false)}
             className="flex items-center gap-2 px-3.5 py-2 text-label-12 text-foreground hover:bg-muted/80 transition-colors"
           >
@@ -68,7 +68,7 @@ export default function LeadRowActions({ leadId }: { leadId: string }) {
             <span>Open Outreach</span>
           </Link>
           <Link
-            href={`/leads/${leadId}?view=activity`}
+            href={`/prospects/${leadId}?view=activity`}
             onClick={() => setIsOpen(false)}
             className="flex items-center gap-2 px-3.5 py-2 text-label-12 text-foreground hover:bg-muted/80 transition-colors"
           >

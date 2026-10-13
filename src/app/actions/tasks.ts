@@ -50,7 +50,7 @@ export async function createTaskAction(prevState: ActionState, formData: FormDat
   
   revalidatePath('/');
   if (leadId) {
-    revalidatePath(`/leads/${leadId}`);
+    revalidatePath(`/prospects/${leadId}`);
   }
   return { error: null };
 }
@@ -71,6 +71,6 @@ export async function toggleTaskStatusAction(id: string, currentStatus: string, 
   
   revalidatePath('/');
   if (leadId) {
-    revalidatePath(`/leads/${leadId}`);
+    revalidatePath(`/prospects/${leadId}`);
   }
 }

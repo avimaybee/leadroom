@@ -101,7 +101,7 @@ export default function NewLeadPage() {
       {/* Page Header */}
       <header className="space-y-4 border-b border-border/70 pb-6">
         <nav className="flex items-center gap-2 text-copy-14 text-muted-foreground">
-          <Link href="/leads" className="hover:text-foreground transition-colors">Leads</Link>
+          <Link href="/prospects" className="hover:text-foreground transition-colors">Prospects</Link>
           <span className="text-muted-foreground/30">/</span>
           <span className="font-medium text-foreground">New Lead</span>
         </nav>
@@ -227,7 +227,7 @@ export default function NewLeadPage() {
         {/* Form Confirmation Actions */}
         <div className="pt-5 border-t border-border/80 flex justify-end gap-3">
           <Link
-            href="/leads"
+            href="/prospects"
             className={buttonVariants({ variant: 'outline' })}
           >
             Discard Lead

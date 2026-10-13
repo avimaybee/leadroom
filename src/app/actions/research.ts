@@ -338,7 +338,7 @@ async function saveResearchSnapshotActionImpl(prevState: ActionState, formData: 
     return { error: msg };
   }
 
-  revalidatePath(`/leads/${leadId}`);
+  revalidatePath(`/prospects/${leadId}`);
   return { error: null, success: true };
 }
 
@@ -398,7 +398,7 @@ export async function addContactAction(prevState: ActionState, formData: FormDat
     return { error: msg };
   }
 
-  revalidatePath(`/leads/${leadId}`);
+  revalidatePath(`/prospects/${leadId}`);
   return { error: null, success: true };
 }
 
@@ -413,7 +413,7 @@ export async function deleteContactAction(leadId: string, contactId: string) {
 
   const service = await getService();
   await service.deleteContact(leadId, contactId, userId);
-  revalidatePath(`/leads/${leadId}`);
+  revalidatePath(`/prospects/${leadId}`);
 }
 
 export async function updateContactAction(prevState: ActionState, formData: FormData) {
@@ -458,6 +458,6 @@ export async function updateContactAction(prevState: ActionState, formData: Form
     return { error: msg };
   }
 
-  revalidatePath(`/leads/${leadId}`);
+  revalidatePath(`/prospects/${leadId}`);
   return { error: null, success: true };
 }

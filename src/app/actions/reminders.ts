@@ -48,6 +48,6 @@ export async function createReminderAction(prevState: ActionState, formData: For
   }
 
   revalidatePath('/');
-  if (leadId) revalidatePath(`/leads/${leadId}`);
+  if (leadId) revalidatePath(`/prospects/${leadId}`);
   return { success: true };
 }

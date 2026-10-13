@@ -65,8 +65,8 @@ export async function createLeadAction(prevState: ActionState, formData: FormDat
     return { error: msg };
   }
   
-  revalidatePath('/leads');
-  redirect('/leads');
+  revalidatePath('/prospects');
+  redirect('/prospects');
 }
 
 export async function archiveLeadAction(id: string) {
@@ -80,7 +80,7 @@ export async function archiveLeadAction(id: string) {
 
   const service = await getService();
   await service.archiveLead(id);
-  revalidatePath('/leads');
+  revalidatePath('/prospects');
 }
 
 export async function updateStageAction(formData: FormData) {
@@ -98,8 +98,8 @@ export async function updateStageAction(formData: FormData) {
   
   if (id && stage) {
     await service.updateStage(id, stage);
-    revalidatePath(`/leads/${id}`);
-    revalidatePath('/leads');
+    revalidatePath(`/prospects/${id}`);
+    revalidatePath('/prospects');
     revalidatePath('/');
   }
 }
@@ -142,8 +142,8 @@ export async function updateLeadAction(prevState: ActionState, formData: FormDat
     return { error: msg };
   }
   
-  revalidatePath(`/leads/${id}`);
-  revalidatePath('/leads');
+  revalidatePath(`/prospects/${id}`);
+  revalidatePath('/prospects');
   revalidatePath('/');
   return { success: true };
 }
@@ -173,7 +173,7 @@ export async function addNoteAction(prevState: ActionState, formData: FormData) 
     return { error: msg };
   }
 
-  revalidatePath(`/leads/${leadId}`);
+  revalidatePath(`/prospects/${leadId}`);
   revalidatePath('/');
 }
 

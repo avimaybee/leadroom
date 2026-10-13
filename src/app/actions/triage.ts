@@ -36,6 +36,6 @@ export async function toggleTriageStatusAction(
   }
 
   revalidatePath('/');
-  revalidatePath('/leads');
-  revalidatePath(`/leads/${entityId}`);
+  revalidatePath('/prospects');
+  revalidatePath(`/prospects/${entityId}`);
 }

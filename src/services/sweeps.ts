@@ -94,7 +94,7 @@ export async function runOverdueTaskSweep(db: Db): Promise<number> {
         notifTitle,
         `Task "${task.title}" is overdue (due: ${task.dueDate?.toISOString().split('T')[0]}).`,
         'INFO',
-        task.leadId ? `/leads/${task.leadId}` : undefined,
+        task.leadId ? `/prospects/${task.leadId}` : undefined,
       );
       notified++;
     })();

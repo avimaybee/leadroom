@@ -78,7 +78,7 @@ const DashboardTaskList = memo(function DashboardTaskList({ tasks, toggleTaskSta
             </span>
             {task.leadName && (
               <p className="text-copy-13 text-muted-foreground leading-normal line-clamp-1">
-                For: <Link href={`/leads/${task.leadId}`} className="hover:underline text-primary font-medium">{task.leadName}</Link>
+                For: <Link href={`/prospects/${task.leadId}`} className="hover:underline text-primary font-medium">{task.leadName}</Link>
               </p>
             )}
             

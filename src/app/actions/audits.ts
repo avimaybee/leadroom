@@ -84,7 +84,7 @@ export async function triggerAuditAction(leadId: string) {
     const leadService = new LeadService(db);
     await leadService.advanceStageIfEarlier(leadId, 'In Research');
 
-    revalidatePath(`/leads/${leadId}`);
+    revalidatePath(`/prospects/${leadId}`);
     return { error: null, success: true, jobId };
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'Failed to trigger audit';
@@ -129,7 +129,7 @@ export async function manualOverrideScoreAction(prevState: ActionState, formData
     await scoringService.manualOverride(leadId, scoreValue, rationale, userId);
 
     revalidatePath('/');
-    revalidatePath(`/leads/${leadId}`);
+    revalidatePath(`/prospects/${leadId}`);
     return { error: null, success: true };
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'Override failed';

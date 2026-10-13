@@ -9,13 +9,18 @@ const nextConfig = {
     return [
       {
         source: '/dashboard/leads/:id/research',
-        destination: '/leads/:id?view=research',
+        destination: '/prospects/:id?view=research',
         permanent: true,
       },
       {
         source: '/dashboard/leads/:id',
-        destination: '/leads/:id',
+        destination: '/prospects/:id',
         permanent: true,
+      },
+      {
+        source: '/leads/:id',
+        destination: '/prospects/:id',
+        permanent: false,
       },
       {
         source: '/dashboard/discovery/scopes/:id',

@@ -668,7 +668,7 @@ export class LeadService {
               this.db, oldTask.assigneeId, null,
               'All stage tasks complete',
               `All tasks for "${lead.stage}" are done — advance "${lead.name}" to the next stage?`,
-              'INFO', `/leads/${oldTask.leadId}`,
+              'INFO', `/prospects/${oldTask.leadId}`,
             );
           }
         }
@@ -907,7 +907,7 @@ export class LeadService {
             title: `Lead aging: ${lead.name}`,
             message: `${lead.name} has been in "${lead.stage}" for ${Math.round(ageDays)} days (${Math.round((ageDays / thresholdDays) * 100)}% of threshold).`,
             status: 'INFO',
-            link: `/leads/${lead.id}`,
+            link: `/prospects/${lead.id}`,
             isRead: false,
             createdAt: now,
           });
@@ -926,7 +926,7 @@ export class LeadService {
           title: `Lead stale: ${lead.name}`,
           message: `${lead.name} has been idle in "${lead.stage}" for ${Math.round(ageDays)} days (threshold: ${thresholdDays}).`,
           status: 'ERROR',
-          link: `/leads/${lead.id}`,
+          link: `/prospects/${lead.id}`,
           isRead: false,
           createdAt: now,
         });
@@ -1103,21 +1103,21 @@ export class LeadService {
   private signalToAction(signal: NBASignal, lead: any, strength: number): Omit<NBAResult, 'score'> {
     switch (signal) {
       case 'overdue_task':
-        return { action: 'Complete overdue tasks', type: 'task', priority: strength >= 0.67 ? 'High' : 'Medium', rationale: `${lead.name} has overdue tasks.`, link: `/leads/${lead.id}` };
+        return { action: 'Complete overdue tasks', type: 'task', priority: strength >= 0.67 ? 'High' : 'Medium', rationale: `${lead.name} has overdue tasks.`, link: `/prospects/${lead.id}` };
       case 'future_task':
-        return { action: 'Review upcoming tasks', type: 'task', priority: 'Medium', rationale: `${lead.name} has scheduled tasks.`, link: `/leads/${lead.id}` };
+        return { action: 'Review upcoming tasks', type: 'task', priority: 'Medium', rationale: `${lead.name} has scheduled tasks.`, link: `/prospects/${lead.id}` };
       case 'stale':
-        return { action: 'Re-engage stalled lead', type: 'review', priority: strength >= 0.75 ? 'High' : 'Medium', rationale: `${lead.name} has been idle in "${lead.stage}" past threshold.`, link: `/leads/${lead.id}` };
+        return { action: 'Re-engage stalled lead', type: 'review', priority: strength >= 0.75 ? 'High' : 'Medium', rationale: `${lead.name} has been idle in "${lead.stage}" past threshold.`, link: `/prospects/${lead.id}` };
       case 'unsent_draft':
-        return { action: 'Review and send outreach draft', type: 'outreach', priority: 'High', rationale: `${lead.name} has an unsent draft.`, link: `/leads/${lead.id}?view=outreach` };
+        return { action: 'Review and send outreach draft', type: 'outreach', priority: 'High', rationale: `${lead.name} has an unsent draft.`, link: `/prospects/${lead.id}?view=outreach` };
       case 'no_research':
-        return { action: 'Start lead research', type: 'research', priority: 'High', rationale: `${lead.name} has no research snapshot.`, link: `/leads/${lead.id}?view=research` };
+        return { action: 'Start lead research', type: 'research', priority: 'High', rationale: `${lead.name} has no research snapshot.`, link: `/prospects/${lead.id}?view=research` };
       case 'no_audit':
-        return { action: 'Run digital presence audit', type: 'audit', priority: 'Medium', rationale: `${lead.name} has not been audited.`, link: `/leads/${lead.id}?view=audit` };
+        return { action: 'Run digital presence audit', type: 'audit', priority: 'Medium', rationale: `${lead.name} has not been audited.`, link: `/prospects/${lead.id}?view=audit` };
       case 'unread':
-        return { action: 'Review new lead', type: 'review', priority: 'High', rationale: `${lead.name} is unread.`, link: `/leads/${lead.id}` };
+        return { action: 'Review new lead', type: 'review', priority: 'High', rationale: `${lead.name} is unread.`, link: `/prospects/${lead.id}` };
       default:
-        return { action: 'Review lead', type: 'review', priority: 'Low', rationale: `Review ${lead.name} for next steps.`, link: `/leads/${lead.id}` };
+        return { action: 'Review lead', type: 'review', priority: 'Low', rationale: `Review ${lead.name} for next steps.`, link: `/prospects/${lead.id}` };
     }
   }
 

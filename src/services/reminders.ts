@@ -55,7 +55,7 @@ export class ReminderService {
       title: `\u23F0 ${r.title}`,
       message: r.message || 'Reminder is due.',
       status: 'INFO' as const,
-      link: r.link || (r.leadId ? `/leads/${r.leadId}` : undefined) || null,
+      link: r.link || (r.leadId ? `/prospects/${r.leadId}` : undefined) || null,
       isRead: false,
       createdAt: now,
     }));

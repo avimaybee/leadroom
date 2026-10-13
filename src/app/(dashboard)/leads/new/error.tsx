@@ -15,8 +15,8 @@ export default function LeadNewErrorBoundary({
       reset={reset}
       title="Something went wrong"
       description="An error occurred while creating a new lead."
-      backHref="/leads"
-      backLabel="Back to Leads"
+      backHref="/prospects"
+      backLabel="Back to Prospects"
     />
   );
 }
