@@ -5,11 +5,11 @@
 Leadroom is built as a **Modular Monolith**. It runs on Cloudflare infrastructure, taking advantage of edge computing and durable background execution to orchestrate agentic sales workflows without requiring a complex microservices architecture.
 
 ### 1.1 Core Components
-- **Frontend / Client UI:** Next.js App Router (React, Tailwind CSS). Focuses on dense, information-rich tables and side-by-side review panels (Command Center).
+- **Frontend / Client UI:** Next.js App Router (React, Tailwind CSS). Focuses on dense, information-rich tables and side-by-side review panels (Command Center). Filters are server-driven via `Link` navigation — client components must not sync filter state to the URL with `useEffect`/`router.replace` (see §6).
 - **Application Server:** Next.js Server Actions and API Routes. Handles auth, data mutations, and triggering background workflows.
 - **Database:** Cloudflare D1 (Serverless SQLite) interacted with via Drizzle ORM.
-- **Agentic Engine:** Cloudflare Workflows (`@cloudflare/workflows`). Manages long-running, multi-step LLM tasks (fetching websites, extracting signals, drafting outreach).
-- **AI Integration Layer:** Structured LLM calls using `zod` schemas to enforce strict JSON outputs. Supports BYOK (Bring Your Own Key).
+- **Agentic Engine:** Cloudflare Workflows (`@cloudflare/workflows`) definitions live in `src/workflows/`, but the deployed OpenNext worker does not export workflow bindings — so all triggers actually run through the simulation shim in `src/lib/workflow-client.ts` (`ctx.waitUntil`, 25s cap, max 5 concurrent). Treat the simulation as the real engine until bindings are wired.
+- **AI Integration Layer:** Structured LLM calls using `zod` schemas to enforce strict JSON outputs. Supports BYOK (Bring Your Own Key). Per-attempt LLM timeout is 25s (inside the 30s Worker CPU budget); Apify calls use 25s.
 
 ---
 
@@ -38,12 +38,13 @@ Heavy research and drafting tasks run asynchronously so they don't block the UI 
 
 The codebase is organized to maintain clear boundaries between the UI, domain logic, and external dependencies.
 
-- `src/app/`: Next.js page routing and purely presentational UI components.
-- `src/components/`: Reusable UI components (tables, evidence panels, buttons).
+- `src/app/`: Next.js page routing. Detail page is canonical at `src/app/(dashboard)/prospects/[id]/`; `src/app/(dashboard)/leads/[id]/` is a redirect shell.
+- `src/components/`: Reusable UI components (tables, evidence panels, buttons). Shared detail components live in `src/components/lead/` (moved out of the legacy route).
 - `src/lib/domain/`: Core business logic (scoring algorithms, approval gating rules).
 - `src/db/`: Drizzle ORM schemas, migrations, and database access utilities.
-- `src/lib/workflows/`: Cloudflare Workflows definitions (the Agentic Engine).
-- `src/lib/ai/`: Wrappers for external LLM providers. Handles `zod` validation and BYOK logic.
+- `src/workflows/`: Cloudflare Workflows definitions (the Agentic Engine). Note: docs previously said `src/lib/workflows/` — that path does not exist.
+- `src/lib/ai.ts`: Wrappers for external LLM providers. Handles `zod` validation and BYOK logic.
+- `src/services/`: Server-side domain services (scoring, research-workflow, outreach, learning, discovery, sweeps).
 
 ---
 
@@ -71,3 +72,16 @@ A core architectural tenet is decoupling Fit Score from Confidence.
 - **Workspaces:** All core tables (Offers, ICPs, Prospects) are partitioned by a `workspace_id` to ensure strict tenant isolation.
 - **BYOK Storage:** API keys provided by the user are stored securely (e.g., Cloudflare Secrets/KV) and never logged.
 - **Read-Only Models:** The agents have read-only access to the web (fetching pages). They cannot execute autonomous writes outside of their isolated workflow state until a human explicitly approves the action in the UI.
+- **AI-rendered Markdown:** All LLM-generated Markdown renders through `SafeMarkdown` (`src/components/SafeMarkdown.tsx`) — raw HTML skipped, link URLs restricted to http/https/mailto.
+
+---
+
+## 6. Client-Side Rules (Vercel React Best Practices)
+
+Learned from the legacy-vs-new cleanup (Oct 2026). Binding for all new client code:
+
+1. **Filters are server state.** Filter/sort UI navigates with `Link` (or a native GET form for search). Never mirror filter state into the URL with `useEffect` + `router.replace` — it creates replace storms and scroll jumps.
+2. **Derive, don't sync.** Prop-to-state `useEffect` copies (`setX(prop)`) are banned. Derive during render with `useMemo`, lazy `useState` initializers, or remount via `key={...}` when the server identity changes.
+3. **Events, not effects.** User interactions (selects, tabs, channel switches) update the URL in their `onChange`/`onClick` handlers directly.
+4. **Stable effect deps.** Effects that fetch use primitive keys (e.g. a joined ID string), never fresh object/array identities.
+5. **Poll sparingly.** Polling intervals live only while a job is active, and `router.refresh()` on notification is throttled (30s) and limited to job updates — never on every poll tick.

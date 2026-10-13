@@ -2,7 +2,7 @@
 
 ## Document Status
 
-- Status: Active (Pivoted to SDR Agent).
+- Status: Active (Pivoted to SDR Agent; simplified Oct 2026).
 - Scope: Technical implementation plan for building Leadroom as an Autonomous SDR / Founder-Led Sales Agent.
 - Companion docs: `AGENTS.md`, `PRD.md`, `PIVOT.md`.
 - Audience: Founder, coding agents.
@@ -40,8 +40,8 @@ Establish the product brief, domain glossary, and non-goals.
 
 ### Phase 1: Static IA Prototype & Core Configuration
 **Objective:** Build the realistic static UI and establish the core data model.
-- **Data Model:** Create `workspaces`, `offers`, `icp_profiles` (with positive/negative signals, disqualifiers, weights), and `markets`.
-- **UI:** Scaffold the Command Center, Market Setup, ICP Builder, and Offer Setup screens.
+- **Data Model:** Create `workspaces`, `offers`, `icp_profiles` (with positive/negative signals, disqualifiers, weights). (`markets` was created here too but later removed from the UI — see Phase 7.)
+- **UI:** Command Center, Offer setup (`/settings/offer`), and ICP builder (`/settings/icp`).
 
 ### Phase 2: Prospect Ingestion & Research Queue
 **Objective:** Allow users to import prospects and run granular research jobs.
@@ -69,6 +69,15 @@ Establish the product brief, domain glossary, and non-goals.
 ### Phase 6: BYOK & Cost Controls
 **Objective:** Make the system usable with user-provided API keys.
 - **Logic:** Secure credential storage, cost estimation per batch run, and budget caps.
+
+### Phase 7: Simplification & Unification (COMPLETED Oct 2026)
+**Objective:** Cut the confusing dual navigation (new tabs + legacy tabs + Markets) down to one coherent app.
+- **IA:** Six tabs (Command Center, Prospects, Discovery, Research Queue, Outreach Drafts, Settings). Markets UI deleted; Offer/ICP moved under Settings; detail pages unified on `/prospects/[id]` with legacy redirects. DB tables kept for compatibility.
+- **Prospects:** Server-side tier/stage/search/sort filters via Links, newest-first default with Top Fit toggle, Added column, Load More, Add Prospect dialog. No `useEffect` URL sync.
+- **Research Queue:** One row per prospect with grouped tasks; CANCELLED status distinct from FAILED.
+- **Outreach:** Drafts queue covers all statuses; mark-sent fires an outcome-logging nudge.
+- ** hardening:** `SafeMarkdown` for AI content, 25s LLM/Apify timeouts, JSON-parse hardening, CANCELLED consistency.
+- **Onboarding:** Command Center shows a 3-step setup checklist for fresh workspaces.
 
 ---
 

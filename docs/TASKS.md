@@ -1,5 +1,7 @@
 # TASKS.md — SDR Pivot Execution Plan
 
+> **Note (Oct 2026):** All phases below are complete. The follow-up simplification pass is documented as Phase 7 in `PLAN.md` (Markets UI deleted, detail pages unified, server-driven filters, CANCELLED status, SafeMarkdown, setup checklist). This file is kept as the historical record.
+
 > **Executor instructions**: This is the authoritative execution plan. Read `AGENTS.md`, `PRD.md`, `DATA_MODEL.md`, `ARCHITECTURE.md`, and `PIVOT.md` first. Execute phases in order. Run each phase's verification gate before proceeding. If a STOP condition occurs, stop and report; do not improvise or broaden scope.
 
 ---
