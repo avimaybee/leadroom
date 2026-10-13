@@ -35,15 +35,15 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import ClientLeadProfile from '@/app/(dashboard)/leads/[id]/ClientLeadProfile';
-import ClientResearchView from '@/app/(dashboard)/leads/[id]/ClientResearchView';
-import ClientAuditView from '@/app/(dashboard)/leads/[id]/ClientAuditView';
-import ClientActivityList from '@/app/(dashboard)/leads/[id]/ClientActivityList';
-import ClientNotesForm from '@/app/(dashboard)/leads/[id]/ClientNotesForm';
-import ClientTaskForm from '@/app/(dashboard)/leads/[id]/ClientTaskForm';
-import ClientTaskItem from '@/app/(dashboard)/leads/[id]/ClientTaskItem';
-import ClientContactsList from '@/app/(dashboard)/leads/[id]/ClientContactsList';
-import OutreachAssistant from '@/app/(dashboard)/leads/[id]/OutreachAssistant';
+import ClientLeadProfile from '@/components/lead/ClientLeadProfile';
+import ClientResearchView from '@/components/lead/ClientResearchView';
+import ClientAuditView from '@/components/lead/ClientAuditView';
+import ClientActivityList from '@/components/lead/ClientActivityList';
+import ClientNotesForm from '@/components/lead/ClientNotesForm';
+import ClientTaskForm from '@/components/lead/ClientTaskForm';
+import ClientTaskItem from '@/components/lead/ClientTaskItem';
+import ClientContactsList from '@/components/lead/ClientContactsList';
+import OutreachAssistant from '@/components/lead/OutreachAssistant';
 import { updateStageAction, addNoteAction, updateLeadAction, archiveLeadAction } from '@/app/actions/prospects';
 import { logNbaActionAction, dismissNbaActionAction } from '@/app/actions/tracking';
 
