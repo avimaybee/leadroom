@@ -9,7 +9,6 @@ import { redirect } from 'next/navigation';
 import { getUserId, verifyProspectAccess } from '@/lib/auth';
 import { getLogger } from '@/lib/logger';
 import { getSafeErrorMessage } from '@/lib/errors';
-import { fetchEnrichedLeadsPage, applyLeadFilters, type EnrichedLead } from '@/lib/leads-query';
 
 const log = getLogger('LeadsActions');
 
@@ -191,22 +190,4 @@ export async function getUnmetStageRequirementsAction(leadId: string, email: str
   if (!userId) return { error: 'Unauthorized' };
   const service = await getService();
   return service.getUnmetStageRequirements(leadId, email);
-}
-
-/**
- * Loads the next page of active leads for the legacy leads list.
- * Used by the "Load more" button so rows beyond the initial 200 remain reachable.
- */
-export async function loadMoreLeadsAction(
-  offset: number,
-  filters: { campaignIdFilter?: string; activeFilter?: string; stageFilter?: string } = {},
-  limit = 100
-) {
-  const userId = await getUserId();
-  if (!userId) return { error: 'Unauthorized', leads: [] };
-
-  const db = getDb();
-  const page = await fetchEnrichedLeadsPage(db, userId, { offset, limit });
-  const filtered = applyLeadFilters<EnrichedLead>(page.leads, filters);
-  return { success: true, leads: filtered, total: page.total };
 }

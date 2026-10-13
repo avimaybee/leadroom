@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useNotifications } from '@/components/NotificationProvider';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { toast } from 'sonner';
 import {
   Sheet,
   SheetContent,
@@ -239,6 +240,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
 
   const handleUpdateStatus = async (candidateId: string, status: 'PROMOTED' | 'DISCARDED') => {
     try {
+      const candidate = candidates.find((c) => c.id === candidateId);
       const payload = { id: candidateId, status };
 
       const res = await fetch('/api/candidates', {
@@ -257,11 +259,30 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
         throw new Error(errMsg);
       }
 
+      if (status === 'PROMOTED') {
+        const body = (await res.json()) as { success: boolean; data?: { id: string; website?: string | null } };
+        const leadId = body.data?.id;
+        const researching = !!body.data?.website;
+        if (leadId) {
+          toast.success(researching ? 'Promoted — research running' : 'Promoted to prospect', {
+            description: researching
+              ? `${candidate?.rawName || 'Prospect'} is being researched.`
+              : `${candidate?.rawName || 'Prospect'} has no website — research will start once one is added.`,
+            action: { label: 'View prospect', onClick: () => router.push(`/prospects/${leadId}`) },
+            duration: 8000,
+          });
+        } else {
+          toast.success('Promoted to prospect');
+        }
+      } else {
+        toast.success('Candidate discarded');
+      }
+
       // Re-fetch data
       await fetchData();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error updating candidate';
-      alert(msg);
+      toast.error(msg);
     }
   };
 
@@ -284,9 +305,8 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
       setIsSettingsSheetOpen(false);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error renaming campaign';
-      alert(msg);
+      toast.error(msg);
       setNewScopeName(scope.name);
-      alert(msg);
     } finally {
       setIsRenaming(false);
     }
@@ -377,7 +397,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
       await fetchRecentRuns();
     } catch (err: unknown) {
       console.error(err);
-      alert(err instanceof Error ? err.message : 'Failed to launch refined search');
+      toast.error(err instanceof Error ? err.message : 'Failed to launch refined search');
       await fetchRecentRuns();
     }
   };
@@ -399,7 +419,7 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
       setEnrichProgress(null);
       await fetchRecentRuns();
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Error canceling search');
+      toast.error(err instanceof Error ? err.message : 'Error canceling search');
     } finally {
       setIsCancelling(false);
     }
@@ -424,9 +444,10 @@ export default function ScopeDetailPage({ params }: { params: Promise<{ id: stri
         )
       );
       setIsBulkDiscardOpen(false);
+      toast.success(`Discarded ${skipCandidates.length} skipped candidate${skipCandidates.length === 1 ? '' : 's'}`);
       await fetchData();
     } catch (err: unknown) {
-      alert('Failed to discard some candidates.');
+      toast.error('Failed to discard some candidates.');
     } finally {
       setLoading(false);
       setDiscardProgress(false);
